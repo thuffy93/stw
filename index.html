@@ -6,7 +6,8 @@
     <title>Super Tiny World Simplified</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: "Arial Black", Arial, sans-serif;
+            font-weight: bold;
             margin: 0;
             padding: 0;
             height: 100vh;
@@ -15,19 +16,30 @@
             overflow: hidden;
             background-color: #f5f5f5;
         }
-        #characterSelectScreen, #battleScreen, #shopScreen {
+        #characterSelectScreen, #gemCatalogScreen, #battleScreen, #shopScreen, #campScreen {
             display: none;
-            flex: 1;
             flex-direction: column;
             padding: 20px;
-            position: relative;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
         }
-        #characterSelectScreen {
+        #characterSelectScreen.active, #gemCatalogScreen.active, #battleScreen.active, #shopScreen.active, #campScreen.active {
+            display: flex;
+        }
+        #characterSelectScreen, #gemCatalogScreen {
             text-align: center;
             justify-content: center;
             align-items: center;
-            display: flex;
             gap: 40px;
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin: 20px;
+            position: relative;
         }
         #gameTitle {
             margin: 0;
@@ -36,24 +48,37 @@
             color: #333;
         }
         #battleScreen {
+            transition: background-color 0.5s ease;
             position: relative;
         }
+        #battleScreen.dawn { background-color: #ffcc99; }
+        #battleScreen.dusk { background-color: #9966cc; }
+        #battleScreen.dark { background-color: #1a3366; color: #fff; }
+        #battleScreen.dark #enemyStats, #battleScreen.dark #playerStats { 
+            background-color: rgba(255, 255, 255, 0.9); 
+            color: #000;
+        }
         #enemyStats {
-            flex: 0 0 50%;
+            flex: 0 0 40%;
             padding: 20px;
             text-align: center;
-            border-bottom: 1px solid #ccc;
             font-size: 1.5em;
             background-color: #fff;
             border-radius: 5px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
+        #enemyStats h2 {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
         #playerSection {
-            flex: 0 0 50%;
+            flex: 0 0 60%;
             display: flex;
             flex-direction: row;
             align-items: center;
-            justify-content: flex-start;
             padding: 20px;
             gap: 20px;
         }
@@ -65,20 +90,26 @@
             background-color: #fff;
             border-radius: 5px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-height: 150px;
+            position: relative;
+            overflow: visible;
+        }
+        #playerStats p, #enemyStats p {
+            margin: 5px 0;
+            padding: 0;
         }
         #handAndActions {
             flex: 1;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
         }
         #actionButtons {
             display: flex;
             gap: 15px;
             margin-bottom: 20px;
         }
-        #hand, #shopHand {
+        #hand, #shopHand, #unlockedGems, #availableGems, #gemPool {
             font-size: 1.2em;
             display: flex;
             flex-wrap: wrap;
@@ -86,20 +117,155 @@
             gap: 10px;
         }
         .gem {
-            display: inline-block;
             padding: 10px;
             border: 1px solid #ddd;
             border-radius: 5px;
-            cursor: pointer;
+            cursor: move;
             background-color: #f0f0f0;
-            transition: transform 0.2s;
+            transition: transform 0.2s ease, opacity 0.3s ease, box-shadow 0.2s ease;
+            position: relative;
         }
-        .gem.red { background-color: #ffcccc; }
-        .gem.blue { background-color: #cce5ff; }
-        .gem.green { background-color: #ccffcc; }
+        .gem.red { background-color: #ff5555; }
+        .gem.blue { background-color: #6699ff; }
+        .gem.green { background-color: #55cc55; }
         .gem.grey { background-color: #e0e0e0; }
+        .gem.unlearned { border: 2px dashed #ff5555; }
         .gem:hover { transform: scale(1.05); }
         .gem.selected { border: 2px solid black; }
+        .gem.played { animation: flyToEnemy 0.5s ease forwards; }
+        .gem[data-tooltip]:after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 110%;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-size: 0.9em;
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
+        }
+        .gem[data-tooltip]:hover:after {
+            opacity: 1;
+            transition-delay: 0.5s;
+        }
+        #gemBagContainer {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            padding: 5px 10px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1.2em;
+            z-index: 100;
+            cursor: default;
+        }
+        #battleScreen.dark #gemBagContainer {
+            background-color: rgba(255, 255, 255, 0.9);
+            color: #000;
+        }
+        #gemBagContainer[data-tooltip]:after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            right: 0;
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-size: 0.9em;
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
+            background-color: #b0b0b0;
+        }
+        #gemBagContainer[data-tooltip]:hover:after {
+            opacity: 1;
+            transition-delay: 0.5s;
+        }
+        #playerBuffs {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        #enemyBuffs {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            vertical-align: middle;
+        }
+        .buff-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            font-size: 18px;
+            color: #fff;
+        }
+        .buff-icon.focused { background-color: #55cc55; }
+        .buff-icon.defense { background-color: #6666ff; }
+        .buff-icon.stunned { background-color: #ff5555; }
+        .buff-icon .turns {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            font-size: 0.6em;
+            background-color: rgba(0, 0, 0, 0.7);
+            border-radius: 50%;
+            width: 12px;
+            height: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .buff-icon[data-tooltip]:after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 5px;
+            white-space: nowrap;
+            font-size: 0.75em;
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
+            background-color: #333;
+        }
+        .buff-icon[data-tooltip]:hover:after {
+            opacity: 1;
+            transition-delay: 0.5s;
+        }
+        #enemyActionQueue {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #666;
+        }
+        #fleeBtn {
+            position: absolute;
+            bottom: 100px;
+            left: calc(25% + 15px + 45px);
+            padding: 10px 20px;
+            font-size: 1.1em;
+            background-color: #ffaa33;
+            color: #fff;
+        }
+        #fleeBtn:hover:not(:disabled) { background-color: #ff8800; }
         button {
             padding: 10px 20px;
             cursor: pointer;
@@ -108,30 +274,41 @@
             border: none;
             border-radius: 5px;
             background-color: #ddd;
+            font-family: "Arial Black", Arial, sans-serif;
+            font-weight: bold;
         }
-        button:hover {
-            transform: scale(1.1);
-            background-color: #e0e0e0;
+        button:hover:not(:disabled) { transform: scale(1.1); background-color: #e0e0e0; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        #knightBtn { background-color: #ff5555; }
+        #knightBtn:hover { background-color: #ff3333; }
+        #mageBtn { background-color: #6699ff; }
+        #mageBtn:hover { background-color: #4477ff; }
+        #rogueBtn { background-color: #55cc55; }
+        #rogueBtn:hover { background-color: #33aa33; }
+        #knightBtn, #mageBtn, #rogueBtn {
+            width: 200px;
+            min-height: 50px;
+            padding: 10px 20px;
+            font-size: 1em;
+            text-align: center;
         }
-        button:disabled {
-            opacity: 0.3;
-            background-color: #ccc;
-            cursor: not-allowed;
-            transform: none;
-        }
-        #knightBtn { background-color: #ff9999; }
-        #knightBtn:hover { background-color: #ff6666; }
-        #mageBtn { background-color: #99ccff; }
-        #mageBtn:hover { background-color: #66b3ff; }
-        #rogueBtn { background-color: #99ff99; }
-        #rogueBtn:hover { background-color: #66ff66; }
-        #deckSizeIndicator {
+        #resetBtn {
             position: absolute;
             bottom: 20px;
             right: 20px;
-            font-size: 2em;
+            padding: 5px 10px;
+            font-size: 0.8em;
+            background-color: #fff;
             color: #333;
+            border: 1px solid #ccc;
         }
+        #resetBtn:hover { background-color: #f0f0f0; }
+        #continueJourneyBtn {
+            background-color: #55aa55;
+            font-size: 1em;
+            margin-top: 20px;
+        }
+        #continueJourneyBtn:hover { background-color: #338833; }
         #shopScreen {
             justify-content: center;
             background-color: #fff;
@@ -146,888 +323,971 @@
             gap: 20px;
             padding: 20px;
         }
-        #shopZenny, #shopHealth, #shopDeckInfo {
-            position: absolute;
-            font-size: 1.5em;
-            color: #333;
-        }
-        #shopZenny { left: 20px; bottom: 20px; }
-        #shopHealth { top: 20px; left: 20px; }
-        #shopDeckInfo { top: 20px; right: 20px; }
-        #upgradeOptions {
-            display: flex;
-            gap: 20px;
+        .shop-section {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 15px;
+            width: 80%;
+            text-align: center;
         }
         #message {
             text-align: center;
-            font-weight: bold;
-            color: #d32f2f;
             margin: 10px 0;
             padding: 10px;
-            background-color: #ffebee;
             border-radius: 5px;
         }
-        #bossCondition {
-            font-style: italic;
-            color: #666;
-        }
-        #waitBuffIndicator {
-            font-style: italic;
-            color: #006600;
-        }
-        .class-container {
+        #message.success { color: #006600; background-color: #e6ffe6; }
+        #message.error { color: #d32f2f; background-color: #ffebee; }
+        #dayPhaseIndicator {
+            position: absolute;
+            top: 50px;
+            left: 0px;
+            width: 581px;
+            height: 59px;
             display: flex;
-            flex-direction: column;
             align-items: center;
-            gap: 10px;
+            justify-content: center;
+            font-size: 3.54em;
+            color: #333;
         }
-        .class-description {
-            font-size: 0.9em;
-            color: #555;
-            max-width: 200px;
+        #battleScreen.dark #dayPhaseIndicator {
+            color: #000;
+        }
+        #turnIndicator {
+            position: absolute;
+            top: 130px;
+            left: 290px;
+            transform: translateX(-50%);
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-size: 1.2em;
             text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: background-color 0.3s ease;
+        }
+        #turnIndicator.player { background-color: #55cc55; color: white; }
+        #turnIndicator.enemy { background-color: #ff5555; color: white; }
+        #staminaBar {
+            width: 100%;
+            height: 20px;
+            background-color: #ddd;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-top: 5px;
+            position: relative;
+        }
+        #staminaFill {
+            height: 100%;
+            width: 0;
+            transition: width 0.3s ease, background-color 0.3s ease;
+        }
+        #staminaFill.full { background-color: #55cc55; }
+        #staminaFill.medium { background-color: #ffcc00; }
+        #staminaFill.low { background-color: #ff5555; }
+        #staminaText {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.9em;
+            color: #333;
+        }
+        #campScreen {
+            justify-content: center;
+            align-items: center;
+            background-color: #fff8e1;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin: 20px;
+        }
+        #withdrawAmount, #depositAmount { 
+            margin: 10px 0; 
+            padding: 5px; 
+            width: 150px;
+            font-family: "Arial Black", Arial, sans-serif;
+            font-weight: bold;
+        }
+        @keyframes flyToEnemy {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: translateY(-50px) scale(1.2); opacity: 0.8; }
+            100% { transform: translateY(-100px) scale(0); opacity: 0; }
         }
     </style>
 </head>
 <body>
     <div id="characterSelectScreen">
         <h1 id="gameTitle">Super Tiny World Simplified</h1>
-        <div class="class-container">
-            <button id="knightBtn" title="Boosts Red Gems by 50%">Knight (Red Gem Buff)</button>
-            <span class="class-description">Durable warrior with enhanced Red Gem damage.</span>
-        </div>
-        <div class="class-container">
-            <button id="mageBtn" title="Boosts Blue Gems by 50%">Mage (Blue Gem Buff)</button>
-            <span class="class-description">Mystical caster with boosted Blue Gem effects.</span>
-        </div>
-        <div class="class-container">
-            <button id="rogueBtn" title="Boosts Green Gems by 50%">Rogue (Green Gem Buff)</button>
-            <span class="class-description">Swift trickster with powerful Green Gem strikes.</span>
-        </div>
+        <div class="class-container"><button id="knightBtn" title="Boosts Red Gems by 50%">Knight (Red Gem Buff)</button></div>
+        <div class="class-container"><button id="mageBtn" title="Boosts Blue Gems by 50%">Mage (Blue Gem Buff)</button></div>
+        <div class="class-container"><button id="rogueBtn" title="Boosts Green Gems by 50%">Rogue (Green Gem Buff)</button></div>
+        <button id="resetBtn" title="Reset all meta-progression">Reset Meta-Progression</button>
     </div>
-
+    <div id="gemCatalogScreen">
+        <h1>Gem Catalog</h1>
+        <p>Meta $ZENNY: <span id="metaZennyDisplay">0</span></p>
+        <div id="unlockedGemsSection"><h2>Unlocked Gems</h2><div id="unlockedGems"></div></div>
+        <div id="availableGemsSection"><h2>Available Gems to Unlock</h2><div id="availableGems"></div></div>
+        <button id="continueJourneyBtn" title="Start your 7-day journey">Continue to Journey</button>
+    </div>
     <div id="battleScreen">
+        <div id="turnIndicator"></div>
+        <div id="dayPhaseIndicator"></div>
         <div id="enemyStats">
-            <h2>Enemy</h2>
-            <p>Name: <span id="enemyName">Grunt Level 1</span></p>
+            <h2><span id="enemyName">Grunt</span><span id="enemyBuffs"></span></h2>
             <p>Health: <span id="enemyHealth">20</span>/<span id="enemyMaxHealth">20</span></p>
             <p>Attack: <span id="enemyAttack">5</span></p>
-            <p>Condition: <span id="bossCondition"></span></p>
+            <p id="enemyCondition"></p>
+            <div id="enemyActionQueue"></div>
         </div>
-        
         <div id="playerSection">
             <div id="playerStats">
                 <h2>Player</h2>
+                <div id="playerBuffs"></div>
                 <p>Class: <span id="playerClass">None</span></p>
                 <p>Health: <span id="playerHealth">30</span>/<span id="playerMaxHealth">30</span></p>
-                <p>Stamina: <span id="stamina">3</span></p>
+                <p>Stamina: <div id="staminaBar"><div id="staminaFill"></div><span id="staminaText"></span></div></p>
                 <p>$ZENNY: <span id="zenny">0</span></p>
-                <p id="waitBuffIndicator"></p>
             </div>
-            
+            <button id="fleeBtn" title="Flee the battle, skipping rewards">Flee</button>
             <div id="handAndActions">
                 <div id="actionButtons">
                     <button id="executeBtn" title="Play selected Gems">Execute</button>
+                    <button id="waitBtn" title="Skip action and end turn with a buff">Wait</button>
+                    <button id="discardEndBtn" title="Discard selected Gems and end turn">Discard and End</button>
                     <button id="endTurnBtn" title="End your turn, enemy attacks">End Turn</button>
-                    <button id="discardAndEndTurnBtn" title="Discard selected Gems and end turn">Discard and End Turn</button>
-                    <button id="waitBtn" title="Wait for class-specific buff next turn">Wait</button>
                 </div>
-                
-                <div id="hand">
-                    <h2>Your Hand</h2>
-                </div>
+                <div id="hand"></div>
             </div>
         </div>
-        
-        <div id="deckSizeIndicator">Deck: <span id="deckSize">30</span>/<span id="maxDeckSize">30</span></div>
+        <div id="gemBagContainer">Gem Bag: <span id="gemBagCount">20</span>/<span id="gemBagTotal">20</span></div>
     </div>
-    
     <div id="shopScreen">
-        <div id="shopHealth">Health: <span id="shopHealthValue">30</span>/<span id="shopMaxHealthValue">30</span></div>
-        <div id="shopZenny">$ZENNY: <span id="shopZennyValue">0</span></div>
-        <div id="shopDeckInfo">Deck: <span id="shopDeckSize">30</span>/30 | Discard: <span id="shopDiscardSize">0</span></div>
         <div id="shopSelections">
             <h2>Shop</h2>
-            <div id="shopHand">
-                <h2>Your Hand</h2>
+            <div id="shopStats">
+                <p>Health: <span id="shopHealth">30</span>/<span id="shopMaxHealth">30</span></p>
+                <p>$ZENNY: <span id="shopZenny">0</span></p>
             </div>
-            <button id="heal10" title="Restore 10 health for 5 $ZENNY">Heal 10 health - 5 $ZENNY</button>
-            <button id="buyRandomGem" title="Add a random Gem to your deck">Buy Random Gem - 10 $ZENNY</button>
-            <button id="discardGem" title="Discard selected Gem for 3 $ZENNY">Discard Selected Gem - +3 $ZENNY</button>
-            <button id="continueBtn" title="Proceed to next battle">Continue to next battle</button>
-            <div id="upgradeOptions"></div>
+            <div id="shopHand"><h2>Your Hand</h2></div>
+            <div class="shop-section">
+                <h3>Healing</h3>
+                <button id="heal10">Heal 10 health - 5 $ZENNY</button>
+            </div>
+            <div class="shop-section">
+                <h3>Gem Bag Management</h3>
+                <button id="buyRandomGem">Buy Random Gem - 10 $ZENNY</button>
+                <button id="discardGem">Discard Selected Gem - +3 $ZENNY</button>
+                <button id="upgradeGem">Upgrade Selected Gem - 15 $ZENNY</button>
+            </div>
+            <div class="shop-section">
+                <h3>Gem Pool</h3>
+                <button id="swapGem">Swap Gem - 5 $ZENNY</button>
+                <div id="gemPool"></div>
+            </div>
+            <button id="continueBtn">Continue to next battle</button>
         </div>
     </div>
-    
+    <div id="campScreen">
+        <h1>Camp - Day <span id="campDay"></span></h1>
+        <p>Journey $ZENNY: <span id="campZenny"></span></p>
+        <input type="number" id="withdrawAmount" min="0" placeholder="Amount to withdraw">
+        <button id="withdrawBtn">Withdraw to Meta Wallet</button>
+        <p>Meta $ZENNY: <span id="campMetaZenny"></span></p>
+        <input type="number" id="depositAmount" min="0" placeholder="Amount to deposit">
+        <button id="depositBtn">Deposit to Journey Wallet</button>
+        <button id="nextDayBtn">Proceed to Next Day</button>
+    </div>
     <div id="message"></div>
-    
     <script>
-        let player = {
-            class: null,
-            maxHealth: 30,
-            health: 30,
-            stamina: 3,
-            baseStamina: 3,
-            zenny: 0,
-            damageReduction: 0,
-            waitBuff: null
+        const gameState = {
+            player: { 
+                class: null, 
+                maxHealth: 30, 
+                health: 30, 
+                stamina: 3, 
+                baseStamina: 3, 
+                zenny: 0,
+                buffs: []
+            },
+            metaZenny: 0,
+            currentDay: 1,
+            phases: ["Dawn", "Dusk", "Dark"],
+            currentPhaseIndex: 0,
+            battleCount: 0,
+            maxDays: 7,
+            battlesPerDay: 3,
+            enemy: null,
+            enemies: [
+                { name: "Grunt", maxHealth: 20, actions: ["Attack 5", "Defend", "Attack 3"] },
+                { name: "Bandit", maxHealth: 15, actions: ["Attack 7", "Steal 3", "Defend"] },
+                { name: "Wolf", maxHealth: 25, actions: ["Attack 4", "Charge", "Attack 6"] }
+            ],
+            boss: { 
+                name: "Dark Guardian", 
+                maxHealth: 40, 
+                actions: ["Attack 8", "Charge", "Defend"],
+                shield: true, 
+                shieldColor: "red" 
+            },
+            baseGemBag: {
+                redAttack: { name: "Attack", color: "red", cost: 2, damage: 5, upgradeCount: 0, rarity: "Common" },
+                redBurst: { name: "Burst", color: "red", cost: 3, damage: 10, upgradeCount: 0, rarity: "Rare" },
+                blueMagicAttack: { name: "Magic Attack", color: "blue", cost: 2, damage: 7, upgradeCount: 0, rarity: "Common" },
+                blueShield: { name: "Shield", color: "blue", cost: 2, heal: 3, upgradeCount: 0, rarity: "Rare", shield: true },
+                greenAttack: { name: "Attack", color: "green", cost: 1, damage: 5, upgradeCount: 0, rarity: "Common" },
+                greenPoison: { name: "Poison", color: "green", cost: 2, damage: 3, upgradeCount: 0, rarity: "Rare", poison: 2 },
+                greyHeal: { name: "Heal", color: "grey", cost: 1, heal: 5, upgradeCount: 0, rarity: "Common" }
+            },
+            gemCatalog: {
+                unlocked: ["redAttack", "greenAttack", "greyHeal", "blueMagicAttack"],
+                available: ["redBurst", "blueShield", "greenPoison"],
+                maxCapacity: 15,
+                gemPool: [],
+                upgradedThisShop: new Set()
+            },
+            gemBag: [],
+            hand: [],
+            discard: [],
+            maxHandSize: 3,
+            maxGemBagSize: 20,
+            battleOver: false,
+            selectedGems: new Set(),
+            selectedPoolGem: null,
+            hasActedThisTurn: false,
+            hasPlayedGemThisTurn: false,
+            currentScreen: "characterSelect",
+            isEnemyTurnPending: false,
+            gemProficiency: {
+                redAttack: { successCount: 6, failureChance: 0 },
+                greenAttack: { successCount: 6, failureChance: 0 },
+                blueMagicAttack: { successCount: 6, failureChance: 0 },
+                greyHeal: { successCount: 6, failureChance: 0 }
+            }
         };
 
-        let enemyLevel = 1;
-        const regularEnemies = [
-            { type: "Grunt", baseHealth: 20, baseAttack: 5 },
-            { type: "Brute", baseHealth: 25, baseAttack: 3 },
-            { type: "Striker", baseHealth: 15, baseAttack: 7 }
-        ];
-        const bossEnemies = [
-            { type: "Overlord", baseHealth: 40, baseAttack: 5, condition: "staminaMinusOne" },
-            { type: "Twin Fang", baseHealth: 30, baseAttack: 4, condition: "doubleAttack" },
-            { type: "Shadow", baseHealth: 25, baseAttack: 8, condition: "healHalf" }
-        ];
-        let isBossBattle = false;
-        let enemy = getEnemy(enemyLevel);
-        let enemyStunned = false;
-
-        let baseDeck = {
-            // Base Gems
-            redAttack: { name: "Red Attack", color: "red", cost: 2, damage: 5 },
-            redStrongAttack: { name: "Red Strong Attack", color: "red", cost: 2, damage: 8 }, // Knight-only
-            greenAttack: { name: "Green Attack", color: "green", cost: 1, damage: 5 },
-            greenQuickAttack: { name: "Green Quick Attack", color: "green", cost: 1, damage: 3, hits: 2 }, // Rogue-only
-            greyHeal: { name: "Grey Heal", color: "grey", cost: 1, heal: 5 },
-            blueStrongHeal: { name: "Blue Strong Heal", color: "blue", cost: 2, heal: 8 }, // Mage-only
-            blueMagicAttack: { name: "Blue Magic Attack", color: "blue", cost: 2, damage: 7 },
-            blueShield: { name: "Blue Shield", color: "blue", cost: 1, damageReduction: 0.5 },
-            blueStun: { name: "Blue Stun", color: "blue", cost: 2, stun: true }, // Mage-only utility
-            // Powerful Action Gems
-            redMightyAttack: { name: "Red Mighty Attack", color: "red", cost: 3, damage: 12 },
-            greenTripleStrike: { name: "Green Triple Strike", color: "green", cost: 2, damage: 4, hits: 3 },
-            blueMegaHeal: { name: "Blue Mega Heal", color: "blue", cost: 3, heal: 12 },
-            blueArcaneBlast: { name: "Blue Arcane Blast", color: "blue", cost: 3, damage: 10 }
+        const elements = {
+            characterSelectScreen: document.getElementById("characterSelectScreen"),
+            gemCatalogScreen: document.getElementById("gemCatalogScreen"),
+            battleScreen: document.getElementById("battleScreen"),
+            shopScreen: document.getElementById("shopScreen"),
+            campScreen: document.getElementById("campScreen"),
+            dayPhaseIndicator: document.getElementById("dayPhaseIndicator"),
+            turnIndicator: document.getElementById("turnIndicator"),
+            enemyName: document.getElementById("enemyName"),
+            enemyHealth: document.getElementById("enemyHealth"),
+            enemyMaxHealth: document.getElementById("enemyMaxHealth"),
+            enemyAttack: document.getElementById("enemyAttack"),
+            enemyCondition: document.getElementById("enemyCondition"),
+            enemyBuffs: document.getElementById("enemyBuffs"),
+            enemyActionQueue: document.getElementById("enemyActionQueue"),
+            playerClass: document.getElementById("playerClass"),
+            playerHealth: document.getElementById("playerHealth"),
+            playerMaxHealth: document.getElementById("playerMaxHealth"),
+            staminaBar: document.getElementById("staminaBar"),
+            staminaFill: document.getElementById("staminaFill"),
+            staminaText: document.getElementById("staminaText"),
+            zenny: document.getElementById("zenny"),
+            playerBuffs: document.getElementById("playerBuffs"),
+            gemBagCount: document.getElementById("gemBagCount"),
+            gemBagTotal: document.getElementById("gemBagTotal"),
+            gemBagContainer: document.getElementById("gemBagContainer"),
+            hand: document.getElementById("hand"),
+            shopHand: document.getElementById("shopHand"),
+            unlockedGems: document.getElementById("unlockedGems"),
+            availableGems: document.getElementById("availableGems"),
+            gemPool: document.getElementById("gemPool"),
+            message: document.getElementById("message"),
+            executeBtn: document.getElementById("executeBtn"),
+            waitBtn: document.getElementById("waitBtn"),
+            discardEndBtn: document.getElementById("discardEndBtn"),
+            endTurnBtn: document.getElementById("endTurnBtn"),
+            fleeBtn: document.getElementById("fleeBtn"),
+            heal10: document.getElementById("heal10"),
+            buyRandomGem: document.getElementById("buyRandomGem"),
+            discardGem: document.getElementById("discardGem"),
+            upgradeGem: document.getElementById("upgradeGem"),
+            swapGem: document.getElementById("swapGem"),
+            continueBtn: document.getElementById("continueBtn"),
+            continueJourneyBtn: document.getElementById("continueJourneyBtn"),
+            knightBtn: document.getElementById("knightBtn"),
+            mageBtn: document.getElementById("mageBtn"),
+            rogueBtn: document.getElementById("rogueBtn"),
+            resetBtn: document.getElementById("resetBtn"),
+            shopHealth: document.getElementById("shopHealth"),
+            shopMaxHealth: document.getElementById("shopMaxHealth"),
+            shopZenny: document.getElementById("shopZenny"),
+            playerStats: document.getElementById("playerStats"),
+            campDay: document.getElementById("campDay"),
+            campZenny: document.getElementById("campZenny"),
+            campMetaZenny: document.getElementById("campMetaZenny"),
+            withdrawAmount: document.getElementById("withdrawAmount"),
+            withdrawBtn: document.getElementById("withdrawBtn"),
+            depositAmount: document.getElementById("depositAmount"),
+            depositBtn: document.getElementById("depositBtn"),
+            nextDayBtn: document.getElementById("nextDayBtn"),
+            metaZennyDisplay: document.getElementById("metaZennyDisplay")
         };
-        const powerfulActionGems = [
-            "redMightyAttack", "greenTripleStrike", "blueMegaHeal", "blueArcaneBlast"
-        ];
-        let deck = [];
-        let hand = [];
-        let discard = [];
-        const maxHandSize = 3;
-        const maxDeckSize = 30; // Doubled from 15
-        let battleOver = false;
-        let selectedGems = new Set();
-        let hasActedThisTurn = false;
-        let currentScreen = "characterSelect";
 
-        function getEnemy(level) {
-            if (level % 3 === 0) {
-                const bossIndex = Math.floor((level - 1) / 3) % 3;
-                const base = bossEnemies[bossIndex];
-                isBossBattle = true;
-                return {
-                    name: `${base.type} Level ${level}`,
-                    maxHealth: base.baseHealth + 3 * (level - 1),
-                    health: base.baseHealth + 3 * (level - 1),
-                    attack: base.baseAttack + Math.floor((level - 1) / 3),
-                    condition: base.condition
-                };
-            } else {
-                const typeIndex = (level - 1) % 3;
-                const base = regularEnemies[typeIndex];
-                isBossBattle = false;
-                return {
-                    name: `${base.type} Level ${level}`,
-                    maxHealth: base.baseHealth + 3 * (level - 1),
-                    health: base.baseHealth + 3 * (level - 1),
-                    attack: base.baseAttack + Math.floor((level - 1) / 3),
-                    condition: null
-                };
-            }
-        }
+        const logError = (message) => {
+            elements.message.textContent = message;
+            elements.message.classList.remove("success");
+            elements.message.classList.add("error");
+            setTimeout(() => elements.message.textContent = "", 2000);
+        };
 
-        function resetDeck() {
-            deck = [];
-            // Common Gems for all classes (doubled: 20 total)
-            deck.push(
-                { ...baseDeck.redAttack, upgradeCount: 0 }, { ...baseDeck.redAttack, upgradeCount: 0 }, 
-                { ...baseDeck.redAttack, upgradeCount: 0 }, { ...baseDeck.redAttack, upgradeCount: 0 }, 
-                { ...baseDeck.redAttack, upgradeCount: 0 }, { ...baseDeck.redAttack, upgradeCount: 0 }, // 6
-                { ...baseDeck.greenAttack, upgradeCount: 0 }, { ...baseDeck.greenAttack, upgradeCount: 0 }, 
-                { ...baseDeck.greenAttack, upgradeCount: 0 }, { ...baseDeck.greenAttack, upgradeCount: 0 }, 
-                { ...baseDeck.greenAttack, upgradeCount: 0 }, { ...baseDeck.greenAttack, upgradeCount: 0 }, // 6
-                { ...baseDeck.greyHeal, upgradeCount: 0 }, { ...baseDeck.greyHeal, upgradeCount: 0 }, 
-                { ...baseDeck.greyHeal, upgradeCount: 0 }, { ...baseDeck.greyHeal, upgradeCount: 0 }, 
-                { ...baseDeck.greyHeal, upgradeCount: 0 }, { ...baseDeck.greyHeal, upgradeCount: 0 }, // 6
-                { ...baseDeck.blueMagicAttack, upgradeCount: 0 }, { ...baseDeck.blueMagicAttack, upgradeCount: 0 } // 2
-            );
-            // Class-specific Gems (doubled: 10 total)
-            if (player.class === "Knight") {
-                deck.push(
-                    { ...baseDeck.redStrongAttack, upgradeCount: 0 }, { ...baseDeck.redStrongAttack, upgradeCount: 0 }, 
-                    { ...baseDeck.redStrongAttack, upgradeCount: 0 }, { ...baseDeck.redStrongAttack, upgradeCount: 0 }, 
-                    { ...baseDeck.redStrongAttack, upgradeCount: 0 }, { ...baseDeck.redStrongAttack, upgradeCount: 0 }, // 6
-                    { ...baseDeck.greenAttack, upgradeCount: 0 }, { ...baseDeck.greenAttack, upgradeCount: 0 }, // 2
-                    { ...baseDeck.greyHeal, upgradeCount: 0 }, { ...baseDeck.greyHeal, upgradeCount: 0 } // 2
-                );
-            } else if (player.class === "Mage") {
-                deck.push(
-                    { ...baseDeck.blueStrongHeal, upgradeCount: 0 }, { ...baseDeck.blueStrongHeal, upgradeCount: 0 }, // 2
-                    { ...baseDeck.blueStun, upgradeCount: 0 }, { ...baseDeck.blueStun, upgradeCount: 0 }, // 2
-                    { ...baseDeck.blueShield, upgradeCount: 0 }, { ...baseDeck.blueShield, upgradeCount: 0 }, // 2
-                    { ...baseDeck.greyHeal, upgradeCount: 0 }, { ...baseDeck.greyHeal, upgradeCount: 0 }, // 2
-                    { ...baseDeck.greenAttack, upgradeCount: 0 }, { ...baseDeck.greenAttack, upgradeCount: 0 } // 2
-                );
-            } else if (player.class === "Rogue") {
-                deck.push(
-                    { ...baseDeck.greenQuickAttack, upgradeCount: 0 }, { ...baseDeck.greenQuickAttack, upgradeCount: 0 }, 
-                    { ...baseDeck.greenQuickAttack, upgradeCount: 0 }, { ...baseDeck.greenQuickAttack, upgradeCount: 0 }, 
-                    { ...baseDeck.greenQuickAttack, upgradeCount: 0 }, { ...baseDeck.greenQuickAttack, upgradeCount: 0 }, // 6
-                    { ...baseDeck.greenAttack, upgradeCount: 0 }, { ...baseDeck.greenAttack, upgradeCount: 0 }, // 2
-                    { ...baseDeck.greyHeal, upgradeCount: 0 }, { ...baseDeck.greyHeal, upgradeCount: 0 } // 2
-                );
-            }
-            return shuffle(deck);
-        }
+        const logSuccess = (message) => {
+            elements.message.textContent = message;
+            elements.message.classList.remove("error");
+            elements.message.classList.add("success");
+            setTimeout(() => elements.message.textContent = "", 2000);
+        };
 
-        function shuffle(array) {
+        const shuffle = array => {
             for (let i = array.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [array[i], array[j]] = [array[j], array[i]];
             }
             return array;
-        }
+        };
 
-        function drawCards(num) {
+        const loadMetaZenny = () => {
+            const saved = localStorage.getItem("metaZenny");
+            gameState.metaZenny = saved ? parseInt(saved) : 0;
+        };
+
+        const loadGemCatalog = () => {
+            const saved = localStorage.getItem("unlockedGems");
+            if (saved) {
+                const unlocked = JSON.parse(saved);
+                gameState.gemCatalog.unlocked = unlocked;
+                gameState.gemCatalog.available = Object.keys(gameState.baseGemBag).filter(
+                    key => !unlocked.includes(key)
+                );
+            }
+        };
+
+        const saveMetaZenny = () => {
+            localStorage.setItem("metaZenny", gameState.metaZenny);
+            localStorage.setItem("unlockedGems", JSON.stringify(gameState.gemCatalog.unlocked));
+        };
+
+        const resetMetaProgression = () => {
+            if (confirm("Are you sure you want to reset all meta-progression? This will clear Meta $ZENNY, unlocked gems, and proficiency (except base gems).")) {
+                gameState.metaZenny = 0;
+                gameState.gemCatalog.unlocked = ["redAttack", "greenAttack", "greyHeal", "blueMagicAttack"];
+                gameState.gemCatalog.available = ["redBurst", "blueShield", "greenPoison"];
+                gameState.gemProficiency = {
+                    redAttack: { successCount: 6, failureChance: 0 },
+                    greenAttack: { successCount: 6, failureChance: 0 },
+                    blueMagicAttack: { successCount: 6, failureChance: 0 },
+                    greyHeal: { successCount: 6, failureChance: 0 }
+                };
+                localStorage.clear();
+                saveMetaZenny();
+                logSuccess("Meta-progression reset!");
+                switchScreen("characterSelect");
+            }
+        };
+
+        const switchScreen = (screen) => {
+            const screens = ["characterSelect", "gemCatalog", "battle", "shop", "camp"];
+            screens.forEach(s => {
+                const el = elements[`${s}Screen`];
+                if (el) el.classList.remove("active");
+            });
+            const target = elements[`${screen}Screen`];
+            if (target) target.classList.add("active");
+            gameState.currentScreen = screen;
+            if (screen === "gemCatalog") updateGemCatalog();
+            else if (screen === "battle") updateStats();
+            else if (screen === "shop") {
+                gameState.gemCatalog.upgradedThisShop.clear();
+                updateShop();
+            } else if (screen === "camp") updateCamp();
+        };
+
+        const updateCamp = () => {
+            elements.campDay.textContent = gameState.currentDay;
+            elements.campZenny.textContent = gameState.player.zenny;
+            elements.campMetaZenny.textContent = gameState.metaZenny;
+            elements.withdrawAmount.value = "";
+            elements.depositAmount.value = "";
+        };
+
+        const withdrawZenny = () => {
+            const amount = parseInt(elements.withdrawAmount.value);
+            if (isNaN(amount) || amount <= 0) {
+                logError("Enter a valid amount to withdraw!");
+                return;
+            }
+            if (amount > gameState.player.zenny) {
+                logError("Not enough $ZENNY in Journey Wallet!");
+                return;
+            }
+            gameState.player.zenny -= amount;
+            gameState.metaZenny += amount;
+            saveMetaZenny();
+            logSuccess(`Withdrew ${amount} $ZENNY to Meta Wallet!`);
+            updateCamp();
+        };
+
+        const depositZenny = () => {
+            const amount = parseInt(elements.depositAmount.value);
+            if (isNaN(amount) || amount <= 0) {
+                logError("Enter a valid amount to deposit!");
+                return;
+            }
+            if (amount > gameState.metaZenny) {
+                logError("Not enough $ZENNY in Meta Wallet!");
+                return;
+            }
+            gameState.metaZenny -= amount;
+            gameState.player.zenny += amount;
+            saveMetaZenny();
+            logSuccess(`Deposited ${amount} $ZENNY to Journey Wallet!`);
+            updateCamp();
+        };
+
+        const resetGemBag = (fullReset = false) => {
+            const { baseGemBag, player, gemCatalog, maxGemBagSize } = gameState;
+            if (fullReset) {
+                gameState.gemBag = [];
+                const initialGems = gemCatalog.unlocked.map((gemKey, i) => ({
+                    ...baseGemBag[gemKey],
+                    id: `${gemKey}-${i}`,
+                    freshlySwapped: false
+                }));
+                if (player.class === "Knight") initialGems.push(...Array(2).fill({ ...baseGemBag.redAttack, id: `redAttack-${initialGems.length}`, freshlySwapped: false }));
+                else if (player.class === "Mage") initialGems.push(...Array(2).fill({ ...baseGemBag.blueMagicAttack, id: `blueMagicAttack-${initialGems.length}`, freshlySwapped: false }));
+                else if (player.class === "Rogue") initialGems.push(...Array(2).fill({ ...baseGemBag.greenAttack, id: `greenAttack-${initialGems.length}`, freshlySwapped: false }));
+                gameState.gemBag.push(...initialGems);
+                while (gameState.gemBag.length < maxGemBagSize) {
+                    const gemKey = gemCatalog.unlocked[Math.floor(Math.random() * gemCatalog.unlocked.length)];
+                    gameState.gemBag.push({ ...baseGemBag[gemKey], id: `${gemKey}-${gameState.gemBag.length}`, freshlySwapped: false });
+                }
+                gameState.discard = [];
+            }
+            shuffle(gameState.gemBag);
+        };
+
+        const drawCards = (num) => {
+            const { gemBag, hand, maxHandSize } = gameState;
             const needed = Math.min(num, maxHandSize - hand.length);
             if (needed <= 0) return;
-            let drawn = 0;
-            while (drawn < needed && (deck.length > 0 || (enemyLevel > 3 && discard.length > 0))) {
-                if (deck.length === 0 && enemyLevel > 3) {
-                    deck = shuffle(discard.slice());
-                    discard = [];
-                }
-                if (deck.length > 0) {
-                    hand.push(deck.pop());
-                    drawn++;
-                } else {
-                    break;
-                }
+            for (let i = 0; i < needed && gemBag.length; i++) {
+                hand.push(gemBag.pop());
             }
+            updateHand();
             updateStats();
-        }
+        };
 
-        function updateHand() {
-            const handDiv = document.getElementById("hand");
-            while (handDiv.children.length > 1) {
-                handDiv.removeChild(handDiv.lastChild);
-            }
-            hand.forEach((gem, index) => {
-                const gemDiv = document.createElement("div");
-                gemDiv.className = `gem ${gem.color}`;
-                let displayText = `${gem.name} (Cost: ${gem.cost}${gem.damage ? ", Damage: " + gem.damage : gem.heal ? ", Heal: " + gem.heal : gem.stun ? ", Stun" : gem.damageReduction ? ", Shield" : ""}${gem.hits ? ", Hits: " + gem.hits : ""})`;
-                
-                if (!battleOver || currentScreen !== "shop") {
-                    if (selectedGems.has(index)) {
-                        if (player.class === "Knight" && gem.color === "red" && gem.damage) {
-                            displayText += ` (+50% damage)`;
-                        } else if (player.class === "Mage" && gem.color === "blue") {
-                            if (gem.heal) displayText += ` (+50% heal)`;
-                            else if (gem.damage) displayText += ` (+50% damage)`;
-                            else if (gem.damageReduction) displayText += ` (+50% shield)`;
-                        } else if (player.class === "Rogue" && gem.color === "green" && gem.damage) {
-                            displayText += ` (+50% damage)`;
+        const createGemElement = (gem, index, isShop = false) => {
+            const { player, selectedGems, battleOver, selectedPoolGem } = gameState;
+            const gemDiv = document.createElement("div");
+            const gemKey = `${gem.color}${gem.name}`;
+            const proficiency = getGemProficiency(gemKey);
+            gemDiv.className = `gem ${gem.color}${proficiency.failureChance > 0 ? " unlearned" : ""}`;
+            gemDiv.textContent = `${gem.name}${gem.upgradeCount > 0 ? ` +${gem.upgradeCount}` : ""}`;
+            gemDiv.draggable = !isShop && !battleOver;
+            gemDiv.id = `${isShop ? "shop-" : ""}gem-${index}`;
+
+            let tooltip = `Cost: ${gem.cost}`;
+            if (gem.damage) tooltip += `\nDamage: ${gem.damage}`;
+            if (gem.heal) tooltip += `\nHeal: ${gem.heal}`;
+            if (gem.shield) tooltip += `\nGrants Defense (2 turns)`;
+            if (gem.poison) tooltip += `\nPoison: ${gem.poison} damage/turn (2 turns)`;
+            if (player.class === "Knight" && gem.color === "red") tooltip += `\nKnight Bonus: +50%`;
+            if (player.class === "Mage" && gem.color === "blue") tooltip += `\nMage Bonus: +50%`;
+            if (player.class === "Rogue" && gem.color === "green") tooltip += `\nRogue Bonus: +50%`;
+            if (proficiency.failureChance > 0) tooltip += `\nFailure Chance: ${(proficiency.failureChance * 100).toFixed(0)}%`;
+            gemDiv.setAttribute("data-tooltip", tooltip);
+
+            const colorMap = {
+                red: "#cc4444",
+                blue: "#5577cc",
+                green: "#448844",
+                grey: "#b0b0b0"
+            };
+            gemDiv.onmouseover = () => {
+                const colorClass = gemDiv.className.split(" ").find(c => colorMap[c]);
+                if (colorClass) gemDiv.style.setProperty("--tooltip-bg", colorMap[colorClass]);
+            };
+
+            if (!battleOver || isShop) {
+                gemDiv.onclick = () => {
+                    if (isShop && gameState.currentScreen === "shop") {
+                        if (gemDiv.id.startsWith("shop-")) {
+                            gameState.selectedPoolGem = index;
+                        } else {
+                            toggleGemSelection(index);
                         }
+                        updateHand(true);
+                    } else {
+                        toggleGemSelection(index);
                     }
-                }
-                
-                gemDiv.textContent = displayText;
-                gemDiv.id = `gem-${index}`;
-                gemDiv.onclick = () => toggleGemSelection(index);
-                if (selectedGems.has(index)) {
-                    gemDiv.classList.add("selected");
-                }
-                handDiv.appendChild(gemDiv);
-            });
-        }
-
-        function updateShopHand() {
-            const shopHandDiv = document.getElementById("shopHand");
-            while (shopHandDiv.children.length > 1) {
-                shopHandDiv.removeChild(shopHandDiv.lastChild);
+                };
+                if (selectedGems.has(index)) gemDiv.classList.add("selected");
+                if (isShop && selectedPoolGem === index) gemDiv.classList.add("selected");
             }
-            hand.forEach((gem, index) => {
-                const gemDiv = document.createElement("div");
-                gemDiv.className = `gem ${gem.color}`;
-                gemDiv.textContent = `${gem.name} (Cost: ${gem.cost}${gem.damage ? ", Damage: " + gem.damage : gem.heal ? ", Heal: " + gem.heal : gem.stun ? ", Stun" : gem.damageReduction ? ", Shield" : ""}${gem.hits ? ", Hits: " + gem.hits : ""})`;
-                gemDiv.id = `shop-gem-${index}`;
-                gemDiv.onclick = () => toggleGemSelection(index);
-                if (selectedGems.has(index)) {
-                    gemDiv.classList.add("selected");
+            gemDiv.ondragstart = (e) => {
+                if (isShop || battleOver) return;
+                e.dataTransfer.setData("text/plain", index);
+            };
+            gemDiv.ondragover = (e) => e.preventDefault();
+            gemDiv.ondrop = (e) => {
+                if (isShop || battleOver) return;
+                e.preventDefault();
+                const fromIndex = parseInt(e.dataTransfer.getData("text/plain"));
+                const toIndex = index;
+                if (fromIndex !== toIndex) {
+                    const [movedGem] = gameState.hand.splice(fromIndex, 1);
+                    gameState.hand.splice(toIndex, 0, movedGem);
+                    updateHand();
                 }
-                shopHandDiv.appendChild(gemDiv);
-            });
-            updateShop();
-            updateShopStats();
-        }
+            };
+            return gemDiv;
+        };
 
-        function toggleGemSelection(index) {
-            if (index < 0 || index >= hand.length) return;
-            if (currentScreen === "battle" && !battleOver) {
-                if (selectedGems.has(index)) {
-                    selectedGems.delete(index);
-                } else {
-                    selectedGems.add(index);
-                }
-                updateHand();
+        const updateHand = (isShop = false) => {
+            const target = isShop ? elements.shopHand : elements.hand;
+            while (target.children.length > (isShop ? 1 : 0)) target.removeChild(target.lastChild);
+            gameState.hand.forEach((gem, index) => target.appendChild(createGemElement(gem, index, isShop)));
+            if (isShop) {
+                elements.gemPool.innerHTML = "";
+                gameState.gemCatalog.gemPool.forEach((gem, index) => elements.gemPool.appendChild(createGemElement(gem, index, true)));
+            }
+        };
+
+        const toggleGemSelection = (index) => {
+            const { currentScreen, battleOver, hand, selectedGems } = gameState;
+            if (index < 0 || index >= hand.length || (battleOver && currentScreen !== "shop")) return;
+            if (currentScreen === "battle") {
+                selectedGems.has(index) ? selectedGems.delete(index) : selectedGems.add(index);
             } else if (currentScreen === "shop") {
                 selectedGems.clear();
                 selectedGems.add(index);
-                updateShopHand();
             }
-        }
-
-        function updateStats() {
-            document.getElementById("playerClass").textContent = player.class || "None";
-            document.getElementById("playerHealth").textContent = player.health;
-            document.getElementById("playerMaxHealth").textContent = player.maxHealth;
-            document.getElementById("stamina").textContent = player.stamina;
-            document.getElementById("zenny").textContent = player.zenny;
-            document.getElementById("deckSize").textContent = deck.length;
-            document.getElementById("maxDeckSize").textContent = maxDeckSize;
-
-            document.getElementById("enemyName").textContent = enemy.name;
-            document.getElementById("enemyHealth").textContent = enemy.health;
-            document.getElementById("enemyMaxHealth").textContent = enemy.maxHealth;
-            document.getElementById("enemyAttack").textContent = enemy.attack;
-
-            const conditionSpan = document.getElementById("bossCondition");
-            if (isBossBattle && enemy.condition) {
-                switch (enemy.condition) {
-                    case "staminaMinusOne": conditionSpan.textContent = "Stamina reduced by 1 each turn"; break;
-                    case "doubleAttack": conditionSpan.textContent = "Attacks twice"; break;
-                    case "healHalf": conditionSpan.textContent = "Healing halved"; break;
-                    default: conditionSpan.textContent = "Unknown condition";
-                }
-            } else if (enemyStunned) {
-                conditionSpan.textContent = "Stunned this turn";
-            } else {
-                conditionSpan.textContent = "";
-            }
-
-            const waitBuffIndicator = document.getElementById("waitBuffIndicator");
-            if (player.waitBuff) {
-                switch (player.waitBuff.type) {
-                    case "damageReduction": waitBuffIndicator.textContent = "Next turn: 50% damage reduction"; break;
-                    case "heal": waitBuffIndicator.textContent = "Next turn: +5 heal"; break;
-                    case "stamina": waitBuffIndicator.textContent = "Next turn: +1 stamina"; break;
-                    default: waitBuffIndicator.textContent = "";
-                }
-            } else {
-                waitBuffIndicator.textContent = "";
-            }
-
-            document.getElementById("discardAndEndTurnBtn").disabled = hasActedThisTurn;
-            document.getElementById("waitBtn").disabled = hasActedThisTurn;
-        }
-
-        function updateShopStats() {
-            document.getElementById("shopHealthValue").textContent = player.health;
-            document.getElementById("shopMaxHealthValue").textContent = player.maxHealth;
-            document.getElementById("shopZennyValue").textContent = player.zenny;
-            document.getElementById("shopDeckSize").textContent = deck.length;
-            document.getElementById("shopDiscardSize").textContent = discard.length;
-        }
-
-        function switchScreen(screen) {
-            document.getElementById("characterSelectScreen").style.display = "none";
-            document.getElementById("battleScreen").style.display = "none";
-            document.getElementById("shopScreen").style.display = "none";
-            document.getElementById(screen + "Screen").style.display = "flex";
-            currentScreen = screen;
-            if (screen === "battle") updateStats();
-            if (screen === "shop") {
-                updateShopStats();
-                updateShopHand();
-            }
-        }
-
-        function playGem(index) {
-            if (battleOver || index < 0 || index >= hand.length) return false;
-            const gem = hand[index];
-            if (player.stamina >= gem.cost) {
-                player.stamina -= gem.cost;
-                let effectMultiplier = 1;
-                if (player.class === "Knight" && gem.color === "red" && gem.damage) effectMultiplier = 1.5;
-                if (player.class === "Mage" && gem.color === "blue" && (gem.heal || gem.damage || gem.damageReduction)) effectMultiplier = 1.5;
-                if (player.class === "Rogue" && gem.color === "green" && gem.damage) effectMultiplier = 1.5;
-
-                if (gem.damage) {
-                    if (gem.hits) {
-                        const hitDamage = Math.floor(gem.damage * effectMultiplier);
-                        for (let i = 0; i < gem.hits; i++) {
-                            enemy.health -= hitDamage;
-                            if (enemy.health < 0) enemy.health = 0;
-                        }
-                    } else {
-                        const damage = Math.floor(gem.damage * effectMultiplier);
-                        enemy.health -= damage;
-                        if (enemy.health < 0) enemy.health = 0;
-                    }
-                } else if (gem.heal) {
-                    let healAmount = Math.floor(gem.heal * effectMultiplier);
-                    if (isBossBattle && enemy.condition === "healHalf") healAmount = Math.floor(healAmount / 2);
-                    player.health += healAmount;
-                    if (player.health > player.maxHealth) player.health = player.maxHealth;
-                } else if (gem.damageReduction) {
-                    player.damageReduction = gem.shieldBoost 
-                        ? gem.damageReduction * effectMultiplier + gem.shieldBoost 
-                        : gem.damageReduction * effectMultiplier;
-                } else if (gem.stun) {
-                    enemyStunned = true;
-                }
-
-                hand.splice(index, 1);
-                discard.push(gem);
-                selectedGems.delete(index);
-                const newSelected = new Set();
-                selectedGems.forEach(oldIndex => {
-                    if (oldIndex > index) newSelected.add(oldIndex - 1);
-                    else if (oldIndex < index) newSelected.add(oldIndex);
-                });
-                selectedGems = newSelected;
-                checkBattleStatus();
-                updateStats();
-                updateHand();
-                if (player.stamina === 0 && !battleOver) {
-                    endTurn();
-                }
-                return true;
-            } else {
-                document.getElementById("message").textContent = "Not enough stamina!";
-                return false;
-            }
-        }
-
-        function executeSelectedGems() {
-            if (battleOver) return;
-            if (selectedGems.size === 0) {
-                document.getElementById("message").textContent = "Select Gems to execute!";
-                return;
-            }
-            hasActedThisTurn = true;
-            const indicesToPlay = Array.from(selectedGems).sort((a, b) => a - b);
-            let successCount = 0;
-            for (let i = 0; i < indicesToPlay.length; i++) {
-                const index = indicesToPlay[i] - successCount;
-                if (index >= 0 && index < hand.length) {
-                    if (playGem(index)) {
-                        successCount++;
-                    } else {
-                        break;
-                    }
-                }
-            }
-            selectedGems.clear();
-            document.getElementById("message").textContent = `Executed ${successCount} Gem(s).`;
-        }
-
-        function endTurn() {
-            if (battleOver) return;
-            if (!enemyStunned) {
-                let damage = enemy.attack;
-                if (player.damageReduction > 0) {
-                    damage = Math.floor(damage * (1 - player.damageReduction));
-                    player.damageReduction = 0;
-                }
-                if (player.waitBuff && player.waitBuff.type === "damageReduction") {
-                    damage = Math.floor(damage * 0.5);
-                    player.waitBuff = null;
-                    document.getElementById("message").textContent = "Wait buff applied: 50% damage reduction!";
-                }
-                if (isBossBattle && enemy.condition === "doubleAttack") {
-                    player.health -= damage;
-                    if (player.health > 0) player.health -= damage;
-                } else {
-                    player.health -= damage;
-                }
-                if (player.health < 0) player.health = 0;
-            } else {
-                document.getElementById("message").textContent = "Enemy stunned, no attack this turn!";
-                enemyStunned = false;
-            }
-            checkBattleStatus();
-            if (!battleOver) {
-                let newStamina = isBossBattle && enemy.condition === "staminaMinusOne" 
-                    ? Math.max(player.baseStamina - 1, 1) 
-                    : player.baseStamina;
-                if (player.waitBuff) {
-                    if (player.waitBuff.type === "heal") {
-                        player.health += player.waitBuff.value;
-                        if (player.health > player.maxHealth) player.health = player.maxHealth;
-                        document.getElementById("message").textContent = "Wait buff applied: +5 health!";
-                        player.waitBuff = null;
-                    } else if (player.waitBuff.type === "stamina") {
-                        newStamina += player.waitBuff.value;
-                        document.getElementById("message").textContent = "Wait buff applied: +1 stamina!";
-                        player.waitBuff = null;
-                    }
-                }
-                player.stamina = newStamina;
-                drawCards(maxHandSize - hand.length);
-            }
-            hasActedThisTurn = false;
+            updateHand(currentScreen === "shop");
             updateStats();
-            updateHand();
-        }
+        };
 
-        function discardAndEndTurn() {
-            if (battleOver) return;
-            if (hasActedThisTurn) {
-                document.getElementById("message").textContent = "Cannot discard after another action this turn!";
-                return;
-            }
-            if (selectedGems.size === 0) {
-                document.getElementById("message").textContent = "Select Gems to discard!";
-                return;
-            }
-            hasActedThisTurn = true;
-            const indicesToDiscard = Array.from(selectedGems).sort((a, b) => b - a);
-            const discardedGems = [];
-            indicesToDiscard.forEach(index => {
-                if (index >= 0 && index < hand.length) {
-                    const gem = hand.splice(index, 1)[0];
-                    deck.push(gem);
-                    discardedGems.push(gem.name);
+        const updateGemCatalog = () => {
+            const { player, gemCatalog, baseGemBag } = gameState;
+            elements.metaZennyDisplay.textContent = gameState.metaZenny;
+            elements.unlockedGems.innerHTML = "";
+            elements.availableGems.innerHTML = "";
+
+            gemCatalog.unlocked.forEach((gemKey) => {
+                const gemDiv = document.createElement("div");
+                gemDiv.className = `gem ${baseGemBag[gemKey].color}`;
+                gemDiv.textContent = baseGemBag[gemKey].name;
+                const proficiency = getGemProficiency(gemKey);
+
+                let tooltip = `Cost: ${baseGemBag[gemKey].cost}`;
+                if (baseGemBag[gemKey].damage) tooltip += `\nDamage: ${baseGemBag[gemKey].damage}`;
+                if (baseGemBag[gemKey].heal) tooltip += `\nHeal: ${baseGemBag[gemKey].heal}`;
+                if (baseGemBag[gemKey].shield) tooltip += `\nGrants Defense (2 turns)`;
+                if (baseGemBag[gemKey].poison) tooltip += `\nPoison: ${baseGemBag[gemKey].poison} damage/turn (2 turns)`;
+                gemDiv.setAttribute("data-tooltip", tooltip);
+
+                if (proficiency.failureChance > 0) {
+                    const progress = (0.9 - proficiency.failureChance) / 0.6 * 100;
+                    gemDiv.style.border = `2px solid #ffa500`;
+                    gemDiv.style.background = `linear-gradient(to right, #ffa500 ${progress}%, #ddd ${progress}%)`;
+                    const masterBtn = document.createElement("button");
+                    masterBtn.textContent = "Master - 20 Meta $ZENNY";
+                    masterBtn.disabled = gameState.metaZenny < 20 || proficiency.failureChance === 0;
+                    masterBtn.onclick = () => {
+                        if (gameState.metaZenny >= 20) {
+                            gameState.metaZenny -= 20;
+                            proficiency.failureChance = 0;
+                            saveMetaZenny();
+                            logSuccess(`${baseGemBag[gemKey].name} mastered!`);
+                            updateGemCatalog();
+                        }
+                    };
+                    const container = document.createElement("div");
+                    container.style.display = "flex";
+                    container.style.alignItems = "center";
+                    container.style.gap = "10px";
+                    container.appendChild(gemDiv);
+                    container.appendChild(masterBtn);
+                    elements.unlockedGems.appendChild(container);
+                } else {
+                    elements.unlockedGems.appendChild(gemDiv);
                 }
             });
-            deck = shuffle(deck);
+
+            gemCatalog.available.forEach((gemKey, index) => {
+                const gemDiv = document.createElement("div");
+                gemDiv.className = `gem ${baseGemBag[gemKey].color}`;
+                gemDiv.textContent = baseGemBag[gemKey].name;
+                gemDiv.style.cursor = gameState.metaZenny >= 50 ? "pointer" : "not-allowed";
+
+                let tooltip = `Unlock: 50 Meta $ZENNY\nCost: ${baseGemBag[gemKey].cost}`;
+                if (baseGemBag[gemKey].damage) tooltip += `\nDamage: ${baseGemBag[gemKey].damage}`;
+                if (baseGemBag[gemKey].heal) tooltip += `\nHeal: ${baseGemBag[gemKey].heal}`;
+                if (baseGemBag[gemKey].shield) tooltip += `\nGrants Defense (2 turns)`;
+                if (baseGemBag[gemKey].poison) tooltip += `\nPoison: ${baseGemBag[gemKey].poison} damage/turn (2 turns)`;
+                gemDiv.setAttribute("data-tooltip", tooltip);
+
+                gemDiv.onclick = () => unlockGem(gemKey, index);
+                elements.availableGems.appendChild(gemDiv);
+            });
+
+            logSuccess(`Journey $ZENNY: ${player.zenny}`);
+        };
+
+        const unlockGem = (gemKey, index) => {
+            if (gameState.metaZenny < 50) {
+                logError("Not enough Meta $ZENNY!");
+                return;
+            }
+            if (gameState.gemCatalog.unlocked.length >= gameState.gemCatalog.maxCapacity) {
+                logError("Gem Catalog is full!");
+                return;
+            }
+            gameState.metaZenny -= 50;
+            gameState.gemCatalog.unlocked.push(gemKey);
+            gameState.gemCatalog.available.splice(index, 1);
+            saveMetaZenny();
+            logSuccess(`Unlocked ${gameState.baseGemBag[gemKey].name}!`);
+            updateGemCatalog();
+        };
+
+        const getGemBagBreakdown = () => {
+            const { gemBag } = gameState;
+            const breakdown = {};
+            gemBag.forEach(gem => {
+                const key = `${gem.name} (${gem.color})`;
+                breakdown[key] = (breakdown[key] || 0) + 1;
+            });
+            return Object.entries(breakdown)
+                .map(([name, count]) => `${name}: ${count}`)
+                .join("\n");
+        };
+
+        const updateStats = () => {
+            const { player, enemy, battleOver, selectedGems, phases, currentPhaseIndex, isEnemyTurnPending, maxGemBagSize } = gameState;
+            elements.playerClass.textContent = player.class || "None";
+            elements.playerHealth.textContent = player.health;
+            elements.playerMaxHealth.textContent = player.maxHealth;
+            elements.staminaText.textContent = `${player.stamina}/${player.baseStamina}`;
+            const staminaPercent = (player.stamina / player.baseStamina) * 100;
+            elements.staminaFill.style.width = `${staminaPercent}%`;
+            elements.staminaFill.classList.remove("full", "medium", "low");
+            if (player.stamina === player.baseStamina) elements.staminaFill.classList.add("full");
+            else if (player.stamina === 2) elements.staminaFill.classList.add("medium");
+            else if (player.stamina <= 1) elements.staminaFill.classList.add("low");
+            elements.zenny.textContent = player.zenny;
+            elements.gemBagCount.textContent = gameState.gemBag.length;
+            elements.gemBagTotal.textContent = maxGemBagSize;
+            elements.gemBagContainer.setAttribute("data-tooltip", getGemBagBreakdown());
+            elements.enemyName.textContent = enemy?.name || "None";
+            elements.enemyHealth.textContent = Math.max(enemy?.health || 0, 0);
+            elements.enemyMaxHealth.textContent = enemy?.maxHealth || 0;
+            elements.enemyAttack.textContent = enemy?.currentAction?.split(" ")[1] || "0";
+            elements.enemyCondition.textContent = enemy?.shield ? "Shielded: Use Red Gems to bypass" : "";
+            elements.enemyActionQueue.textContent = enemy ? `Next: ${enemy.actionQueue.slice(0, 3).map(action => action.split(" ")[0]).join(", ")}` : "";
+
+            elements.playerBuffs.innerHTML = "";
+            player.buffs.forEach(buff => {
+                const icon = document.createElement("div");
+                icon.className = `buff-icon ${buff.type}`;
+                icon.innerHTML = buff.type === "focused" ? "✦" : buff.type === "defense" ? "🛡️" : "💫";
+                const turns = document.createElement("span");
+                turns.className = "turns";
+                turns.textContent = buff.turns;
+                icon.appendChild(turns);
+                icon.setAttribute("data-tooltip", `${buff.type === "focused" ? "Focused: +20% damage/heal" : buff.type === "defense" ? "Defense: Reduces damage" : "Stunned: Skip turn"} (${buff.turns} turns)`);
+                elements.playerBuffs.appendChild(icon);
+            });
+
+            elements.enemyBuffs.innerHTML = "";
+            if (enemy?.buffs) {
+                enemy.buffs.forEach(buff => {
+                    const icon = document.createElement("div");
+                    icon.className = `buff-icon ${buff.type}`;
+                    icon.innerHTML = buff.type === "defense" ? "🛡️" : "✦";
+                    const turns = document.createElement("span");
+                    turns.className = "turns";
+                    turns.textContent = buff.turns;
+                    icon.appendChild(turns);
+                    icon.setAttribute("data-tooltip", `${buff.type === "defense" ? "Defense: Reduces damage" : "Poison: " + buff.damage + " damage/turn"} (${buff.turns} turns)`);
+                    elements.enemyBuffs.appendChild(icon);
+                });
+            }
+
+            const canPlayGems = selectedGems.size > 0 && player.stamina >= Math.min(...[...selectedGems].map(i => gameState.hand[i].cost));
+            elements.executeBtn.disabled = battleOver || !canPlayGems || isEnemyTurnPending || player.buffs.some(b => b.type === "stunned");
+            elements.waitBtn.disabled = battleOver || isEnemyTurnPending || gameState.hasActedThisTurn || gameState.hasPlayedGemThisTurn || player.buffs.some(b => b.type === "stunned");
+            elements.discardEndBtn.disabled = battleOver || !selectedGems.size || isEnemyTurnPending || gameState.hasActedThisTurn || player.buffs.some(b => b.type === "stunned");
+            elements.endTurnBtn.disabled = battleOver || isEnemyTurnPending || player.buffs.some(b => b.type === "stunned");
+            elements.fleeBtn.style.display = (currentPhaseIndex < 2 && !battleOver && !isEnemyTurnPending) ? "block" : "none";
+
+            const phaseSymbols = ["☀", "🌅", "🌙"];
+            elements.dayPhaseIndicator.textContent = `Day ${gameState.currentDay} ${phaseSymbols[currentPhaseIndex]}`;
+            elements.turnIndicator.textContent = isEnemyTurnPending ? "Enemy Turn" : "Your Turn";
+            elements.turnIndicator.classList.toggle("player", !isEnemyTurnPending);
+            elements.turnIndicator.classList.toggle("enemy", isEnemyTurnPending);
+            if (gameState.currentScreen === "shop") {
+                elements.shopHealth.textContent = player.health;
+                elements.shopMaxHealth.textContent = player.maxHealth;
+                elements.shopZenny.textContent = player.zenny;
+            }
+        };
+
+        const updateShop = () => {
+            const { selectedGems, selectedPoolGem, player } = gameState;
+            elements.buyRandomGem.disabled = player.zenny < 10;
+            elements.discardGem.disabled = !selectedGems.size;
+            elements.upgradeGem.disabled = !selectedGems.size || player.zenny < 15 || 
+                (selectedGems.size === 1 && gameState.hand[[...selectedGems][0]].freshlySwapped) || 
+                (selectedGems.size === 1 && gameState.gemCatalog.upgradedThisShop.has(gameState.hand[[...selectedGems][0]].id));
+            elements.swapGem.disabled = !selectedGems.size || selectedPoolGem === null || player.zenny < 5;
+            elements.heal10.disabled = player.zenny < 5 || player.health >= player.maxHealth;
+            updateHand(true);
+        };
+
+        const getEnemy = () => {
+            const { enemies, boss, battleCount, currentPhaseIndex } = gameState;
+            let base = currentPhaseIndex === 2 ? { ...boss } : { ...enemies[battleCount % enemies.length] };
+            base.health = base.maxHealth;
+            base.actionQueue = shuffle([...base.actions]);
+            base.currentAction = base.actionQueue.shift();
+            base.buffs = [];
+            return base;
+        };
+
+        const refreshGemPool = (tradedGemColor) => {
+            const { gemCatalog, baseGemBag } = gameState;
+            gameState.gemCatalog.gemPool.length = 0;
+            const sameColorGems = gemCatalog.unlocked
+                .map(key => ({ ...baseGemBag[key], id: `${key}-${Date.now()}-${Math.random()}`, freshlySwapped: false }))
+                .filter(gem => gem.color === tradedGemColor);
+            const upgradedOptions = sameColorGems.map(gem => {
+                if (Math.random() < 0.5 && gem.rarity !== "Epic") {
+                    return { ...gem, upgradeCount: gem.upgradeCount + 1 };
+                }
+                return gem;
+            }).filter(gem => gem.rarity !== "Common" || gem.upgradeCount > 0);
+            shuffle(upgradedOptions);
+            gameState.gemCatalog.gemPool = upgradedOptions.slice(0, 3);
+            if (gameState.gemCatalog.gemPool.length < 3) {
+                const fillers = sameColorGems.filter(g => !upgradedOptions.includes(g));
+                gameState.gemCatalog.gemPool.push(...fillers.slice(0, 3 - gameState.gemCatalog.gemPool.length));
+            }
+        };
+
+        const swapGemFromPool = () => {
+            const { selectedGems, selectedPoolGem, hand, gemCatalog, player } = gameState;
+            if (selectedGems.size !== 1 || selectedPoolGem === null || player.zenny < 5) {
+                logError("Invalid swap conditions!");
+                return;
+            }
+            const handIndex = [...selectedGems][0];
+            const poolIndex = selectedPoolGem;
+            const tradedGem = hand[handIndex];
+            const newGem = { ...gemCatalog.gemPool[poolIndex], id: `${gemCatalog.gemPool[poolIndex].name}-${Date.now()}`, freshlySwapped: true };
+            hand[handIndex] = newGem;
+            gemCatalog.gemPool[poolIndex] = tradedGem;
+            player.zenny -= 5;
             selectedGems.clear();
+            gameState.selectedPoolGem = null;
+            logSuccess(`Swapped ${tradedGem.name} for ${newGem.name}!`);
+            refreshGemPool(tradedGem.color);
+            updateHand(true);
+            updateShop();
+        };
 
-            if (!enemyStunned) {
-                let damage = enemy.attack;
-                if (player.damageReduction > 0) {
-                    damage = Math.floor(damage * (1 - player.damageReduction));
-                    player.damageReduction = 0;
-                }
-                if (player.waitBuff && player.waitBuff.type === "damageReduction") {
-                    damage = Math.floor(damage * 0.5);
-                    player.waitBuff = null;
-                    document.getElementById("message").textContent = "Wait buff applied: 50% damage reduction!";
-                }
-                if (isBossBattle && enemy.condition === "doubleAttack") {
-                    player.health -= damage;
-                    if (player.health > 0) player.health -= damage;
-                } else {
-                    player.health -= damage;
-                }
-                if (player.health < 0) player.health = 0;
-            } else {
-                document.getElementById("message").textContent = "Enemy stunned, no attack this turn!";
-                enemyStunned = false;
+        const getGemProficiency = (gemKey) => {
+            if (!gameState.gemProficiency[gemKey]) {
+                gameState.gemProficiency[gemKey] = { successCount: 0, failureChance: 0.9 };
             }
-            checkBattleStatus();
-            if (!battleOver) {
-                player.stamina = isBossBattle && enemy.condition === "staminaMinusOne" 
-                    ? Math.max(player.baseStamina - 1, 1) 
-                    : player.baseStamina;
-                if (player.waitBuff) {
-                    if (player.waitBuff.type === "heal") {
-                        player.health += player.waitBuff.value;
-                        if (player.health > player.maxHealth) player.health = player.maxHealth;
-                        document.getElementById("message").textContent = "Wait buff applied: +5 health!";
-                        player.waitBuff = null;
-                    } else if (player.waitBuff.type === "stamina") {
-                        player.stamina += player.waitBuff.value;
-                        document.getElementById("message").textContent = "Wait buff applied: +1 stamina!";
-                        player.waitBuff = null;
-                    }
-                }
-                drawCards(maxHandSize - hand.length);
-            }
-            hasActedThisTurn = false;
-            updateStats();
-            updateHand();
-            document.getElementById("message").textContent = `Discarded ${discardedGems.length} Gem(s) and ended turn.`;
-        }
+            return gameState.gemProficiency[gemKey];
+        };
 
-        function wait() {
-            if (battleOver) return;
-            if (hasActedThisTurn) {
-                document.getElementById("message").textContent = "Cannot wait after another action this turn!";
-                return;
-            }
-            hasActedThisTurn = true;
-            switch (player.class) {
-                case "Knight":
-                    player.waitBuff = { type: "damageReduction", value: 0.5 };
-                    document.getElementById("message").textContent = "Waiting... 50% damage reduction next turn!";
-                    break;
-                case "Mage":
-                    player.waitBuff = { type: "heal", value: 5 };
-                    document.getElementById("message").textContent = "Waiting... +5 heal next turn!";
-                    break;
-                case "Rogue":
-                    player.waitBuff = { type: "stamina", value: 1 };
-                    document.getElementById("message").textContent = "Waiting... +1 stamina next turn!";
-                    break;
-                default:
-                    document.getElementById("message").textContent = "No class selected for wait buff!";
-                    hasActedThisTurn = false;
-                    return;
-            }
-            updateStats();
-        }
-
-        function checkBattleStatus() {
-            const messageDiv = document.getElementById("message");
-            if (enemy.health <= 0) {
-                messageDiv.textContent = `You defeated ${enemy.name}! Earned 10 $ZENNY.`;
-                player.zenny += 10;
-                battleOver = true;
-                switchScreen("shop");
-                updateShopHand();
-            } else if (player.health <= 0) {
-                messageDiv.textContent = `You were defeated by ${enemy.name}! Game Over. Total $ZENNY: ${player.zenny}`;
-                battleOver = true;
-            } else {
-                messageDiv.textContent = "";
-            }
-        }
-
-        function updateShop() {
-            const upgradeOptions = document.getElementById("upgradeOptions");
-            upgradeOptions.innerHTML = "";
-
-            if (selectedGems.size === 1) {
-                const index = Array.from(selectedGems)[0];
-                const gem = hand[index];
-                const canUpgrade = (gem.upgradeCount || 0) < 3;
-
-                const damageHealBtn = document.createElement("button");
-                damageHealBtn.textContent = "+3 Damage/Heal - 10 $ZENNY";
-                damageHealBtn.title = "Increase damage or heal by 3, replace with powerful Gem of same color";
-                damageHealBtn.onclick = () => upgradeDamageHeal(index);
-                damageHealBtn.disabled = !canUpgrade || player.zenny < 10 || (!gem.damage && !gem.heal);
-
-                const costBtn = document.createElement("button");
-                costBtn.textContent = "-1 Cost (min 1) - 10 $ZENNY";
-                costBtn.title = "Reduce Gem cost by 1 (minimum 1), replace with powerful Gem of same color";
-                costBtn.onclick = () => upgradeCost(index);
-                costBtn.disabled = !canUpgrade || player.zenny < 10 || gem.cost <= 1;
-
-                const specialBtn = document.createElement("button");
-                let specialText = gem.name === "Green Quick Attack" ? "+1 Hit" : 
-                                 gem.name === "Blue Shield" ? "+25% Shield" : 
-                                 "+2 Damage";
-                specialBtn.textContent = `${specialText} - 10 $ZENNY`;
-                specialBtn.title = `Add ${specialText} to Gem, replace with powerful Gem of same color`;
-                specialBtn.onclick = () => upgradeSpecial(index);
-                specialBtn.disabled = !canUpgrade || player.zenny < 10 || (specialText === "+2 Damage" && !gem.damage);
-
-                upgradeOptions.appendChild(damageHealBtn);
-                upgradeOptions.appendChild(costBtn);
-                upgradeOptions.appendChild(specialBtn);
-            }
-
-            document.getElementById("buyRandomGem").disabled = player.zenny < 10 || deck.length >= maxDeckSize;
-            document.getElementById("discardGem").disabled = selectedGems.size === 0;
-        }
-
-        function replaceWithPowerfulGem(index) {
-            const originalGem = hand[index];
-            const matchingGems = powerfulActionGems.filter(key => baseDeck[key].color === originalGem.color);
-            if (matchingGems.length === 0) {
-                const randomGemKey = powerfulActionGems[Math.floor(Math.random() * powerfulActionGems.length)];
-                const newGem = { ...baseDeck[randomGemKey], upgradeCount: 0 };
-                hand[index] = newGem;
-                return newGem.name;
-            }
-            const randomGemKey = matchingGems[Math.floor(Math.random() * matchingGems.length)];
-            const newGem = { ...baseDeck[randomGemKey], upgradeCount: 0 };
-            hand[index] = newGem;
-            return newGem.name;
-        }
-
-        function upgradeDamageHeal(index) {
-            if (index < 0 || index >= hand.length) return;
+        const playGem = (index) => {
+            const { hand, player, enemy, battleOver, selectedGems, discard } = gameState;
+            if (battleOver || index < 0 || index >= hand.length) return false;
             const gem = hand[index];
-            if (player.zenny < 10) {
-                document.getElementById("message").textContent = "Not enough $ZENNY!";
-                return;
+            if (player.stamina < gem.cost) {
+                logError("Not enough stamina!");
+                return false;
             }
-            if ((gem.upgradeCount || 0) >= 3) {
-                document.getElementById("message").textContent = "Max upgrades reached!";
-                return;
-            }
-            if (!gem.damage && !gem.heal) {
-                document.getElementById("message").textContent = "Cannot upgrade damage/heal on this Gem!";
-                return;
-            }
-            player.zenny -= 10;
-            gem.upgradeCount = (gem.upgradeCount || 0) + 1;
-            if (gem.damage) gem.damage += 3;
-            else if (gem.heal) gem.heal += 3;
-            const newGemName = replaceWithPowerfulGem(index);
-            document.getElementById("message").textContent = `${gem.name} upgraded with +3 Damage/Heal, replaced with ${newGemName}!`;
-            updateStats();
-            updateShopHand();
-        }
+            player.stamina -= gem.cost;
+            let multiplier = (player.class === "Knight" && gem.color === "red") || 
+                            (player.class === "Mage" && gem.color === "blue") || 
+                            (player.class === "Rogue" && gem.color === "green") ? 1.5 : 1;
+            if (player.buffs.some(b => b.type === "focused")) multiplier *= 1.2;
 
-        function upgradeCost(index) {
-            if (index < 0 || index >= hand.length) return;
-            const gem = hand[index];
-            if (player.zenny < 10) {
-                document.getElementById("message").textContent = "Not enough $ZENNY!";
-                return;
-            }
-            if ((gem.upgradeCount || 0) >= 3) {
-                document.getElementById("message").textContent = "Max upgrades reached!";
-                return;
-            }
-            if (gem.cost <= 1) {
-                document.getElementById("message").textContent = "Cost cannot be reduced below 1!";
-                return;
-            }
-            player.zenny -= 10;
-            gem.upgradeCount = (gem.upgradeCount || 0) + 1;
-            gem.cost -= 1;
-            const newGemName = replaceWithPowerfulGem(index);
-            document.getElementById("message").textContent = `${gem.name} upgraded with -1 Cost, replaced with ${newGemName}!`;
-            updateStats();
-            updateShopHand();
-        }
-
-        function upgradeSpecial(index) {
-            if (index < 0 || index >= hand.length) return;
-            const gem = hand[index];
-            if (player.zenny < 10) {
-                document.getElementById("message").textContent = "Not enough $ZENNY!";
-                return;
-            }
-            if ((gem.upgradeCount || 0) >= 3) {
-                document.getElementById("message").textContent = "Max upgrades reached!";
-                return;
-            }
-            player.zenny -= 10;
-            gem.upgradeCount = (gem.upgradeCount || 0) + 1;
-            let success = false;
-            if (gem.name === "Green Quick Attack") {
-                gem.hits = (gem.hits || 2) + 1;
-                success = true;
-            } else if (gem.name === "Blue Shield") {
-                gem.shieldBoost = (gem.shieldBoost || 0) + 0.25;
-                success = true;
-            } else if (gem.damage) {
-                gem.damage += 2;
-                success = true;
-            }
-            if (success) {
-                const newGemName = replaceWithPowerfulGem(index);
-                document.getElementById("message").textContent = `${gem.name} upgraded with special effect, replaced with ${newGemName}!`;
+            const gemKey = `${gem.color}${gem.name}`;
+            const proficiency = getGemProficiency(gemKey);
+            const gemDiv = document.getElementById(`gem-${index}`);
+            if (proficiency.failureChance > 0 && Math.random() < proficiency.failureChance) {
+                if (gem.damage || gem.poison) {
+                    const damage = Math.floor((gem.damage || gem.poison) * multiplier * 0.5);
+                    player.health = Math.max(0, player.health - damage);
+                    if (Math.random() < 0.5) player.buffs.push({ type: "stunned", turns: 1 });
+                    logError(`Failed ${gem.name}! Took ${damage} damage${player.buffs.some(b => b.type === "stunned") ? " and stunned!" : "!"}`);
+                } else if (gem.heal) {
+                    player.health = Math.max(0, player.health - 5);
+                    logError(`Failed ${gem.name}! Lost 5 HP!`);
+                }
             } else {
-                document.getElementById("message").textContent = "No special upgrade available!";
-                player.zenny += 10;
-                gem.upgradeCount -= 1;
+                if (proficiency.failureChance > 0.3) {
+                    proficiency.successCount++;
+                    proficiency.failureChance = Math.max(0.3, 0.9 - proficiency.successCount * 0.15);
+                }
+                if (gem.damage) {
+                    let damage = Math.floor(gem.damage * multiplier);
+                    if (enemy.shield && gem.color !== enemy.shieldColor) damage = Math.floor(damage / 2);
+                    if (enemy.buffs?.some(b => b.type === "defense")) damage = Math.floor(damage / 2);
+                    enemy.health = Math.max(0, enemy.health - damage);
+                    logSuccess(`Played ${gem.name} for ${damage} damage!`);
+                }
+                if (gem.heal) {
+                    const heal = Math.floor(gem.heal * multiplier);
+                    player.health = Math.min(player.health + heal, player.maxHealth);
+                    if (gem.shield) player.buffs.push({ type: "defense", turns: 2 });
+                    logSuccess(`Played ${gem.name} for ${heal} healing${gem.shield ? " and defense" : ""}!`);
+                }
+                if (gem.poison) {
+                    const poisonDamage = Math.floor(gem.poison * multiplier);
+                    enemy.buffs.push({ type: "poison", turns: 2, damage: poisonDamage });
+                    logSuccess(`Played ${gem.name} for ${poisonDamage} poison damage/turn!`);
+                }
             }
-            updateStats();
-            updateShopHand();
-        }
-
-        function buyRandomGem() {
-            if (player.zenny < 10) {
-                document.getElementById("message").textContent = "Not enough $ZENNY!";
-                return;
+            if (gemDiv) {
+                gemDiv.classList.add("played");
+                setTimeout(() => gemDiv.remove(), 500);
             }
-            if (deck.length >= maxDeckSize) {
-                document.getElementById("message").textContent = "Deck is full!";
-                return;
-            }
-            const gemTypes = Object.keys(baseDeck);
-            const randomGemKey = gemTypes[Math.floor(Math.random() * gemTypes.length)];
-            const newGem = { ...baseDeck[randomGemKey], upgradeCount: 0 };
-            deck.push(newGem);
-            player.zenny -= 10;
-            document.getElementById("message").textContent = `Bought ${newGem.name} for 10 $ZENNY!`;
-            updateStats();
-            updateShopStats();
-            updateShopHand();
-        }
-
-        function discardGem() {
-            if (selectedGems.size !== 1) {
-                document.getElementById("message").textContent = "Select exactly one Gem to discard!";
-                return;
-            }
-            const index = Array.from(selectedGems)[0];
-            if (index < 0 || index >= hand.length) return;
-            const gem = hand.splice(index, 1)[0];
+            hand.splice(index, 1);
             discard.push(gem);
-            player.zenny += 3;
-            selectedGems.clear();
-            document.getElementById("message").textContent = `Discarded ${gem.name} for 3 $ZENNY!`;
-            updateStats();
-            updateShopStats();
-            updateShopHand();
-        }
-
-        function heal10() {
-            if (player.zenny >= 5) {
-                player.zenny -= 5;
-                let healAmount = 10;
-                if (isBossBattle && enemy.condition === "healHalf") healAmount = Math.floor(healAmount / 2);
-                player.health += healAmount;
-                if (player.health > player.maxHealth) player.health = player.maxHealth;
-                updateStats();
-                updateShopHand();
-                document.getElementById("message").textContent = `Healed ${healAmount} health!`;
-            } else {
-                document.getElementById("message").textContent = "Not enough $ZENNY!";
-            }
-        }
-
-        function startBattle() {
-            if (deck.length === 0 && discard.length === 0 && hand.length === 0) {
-                deck = resetDeck();
-            }
-            enemy.health = enemy.maxHealth;
-            battleOver = false;
-            player.stamina = player.baseStamina;
-            player.damageReduction = 0;
-            player.waitBuff = null;
-            enemyStunned = false;
-            drawCards(maxHandSize - hand.length);
-            hasActedThisTurn = false;
-            selectedGems.clear();
+            selectedGems.delete(index);
+            gameState.selectedGems = new Set([...selectedGems].map(i => i > index ? i - 1 : i));
+            gameState.hasPlayedGemThisTurn = true;
             updateHand();
             updateStats();
-            switchScreen("battle");
-        }
+            return true;
+        };
 
-        function nextBattle() {
-            enemyLevel++;
-            enemy = getEnemy(enemyLevel);
-            startBattle();
-        }
+        const executeSelectedGems = () => {
+            const { battleOver, selectedGems } = gameState;
+            if (battleOver || !selectedGems.size) return;
+            const selectedIndices = [...selectedGems].sort((a, b) => b - a);
+            let anyPlayed = false;
+            selectedIndices.forEach(index => {
+                if (playGem(index)) anyPlayed = true;
+            });
+            if (anyPlayed) {
+                selectedGems.clear();
+                setTimeout(checkBattleStatus, 500);
+            }
+        };
 
-        function startGameWithClass(playerClass) {
-            player.class = playerClass;
-            deck = resetDeck();
-            drawCards(maxHandSize);
-            startBattle();
-        }
+        const waitTurn = () => {
+            const { battleOver, player } = gameState;
+            if (battleOver || gameState.hasActedThisTurn || gameState.hasPlayedGemThisTurn) return;
+            gameState.hasActedThisTurn = true;
+            player.buffs.push({ type: "focused", turns: 2 });
+            logSuccess("Waited, gaining focus for next turn (+20% damage/heal)!");
+            updateStats();
+            setTimeout(endTurn, 300);
+        };
 
-        switchScreen("characterSelect");
+        const discardAndEnd = () => {
+            const { battleOver, selectedGems, hand, gemBag } = gameState;
+            if (battleOver || !selectedGems.size || gameState.hasActedThisTurn) return;
+            const indices = [...selectedGems].sort((a, b) => b - a);
+            indices.forEach(index => {
+                const gem = hand.splice(index, 1)[0];
+                gemBag.push(gem);
+                document.getElementById(`gem-${index}`)?.remove();
+            });
+            selectedGems.clear();
+            shuffle(gameState.gemBag);
+            gameState.hasActedThisTurn = true;
+            logSuccess("Discarded and recycled to Gem Bag, ending turn...");
+            updateStats();
+            setTimeout(endTurn, 300);
+        };
 
-        document.getElementById("knightBtn").onclick = () => startGameWithClass("Knight");
-        document.getElementById("mageBtn").onclick = () => startGameWithClass("Mage");
-        document.getElementById("rogueBtn").onclick = () => startGameWithClass("Rogue");
-        document.getElementById("executeBtn").onclick = executeSelectedGems;
-        document.getElementById("endTurnBtn").onclick = endTurn;
-        document.getElementById("discardAndEndTurnBtn").onclick = discardAndEndTurn;
-        document.getElementById("waitBtn").onclick = wait;
-        document.getElementById("heal10").onclick = heal10;
-        document.getElementById("buyRandomGem").onclick = buyRandomGem;
-        document.getElementById("discardGem").onclick = discardGem;
-        document.getElementById("continueBtn").onclick = nextBattle;
-    </script>
-</body>
-</html>
+        const fleeBattle = () => {
+            const { battleOver, currentPhaseIndex, player, enemy } = gameState;
+            if (battleOver || currentPhaseIndex >= 2) return;
+            gameState.battleOver = true;
+            player.buffs = [];
+            if (enemy) enemy.buffs = [];
+            logSuccess("You fled the battle, skipping rewards!");
+            updateStats();
+            setTimeout(() => switchScreen("shop"), 1000);
+        };
+
+        const endTurn = () => {
+            const { battleOver, enemy, player } = gameState;
+            if (battleOver || gameState.isEnemyTurnPending) return;
+            gameState.isEnemyTurnPending = true;
+            updateStats();
+
+            let message = "";
+            if (enemy.currentAction.startsWith("Attack") && !player.buffs.some(b => b.type === "stunned")) {
+                let damage = parseInt(enemy.currentAction.split(" ")[1]);
+                if (enemy.nextAttackBoost) {
+                    damage *= enemy.nextAttackBoost;
+                    enemy.nextAttackBoost = null;
+                }
+                if (player.buffs.some(b => b.type === "defense")) damage = Math.floor(damage / 2);
+                player.health = Math.max(0, player.health - damage);
+                updateStats();
+                if (player.health <= 0) {
+                    logError("You were defeated!");
+                    gameState.battleOver = true;
+                    setTimeout(() => switchScreen("characterSelect"), 1000);
+                    return;
+                }
+                message = `${enemy.name} attacks for ${damage} damage!`;
+            } else if (enemy.currentAction === "Defend") {
+                message = `${enemy.name} defends, reducing next damage!`;
+                enemy.buffs.push({ type: "defense", turns: 2 });
+            } else if (enemy.currentAction === "Charge") {
+                message = `${enemy.name} charges for a stronger attack next turn!`;
+                enemy.nextAttackBoost = 2;
+            } else if (enemy.currentAction === "Steal") {
+                const zenny = parseInt(enemy.currentAction.split(" ")[1]);
+                player.zenny = Math.max(0, player.zenny - zenny);
+                message = `${enemy.name} steals ${zenny} $ZENNY!`;
+            }
+
+            const poisonBuff = enemy.buffs.find(b => b.type === "poison");
+            if (poisonBuff) {
+                enemy.health = Math.max(0, enemy.health - poisonBuff.damage);
+                message += `\n${enemy.name} takes ${poisonBuff.damage} poison damage!`;
+            }
+
+            setTimeout(() => {
+                logSuccess(message);
+                enemy.currentAction = enemy.actionQueue.shift();
+                if (enemy.actionQueue.length < 3) {
+                    const shuffledActions = shuffle([...enemy.actions]);
+                    enemy.actionQueue.push(...shuffledActions.slice(0, 3 - enemy.actionQueue.length));
+                }
+                setTimeout(() => {
+                    gameState.hasActedThisTurn = false;
+                    gameState.hasPlayedGemThisTurn = false;
+                    player.stamina = player.baseStamina;
+                    player.buffs = player.buffs.map(b => ({ ...b, turns: b.turns - 1 })).filter(b => b.turns > 0);
+                    if (enemy.buffs) enemy.buffs = enemy.buffs.map(b => ({ ...b, turns: b.turns - 1 })).filter(b => b.turns > 0);
+                    drawCards(gameState.maxHandSize);
+                    gameState.selectedGems.clear();
+                    gameState.isEnemyTurnPending = false;
+                    updateStats();
+                    checkBattleStatus();
+                }, 1000);
+            }, 500);
+        };
+
+        const checkBattleStatus = () => {
+            const { enemy, player } = gameState;
+            if (enemy.health <= 0) {
+                logSuccess(`${
