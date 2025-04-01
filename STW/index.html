@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Tiny World</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <body>
+        <!-- Character Select Screen -->
+        <div id="character-select-screen" class="screen active">
+            <button id="knight-btn" class="btn-knight btn-large">Knight</button>
+            <button id="mage-btn" class="btn-mage btn-large">Mage</button>
+            <button id="rogue-btn" class="btn-rogue btn-large">Rogue</button>
+        </div>
+        
+        <!-- Battle Screen -->
+        <div id="battle-screen" class="screen">
+            <div id="battle-container">
+                <!-- Enemy Section -->
+                <div id="enemy-section">
+                    <div id="enemy-stats">
+                    <span id="enemy-name">Enemy</span> <!-- This element must exist -->
+                    <div class="health-bar">
+                        <div id="enemy-health-bar"></div>
+                        <span id="enemy-health">20</span>/<span id="enemy-max-health">20</span>
+                    </div>
+                    </div>
+                </div>
+  
+                <button id="end-turn-btn" class="btn-end-turn">End Turn</button>
+        
+                <div id="hand"></div> <!-- Gems injected here via JS -->
+            
+                <div id="player-section">
+                   <div id="player-stats">
+                        <div id="player-buffs"></div>
+                        <div class="health-bar">
+                        <div id="player-health-bar"></div>
+                        <span id="player-health">30</span>/<span id="player-max-health">30</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Other screens (empty for now) -->
+        <div id="shop-screen" class="screen"></div>
+        <div id="camp-screen" class="screen"></div>
+        <script src="js/main.js" type="module"></script>
+    </body>
+</html>
