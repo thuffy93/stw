@@ -6,6 +6,7 @@ import {
     drawGems,
     endPlayerTurn,
     updateEnemyDisplay,
+    startEnemyTurn
 } from './systems/battle.js';
 
 // Initialize core systems
@@ -22,41 +23,10 @@ function init() {
 
     EventBus.on('TURN_END', ({ turn }) => {
       if (turn === 'enemy') {
-        window.startEnemyTurn();
+        startEnemyTurn();
       } else {
         console.log('Player turn started');
       }
-    EventBus.on('GEM_SELECTED', ({ index }) => {
-        toggleGemSelection(index);
-    });
-      
-    // Listen for action commands
-    EventBus.on('EXECUTE_GEMS', () => {
-        executeSelectedGems();
-    });
-      
-    EventBus.on('WAIT_TURN', () => {
-        waitTurn();
-    });
-      
-    EventBus.on('DISCARD_END', () => {
-        discardAndEndTurn();
-    });
-      
-    EventBus.on('END_TURN', () => {
-        endTurn();
-    });
-      
-    EventBus.on('FLEE_BATTLE', () => {
-        fleeBattle();
-    });
-      
-    // Listen for battle initialization
-    EventBus.on('BATTLE_START', (data) => {
-        startBattle(data);
-    });
-      
-    console.log("Battle system initialized with event listeners");
     });
 }
 
