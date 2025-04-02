@@ -1,449 +1,486 @@
 import { GameState } from '../core/state.js';
-import { Utils } from '../core/utils.js';
-import { Config } from '../core/config.js';
-import { Gems } from './gems.js';
+import { EventBus } from '../core/events.js';
+import { GEM_TYPES } from '../core/config.js';
 
-// Shop module - Handles shop mechanics
-export const Shop = {
-    /**
-     * Prepare the shop for a visit
-     */
-    prepareShop() {
-        // Reset shop-specific state
-        GameState.set('inUpgradeMode', false);
-        GameState.set('selectedGems', new Set());
-        GameState.set('gemCatalog.upgradedThisShop', new Set());
-        GameState.set('gemCatalog.gemPool', []);
-        
-        return {
-            type: 'shop_prepared'
-        };
-    },
+// Shop system for upgrading gems and restoring stamina
+export function initShop() {
+  console.log("Initializing shop...");
+  
+  // Create shop UI if it doesn't exist
+  createShopUI();
+  
+  // Set up shop event handlers
+  setupShopControls();
+  
+  // Display player's gems and zenny
+  updateShopDisplay();
+}
+
+function createShopUI() {
+  const shopScreen = document.getElementById('shop-screen');
+  if (!shopScreen) return;
+  
+  // Only create UI if it doesn't already exist
+  if (shopScreen.children.length === 0) {
+    // Shop title
+    const shopTitle = document.createElement('h1');
+    shopTitle.textContent = 'Gem Shop';
+    shopTitle.style.marginBottom = '20px';
+    shopTitle.style.color = '#ffcc00';
     
-    /**
-     * Handle buying a random gem
-     * @returns {Object} Result of the purchase
-     */
-    buyRandomGem() {
-        const player = GameState.get('player');
-        const gemBag = GameState.get('gemBag');
-        const maxGemBagSize = Config.MAX_GEM_BAG_SIZE;
-        
-        // Check if player can afford it
-        if (player.zenny < Config.ZENNY.BUY_RANDOM_GEM_COST) {
-            return {
-                success: false,
-                reason: 'not_enough_zenny'
-            };
-        }
-        
-        // Check if gem bag is full
-        if (gemBag.length >= maxGemBagSize) {
-            return {
-                success: false,
-                reason: 'gem_bag_full'
-            };
-        }
-        
-        // Get a list of unlocked gems
-        const gemCatalog = GameState.get('gemCatalog');
-        const unlockedGemKeys = gemCatalog.unlocked;
-        
-        if (unlockedGemKeys.length === 0) {
-            return {
-                success: false,
-                reason: 'no_unlocked_gems'
-            };
-        }
-        
-        // Deduct cost
-        player.zenny -= Config.ZENNY.BUY_RANDOM_GEM_COST;
-        GameState.set('player.zenny', player.zenny);
-        
-        // Get a random gem from unlocked ones, weighted toward class-appropriate
-        const randomGemKey = this.getRandomWeightedGem(unlockedGemKeys);
-        
-        // Create the new gem
-        const newGem = { 
-            ...Config.BASE_GEMS[randomGemKey], 
-            id: `${randomGemKey}-${Utils.generateId()}`, 
-            freshlySwapped: false
-        };
-        
-        // Add to gem bag
-        GameState.set('gemBag', [...gemBag, newGem]);
-        
-        // Shuffle the gem bag
-        const shuffledBag = Utils.shuffle(GameState.get('gemBag'));
-        GameState.set('gemBag', shuffledBag);
-        
-        return {
-            success: true,
-            gem: newGem,
-            cost: Config.ZENNY.BUY_RANDOM_GEM_COST
-        };
-    },
+    // Zenny display
+    const zennyDisplay = document.createElement('div');
+    zennyDisplay.id = 'shop-zenny';
+    zennyDisplay.className = 'zenny-display';
+    zennyDisplay.style.fontSize = '1.5em';
+    zennyDisplay.style.marginBottom = '20px';
+    zennyDisplay.innerHTML = '<span id="zenny-amount">0</span> <span style="color: #ffcc00;">ZENNY</span>';
     
-    /**
-     * Get a random gem with weighting toward class-appropriate gems
-     * @param {Array} gemKeys - Array of gem keys
-     * @returns {String} Selected gem key
-     */
-    getRandomWeightedGem(gemKeys) {
-        const playerClass = GameState.get('player.class');
-        
-        // Define weights for different gem types
-        const weights = {
-            classMatched: 3,  // Higher chance for class-matching gems
-            grey: 2,         // Medium chance for grey (universal) gems
-            other: 1         // Lower chance for non-matching gems
-        };
-        
-        // Get player's class color
-        const classColors = {
-            "Knight": "red",
-            "Mage": "blue",
-            "Rogue": "green"
-        };
-        const classColor = classColors[playerClass];
-        
-        // Build weighted list
-        const weightedList = [];
-        
-        gemKeys.forEach(key => {
-            const gem = Config.BASE_GEMS[key];
-            if (!gem) return;
-            
-            let weight = weights.other;
-            
-            if (gem.color === classColor) {
-                weight = weights.classMatched;
-            } else if (gem.color === "grey") {
-                weight = weights.grey;
-            }
-            
-            // Add gem to list multiple times based on weight
-            for (let i = 0; i < weight; i++) {
-                weightedList.push(key);
-            }
+    // Shop sections container
+    const shopContainer = document.createElement('div');
+    shopContainer.className = 'shop-container';
+    shopContainer.style.display = 'flex';
+    shopContainer.style.flexDirection = 'column';
+    shopContainer.style.gap = '20px';
+    shopContainer.style.alignItems = 'center';
+    
+    // Player's hand section
+    const handSection = document.createElement('div');
+    handSection.className = 'shop-section';
+    handSection.innerHTML = `
+      <h2>Your Gems</h2>
+      <p class="shop-instruction">Select a gem to upgrade</p>
+      <div id="shop-hand" class="gem-container"></div>
+    `;
+    
+    // Upgrade options section
+    const upgradeSection = document.createElement('div');
+    upgradeSection.className = 'shop-section';
+    upgradeSection.innerHTML = `
+      <h2>Upgrade Options</h2>
+      <p class="shop-instruction">Choose an upgrade (costs Zenny)</p>
+      <div id="upgrade-options" class="gem-container"></div>
+    `;
+    
+    // Stamina restore section
+    const staminaSection = document.createElement('div');
+    staminaSection.className = 'shop-section';
+    staminaSection.innerHTML = `
+      <h2>Restore Stamina</h2>
+      <p>Current Stamina: <span id="shop-stamina">3/3</span></p>
+      <button id="restore-stamina-btn" class="btn-shop">Restore Stamina (10 Zenny)</button>
+    `;
+    
+    // Continue button
+    const continueBtn = document.createElement('button');
+    continueBtn.id = 'continue-btn';
+    continueBtn.className = 'btn-large';
+    continueBtn.textContent = 'Continue Journey';
+    continueBtn.style.marginTop = '30px';
+    
+    // Add all elements to shop screen
+    shopContainer.appendChild(handSection);
+    shopContainer.appendChild(upgradeSection);
+    shopContainer.appendChild(staminaSection);
+    
+    shopScreen.appendChild(shopTitle);
+    shopScreen.appendChild(zennyDisplay);
+    shopScreen.appendChild(shopContainer);
+    shopScreen.appendChild(continueBtn);
+    
+    // Add some base styles
+    const shopSections = shopScreen.querySelectorAll('.shop-section');
+    shopSections.forEach(section => {
+      section.style.backgroundColor = 'rgba(0,0,0,0.7)';
+      section.style.padding = '20px';
+      section.style.borderRadius = '8px';
+      section.style.width = '80%';
+      section.style.maxWidth = '600px';
+    });
+    
+    const gemContainers = shopScreen.querySelectorAll('.gem-container');
+    gemContainers.forEach(container => {
+      container.style.display = 'flex';
+      container.style.flexWrap = 'wrap';
+      container.style.justifyContent = 'center';
+      container.style.gap = '10px';
+      container.style.marginTop = '15px';
+      container.style.minHeight = '120px';
+    });
+  }
+}
+
+function setupShopControls() {
+  // Set up continue button
+  const continueBtn = document.getElementById('continue-btn');
+  if (continueBtn) {
+    // Remove existing listeners to prevent duplicates
+    const newBtn = continueBtn.cloneNode(true);
+    continueBtn.parentNode.replaceChild(newBtn, continueBtn);
+    newBtn.addEventListener('click', continueBattle);
+  }
+  
+  // Set up restore stamina button
+  const restoreBtn = document.getElementById('restore-stamina-btn');
+  if (restoreBtn) {
+    const newRestoreBtn = restoreBtn.cloneNode(true);
+    restoreBtn.parentNode.replaceChild(newRestoreBtn, restoreBtn);
+    newRestoreBtn.addEventListener('click', restoreStamina);
+  }
+}
+
+function updateShopDisplay() {
+  // Update zenny display
+  const zennyElem = document.getElementById('zenny-amount');
+  if (zennyElem) {
+    zennyElem.textContent = GameState.data.player.zenny || 0;
+  }
+  
+  // Update stamina display
+  const staminaElem = document.getElementById('shop-stamina');
+  if (staminaElem) {
+    const player = GameState.data.player;
+    staminaElem.textContent = `${player.stamina}/${player.baseStamina}`;
+  }
+  
+  // Display player's current gems
+  displayPlayerGems();
+}
+
+function displayPlayerGems() {
+  const handContainer = document.getElementById('shop-hand');
+  if (!handContainer) return;
+  
+  // Clear current display
+  handContainer.innerHTML = '';
+  
+  // Get player's gem bag
+  const gemBag = GameState.data.player.gemBag || [];
+  
+  if (gemBag.length === 0) {
+    const message = document.createElement('p');
+    message.textContent = 'No gems available';
+    message.style.fontStyle = 'italic';
+    handContainer.appendChild(message);
+    return;
+  }
+  
+  // Create a gem element for each gem in the bag
+  gemBag.forEach((gem, index) => {
+    const gemType = GEM_TYPES[gem.type];
+    if (!gemType) return;
+    
+    // Create modified gemType with custom color
+    const customGemType = { 
+      ...gemType, 
+      color: gem.color || gemType.color,
+      level: gem.level || 1
+    };
+    
+    // Create gem element
+    const gemElement = createShopGemElement(customGemType, index);
+    handContainer.appendChild(gemElement);
+  });
+}
+
+function createShopGemElement(gemType, index) {
+  const gem = document.createElement('div');
+  
+  // Set class based on gem color
+  const gemColor = gemType.color || 'red';
+  gem.className = `gem ${gemColor}`;
+  
+  // Apply smaller size for shop
+  gem.style.width = '90px';
+  gem.style.height = '90px';
+  
+  // Store gem data
+  gem.dataset.index = index;
+  gem.dataset.type = gemType.name;
+  gem.dataset.color = gemColor;
+  gem.dataset.level = gemType.level || 1;
+  
+  // Add class bonus indicator if applicable
+  const player = GameState.data.player;
+  if (player?.gemBonus?.[gemColor] > 1) {
+    gem.classList.add('class-bonus');
+  }
+  
+  // Show gem level
+  const levelDisplay = gemType.level > 1 ? ` (Lvl ${gemType.level})` : '';
+  
+  // Create gem content
+  gem.innerHTML = `
+    <div class="gem-content">
+      <div class="gem-icon">${gemType.icon}</div>
+      <div class="gem-name">${gemType.name}${levelDisplay}</div>
+    </div>
+  `;
+  
+  // Add tooltip
+  gem.setAttribute('data-tooltip', getGemShopDescription(gemType));
+  
+  // Add click handler
+  gem.addEventListener('click', () => {
+    selectGemForUpgrade(gemType, index);
+  });
+  
+  return gem;
+}
+
+function getGemShopDescription(gemType) {
+  let description = gemType.description || `${gemType.name} Gem`;
+  
+  // Add level info
+  if (gemType.level > 1) {
+    description += ` (Level ${gemType.level})`;
+  }
+  
+  // Add upgrade hint
+  description += '\nClick to see upgrade options.';
+  
+  return description;
+}
+
+function selectGemForUpgrade(gemType, index) {
+  console.log(`Selected gem for upgrade: ${gemType.name} (index: ${index})`);
+  
+  // Highlight selected gem
+  const gems = document.querySelectorAll('#shop-hand .gem');
+  gems.forEach(g => g.classList.remove('selected'));
+  
+  const selectedGem = document.querySelector(`#shop-hand .gem[data-index="${index}"]`);
+  if (selectedGem) {
+    selectedGem.classList.add('selected');
+  }
+  
+  // Show upgrade options
+  displayUpgradeOptions(gemType, index);
+}
+
+function displayUpgradeOptions(gemType, index) {
+  const upgradeContainer = document.getElementById('upgrade-options');
+  if (!upgradeContainer) return;
+  
+  // Clear current options
+  upgradeContainer.innerHTML = '';
+  
+  // Get gem level
+  const level = gemType.level || 1;
+  
+  // Calculate upgrade cost
+  const upgradeCost = calculateUpgradeCost(gemType, level);
+  
+  // Create upgraded version of the gem
+  const upgradedGem = { ...gemType, level: level + 1 };
+  
+  // Enhance stats based on gem type
+  enhanceGemStats(upgradedGem);
+  
+  // Create upgrade option
+  const upgradeElement = document.createElement('div');
+  upgradeElement.className = 'upgrade-option';
+  upgradeElement.style.textAlign = 'center';
+  
+  // Create gem display
+  const gemDisplay = createShopGemElement(upgradedGem, -1);
+  gemDisplay.style.margin = '0 auto 10px auto';
+  gemDisplay.classList.remove('selected');
+  gemDisplay.style.pointerEvents = 'none';
+  
+  // Create cost and button
+  const costButton = document.createElement('button');
+  costButton.className = 'btn-shop';
+  costButton.textContent = `Upgrade (${upgradeCost} Zenny)`;
+  costButton.disabled = GameState.data.player.zenny < upgradeCost;
+  
+  costButton.addEventListener('click', () => {
+    upgradeGem(index, upgradedGem, upgradeCost);
+  });
+  
+  // Add to container
+  upgradeElement.appendChild(gemDisplay);
+  upgradeElement.appendChild(costButton);
+  upgradeContainer.appendChild(upgradeElement);
+}
+
+function enhanceGemStats(gem) {
+  // Update gem stats based on type and new level
+  switch(gem.type || gem.name) {
+    case 'Attack':
+      // Increase damage for attack gems
+      if (gem.colors) {
+        Object.keys(gem.colors).forEach(color => {
+          gem.colors[color] = Math.floor(gem.colors[color] * 1.5);
         });
-        
-        // Pick random entry from weighted list
-        return weightedList[Math.floor(Math.random() * weightedList.length)];
-    },
-    
-    /**
-     * Handle discarding a selected gem
-     * @returns {Object} Result of the discard
-     */
-    discardSelectedGem() {
-        const selectedGems = GameState.get('selectedGems');
-        const hand = GameState.get('hand');
-        const player = GameState.get('player');
-        
-        // Validation
-        if (!selectedGems.size) {
-            return {
-                success: false,
-                reason: 'no_selection'
-            };
-        }
-        
-        if (player.zenny < Config.ZENNY.DISCARD_GEM_COST) {
-            return {
-                success: false,
-                reason: 'not_enough_zenny'
-            };
-        }
-        
-        // Get selected gem
-        const index = Array.from(selectedGems)[0];
-        
-        // Validate index is in range
-        if (index < 0 || index >= hand.length) {
-            return {
-                success: false,
-                reason: 'invalid_selection'
-            };
-        }
-        
-        const gem = hand[index];
-        
-        // Remove gem from hand
-        const newHand = [...hand];
-        newHand.splice(index, 1);
-        GameState.set('hand', newHand);
-        
-        // Deduct cost
-        player.zenny -= Config.ZENNY.DISCARD_GEM_COST;
-        GameState.set('player.zenny', player.zenny);
-        
-        // Clear selection
-        GameState.set('selectedGems', new Set());
-        
-        return {
-            success: true,
-            gem: gem,
-            cost: Config.ZENNY.DISCARD_GEM_COST
-        };
-    },
-    
-    /**
-     * Handle healing in the shop
-     * @returns {Object} Result of healing
-     */
-    healTen() {
-        const player = GameState.get('player');
-        
-        // Validation
-        if (player.zenny < Config.ZENNY.HEAL_COST) {
-            return {
-                success: false,
-                reason: 'not_enough_zenny'
-            };
-        }
-        
-        if (player.health >= player.maxHealth) {
-            return {
-                success: false,
-                reason: 'already_max_health'
-            };
-        }
-        
-        // Deduct cost
-        player.zenny -= Config.ZENNY.HEAL_COST;
-        
-        // Calculate actual healing (considering max health cap)
-        const startHealth = player.health;
-        player.health = Math.min(player.health + Config.ZENNY.HEAL_AMOUNT, player.maxHealth);
-        const actualHealing = player.health - startHealth;
-        
-        // Update player health
-        GameState.set('player.health', player.health);
-        GameState.set('player.zenny', player.zenny);
-        
-        return {
-            success: true,
-            healing: actualHealing,
-            cost: Config.ZENNY.HEAL_COST
-        };
-    },
-    
-    /**
-     * Initiate gem upgrade process
-     * @returns {Object} Result of upgrade initiation
-     */
-    initiateGemUpgrade() {
-        const selectedGems = GameState.get('selectedGems');
-        const player = GameState.get('player');
-        const hand = GameState.get('hand');
-        const gemCatalog = GameState.get('gemCatalog');
-        
-        // Validate selection and cost
-        if (selectedGems.size !== 1) {
-            return {
-                success: false,
-                reason: 'invalid_selection'
-            };
-        }
-        
-        if (player.zenny < Config.ZENNY.UPGRADE_GEM_COST) {
-            return {
-                success: false,
-                reason: 'not_enough_zenny'
-            };
-        }
-        
-        const selectedIndex = Array.from(selectedGems)[0];
-        
-        // Validate index is in range
-        if (selectedIndex < 0 || selectedIndex >= hand.length) {
-            return {
-                success: false,
-                reason: 'invalid_selection'
-            };
-        }
-        
-        const selectedGem = hand[selectedIndex];
-        
-        // Validate the selected gem exists
-        if (!selectedGem) {
-            return {
-                success: false,
-                reason: 'invalid_selection'
-            };
-        }
-        
-        if (selectedGem.freshlySwapped) {
-            return {
-                success: false,
-                reason: 'freshly_swapped'
-            };
-        }
-        
-        if (gemCatalog.upgradedThisShop && gemCatalog.upgradedThisShop.has(selectedGem.id)) {
-            return {
-                success: false,
-                reason: 'already_upgraded'
-            };
-        }
-        
-        // Deduct payment
-        player.zenny -= Config.ZENNY.UPGRADE_GEM_COST;
-        GameState.set('player.zenny', player.zenny);
-        
-        // Generate upgrade options using the Gems module
-        const options = Gems.generateUpgradeOptions(selectedGem);
-        
-        // Ensure we have at least one upgrade option
-        if (!options || options.length === 0) {
-            console.error("No upgrade options generated");
-            player.zenny += Config.ZENNY.UPGRADE_GEM_COST; // Refund
-            GameState.set('player.zenny', player.zenny);
-            
-            return {
-                success: false,
-                reason: 'no_options'
-            };
-        }
-        
-        // Set the upgrade options in state
-        GameState.set('gemCatalog.gemPool', options);
-        
-        // Set upgrade mode flag
-        GameState.set('inUpgradeMode', true);
-        
-        return {
-            success: true,
-            options: options,
-            cost: Config.ZENNY.UPGRADE_GEM_COST
-        };
-    },
-    
-    /**
-     * Select an upgrade option
-     * @param {Number} poolIndex - Index of the selected option in the pool
-     * @returns {Object} Result of option selection
-     */
-    selectUpgradeOption(poolIndex) {
-        const selectedGems = GameState.get('selectedGems');
-        const gemCatalog = GameState.get('gemCatalog');
-        const hand = GameState.get('hand');
-        
-        // Validation
-        if (!GameState.get('inUpgradeMode') || selectedGems.size !== 1) {
-            return {
-                success: false,
-                reason: 'not_in_upgrade_mode'
-            };
-        }
-        
-        if (poolIndex < 0 || !gemCatalog.gemPool || poolIndex >= gemCatalog.gemPool.length) {
-            return {
-                success: false,
-                reason: 'invalid_option'
-            };
-        }
-        
-        // Get the selected gem and upgrade option
-        const selectedIndex = Array.from(selectedGems)[0];
-        
-        // Validate index is in range
-        if (selectedIndex < 0 || selectedIndex >= hand.length) {
-            return {
-                success: false,
-                reason: 'invalid_selection'
-            };
-        }
-        
-        const selectedGem = hand[selectedIndex];
-        const upgradeOption = gemCatalog.gemPool[poolIndex];
-        
-        if (!upgradeOption) {
-            return {
-                success: false,
-                reason: 'invalid_option'
-            };
-        }
-        
-        // Check if this is a class-specific upgrade
-        const isClassUpgrade = upgradeOption.isClassUpgrade;
-        
-        // Replace the selected gem with the upgrade
-        const newHand = [...hand];
-        newHand[selectedIndex] = {
-            ...upgradeOption,
-            id: `${upgradeOption.name}-${Utils.generateId()}`,
-            freshlySwapped: false
-        };
-        
-        GameState.set('hand', newHand);
-        
-        // Ensure upgradedThisShop is initialized as a Set
-        if (!gemCatalog.upgradedThisShop || !(gemCatalog.upgradedThisShop instanceof Set)) {
-            gemCatalog.upgradedThisShop = new Set();
-        }
-        
-        // Mark as upgraded this shop visit
-        gemCatalog.upgradedThisShop.add(newHand[selectedIndex].id);
-        GameState.set('gemCatalog.upgradedThisShop', gemCatalog.upgradedThisShop);
-        
-        // IMPORTANT: If this is a class-specific upgrade, ensure proficiency
-        if (isClassUpgrade) {
-            const gemName = upgradeOption.name;
-            const gemColor = upgradeOption.color;
-            const gemKey = `${gemColor}${gemName.replace(/\s+/g, '')}`;
-            
-            // Update proficiency in active state
-            const gemProficiency = GameState.get('gemProficiency');
-            gemProficiency[gemKey] = { 
-                successCount: Config.COMBAT.FULL_PROFICIENCY_THRESHOLD, 
-                failureChance: 0 
-            };
-            GameState.set('gemProficiency', gemProficiency);
-            
-            // Also update in class-specific proficiency
-            const playerClass = GameState.get('player.class');
-            if (playerClass) {
-                GameState.set(`classGemProficiency.${playerClass}.${gemKey}`, { 
-                    successCount: Config.COMBAT.FULL_PROFICIENCY_THRESHOLD, 
-                    failureChance: 0 
-                });
-            }
-        }
-        
-        // Reset upgrade mode state
-        GameState.set('selectedGems', new Set());
-        GameState.set('inUpgradeMode', false);
-        GameState.set('gemCatalog.gemPool', []);
-        
-        return {
-            success: true,
-            originalGem: selectedGem,
-            newGem: newHand[selectedIndex],
-            isClassUpgrade: isClassUpgrade,
-            isDirectUpgrade: upgradeOption.isDirectUpgrade,
-            isAlternateUpgrade: upgradeOption.isAlternateUpgrade
-        };
-    },
-    
-    /**
-     * Cancel gem upgrade in the shop
-     * @returns {Object} Result of cancellation
-     */
-    cancelUpgrade() {
-        // Refund the cost
-        const player = GameState.get('player');
-        GameState.set('player.zenny', player.zenny + Config.ZENNY.UPGRADE_GEM_COST);
-        
-        // Reset upgrade mode state
-        GameState.set('inUpgradeMode', false);
-        GameState.set('gemCatalog.gemPool', []);
-        GameState.set('selectedGems', new Set());
-        
-        return {
-            success: true,
-            refund: Config.ZENNY.UPGRADE_GEM_COST
-        };
-    }
-};
+      }
+      break;
+      
+    case 'Heal':
+      // Increase healing amount
+      gem.effect = Math.floor(gem.effect * 1.5);
+      break;
+      
+    case 'Shield':
+      // Increase shield value and duration
+      gem.defense = Math.floor(gem.defense * 1.4);
+      gem.duration += 1;
+      break;
+      
+    case 'Focus':
+      // Increase stamina gain
+      gem.staminaGain += 1;
+      break;
+      
+    case 'Poison':
+      // Increase poison damage and duration
+      gem.damage += 1;
+      gem.duration += 1;
+      break;
+  }
+  
+  return gem;
+}
+
+function calculateUpgradeCost(gemType, level) {
+  // Base cost is 10 zenny
+  let baseCost = 10;
+  
+  // Multiply by level
+  let cost = baseCost * level;
+  
+  // Special gems cost more
+  if (gemType.name === 'Shield' || gemType.name === 'Heal' || gemType.name === 'Poison') {
+    cost *= 1.5;
+  }
+  
+  return Math.floor(cost);
+}
+
+function upgradeGem(index, upgradedGem, cost) {
+  // Check if player has enough zenny
+  const currentZenny = GameState.data.player.zenny || 0;
+  if (currentZenny < cost) {
+    alert('Not enough Zenny!');
+    return;
+  }
+  
+  // Get current gem bag
+  const gemBag = [...(GameState.data.player.gemBag || [])];
+  
+  // Replace the gem at index with upgraded version
+  gemBag[index] = {
+    type: upgradedGem.type || upgradedGem.name,
+    color: upgradedGem.color,
+    level: upgradedGem.level
+  };
+  
+  // Update player state
+  GameState.setState('player.gemBag', gemBag);
+  GameState.setState('player.zenny', currentZenny - cost);
+  
+  // Show upgrade effect
+  showUpgradeEffect();
+  
+  // Update shop display
+  updateShopDisplay();
+}
+
+function restoreStamina() {
+  const player = GameState.data.player;
+  const staminaCost = 10;
+  
+  // Check if stamina is already full
+  if (player.stamina >= player.baseStamina) {
+    alert('Stamina is already full!');
+    return;
+  }
+  
+  // Check if player has enough zenny
+  if (player.zenny < staminaCost) {
+    alert('Not enough Zenny!');
+    return;
+  }
+  
+  // Restore stamina and deduct cost
+  GameState.setState('player.stamina', player.baseStamina);
+  GameState.setState('player.zenny', player.zenny - staminaCost);
+  
+  // Show restoration effect
+  showRestoreEffect();
+  
+  // Update shop display
+  updateShopDisplay();
+}
+
+function showUpgradeEffect() {
+  // Create visual effect for gem upgrade
+  const effect = document.createElement('div');
+  effect.textContent = 'GEM UPGRADED!';
+  effect.style.position = 'fixed';
+  effect.style.top = '50%';
+  effect.style.left = '50%';
+  effect.style.transform = 'translate(-50%, -50%)';
+  effect.style.color = '#ffcc00';
+  effect.style.fontSize = '2em';
+  effect.style.fontWeight = 'bold';
+  effect.style.textShadow = '0 0 10px rgba(255, 204, 0, 0.7)';
+  effect.style.animation = 'pulsate 2s';
+  effect.style.zIndex = '1000';
+  
+  document.body.appendChild(effect);
+  setTimeout(() => effect.remove(), 2000);
+}
+
+function showRestoreEffect() {
+  // Create visual effect for stamina restoration
+  const effect = document.createElement('div');
+  effect.textContent = 'STAMINA RESTORED!';
+  effect.style.position = 'fixed';
+  effect.style.top = '50%';
+  effect.style.left = '50%';
+  effect.style.transform = 'translate(-50%, -50%)';
+  effect.style.color = '#55cc55';
+  effect.style.fontSize = '2em';
+  effect.style.fontWeight = 'bold';
+  effect.style.textShadow = '0 0 10px rgba(85, 204, 85, 0.7)';
+  effect.style.animation = 'pulsate 2s';
+  effect.style.zIndex = '1000';
+  
+  document.body.appendChild(effect);
+  setTimeout(() => effect.remove(), 2000);
+}
+
+function continueBattle() {
+  console.log('Continuing to next battle...');
+  
+  // Progress to next phase or day
+  progressGamePhase();
+  
+  // Return to battle screen
+  EventBus.emit('SCREEN_CHANGE', { screen: 'battle' });
+}
+
+function progressGamePhase() {
+  // Get current phase and day
+  let currentPhase = GameState.data.battle.phase;
+  let currentDay = GameState.data.battle.day || 1;
+  
+  // Get phase index
+  const phaseIndex = PHASES.indexOf(currentPhase);
+  
+  if (phaseIndex === -1) {
+    // If phase not found, reset to Dawn
+    GameState.setState('battle.phase', 'Dawn');
+  } else if (phaseIndex === PHASES.length - 1) {
+    // If at last phase (Dark), move to next day and reset to Dawn
+    GameState.setState('battle.day', currentDay + 1);
+    GameState.setState('battle.phase', 'Dawn');
+  } else {
+    // Otherwise, move to next phase
+    GameState.setState('battle.phase', PHASES[phaseIndex + 1]);
+  }
+}
+
+// Export functions for accessibility
+export { updateShopDisplay, continueBattle, restoreStamina };
