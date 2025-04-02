@@ -4,14 +4,9 @@ import { initCharacterSelect } from './systems/character.js';
 import { 
     drawGems,
     endPlayerTurn,
-    discardAndEndTurn,
-    executeSelectedGems,
-    toggleGemSelection,
-    generateEnemy,
-    startBattle,
-    renderHand,
-    waitTurn,
-    fleeBattle,
+    executeGems,
+    startEnemyTurn,
+    initBattle,
     updateEnemyDisplay,
 } from './systems/battle.js';
 
@@ -59,7 +54,7 @@ function handleScreenChange(screen) {
         enemyName: document.getElementById('enemy-name'),
         hand: document.getElementById('hand')
       });
-      startBattle();
+      initBattle();
     }
 }
 
