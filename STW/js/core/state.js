@@ -111,6 +111,66 @@ export const GameState = {
       return () => {
         this.listeners = this.listeners.filter(cb => cb !== callback);
       };
+    },
+    // Add to GameState in state.js
+    update(updates) {
+      // Track changes for history
+      const changes = {};
+      
+      // Apply all updates at once
+      for (const key in updates) {
+        const oldValue = this.get(key);
+        changes[key] = { oldValue, newValue: updates[key] };
+        
+        // Set the value using our existing setState but suppress notifications
+        this.setStateInternal(key, updates[key], false);
+      }
+      
+      // Notify once for all changes
+      this.notifyBatch(changes);
+    },
+
+    // Helper to set state without notification
+    setStateInternal(key, value, notify = true) {
+      const keys = key.split('.');
+      let obj = this.data;
+      
+      for (let i = 0; i < keys.length - 1; i++) {
+        if (!obj[keys[i]]) {
+          obj[keys[i]] = {};
+        }
+        obj = obj[keys[i]];
+      }
+      
+      obj[keys[keys.length - 1]] = value;
+      
+      // Track the change for history
+      this.trackStateChange(key, value, oldValue);
+      
+      // Notify listeners if required
+      if (notify) {
+        this.notifyListeners(key, value, oldValue);
+      }
+    },
+
+    // Batch notification
+    notifyBatch(changes) {
+      // Notify individual property listeners
+      for (const key in changes) {
+        const { oldValue, newValue } = changes[key];
+        this.notifyListeners(key, newValue, oldValue);
+      }
+      
+      // Notify wildcard listeners with the full change set
+      if (this._listeners['*']) {
+        this._listeners['*'].forEach(listener => {
+          try {
+            listener(changes);
+          } catch (error) {
+            console.error(`Error in wildcard state change listener:`, error);
+          }
+        });
+      }
     }
 };
 function updateHealthBar(target) {

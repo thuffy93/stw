@@ -54,40 +54,24 @@ export function initBattle() {
     
     endTurnBtn.addEventListener('click', endPlayerTurn);
 }
-
-window.startEnemyTurn = function() {
-    console.log("Enemy turn started");
-    
-    const enemy = GameState.data.battle.enemy || { 
-      name: "Grunt", 
-      health: 20, 
-      attack: 5 
-    };
-  
-    if (Math.random() > 0.5) {
-      const damage = enemy.attack;
-      GameState.setState('player.health', GameState.data.player.health - damage);
-      showDamageEffect(damage, 'player');
-    } else {
-      console.log(`${enemy.name} defends!`);
-    }
-  
-    setTimeout(() => {
-      EventBus.emit('TURN_END', { turn: 'player' });
-      drawGems(3);
-    }, 1500);
-};
   
 /**
  * Play a gem from the player's hand
  * @param {Number} index - Index of the gem in hand
  * @returns {Boolean} Whether the gem was successfully played
  */
+/**
+ * Enhanced playGem function that consolidates multiple gem-related functions
+ * @param {Number} index - Index of the gem in the hand
+ * @returns {Boolean} Whether the gem was successfully played
+ */
 export function playGem(index) {
   try {
-    const hand = GameState.data.hand;
-    const player = GameState.data.player;
-    const battleOver = GameState.data.battleOver;
+    const state = GameState.data;
+    const hand = state.hand;
+    const player = state.player;
+    const enemy = state.battle.enemy;
+    const battleOver = state.battleOver;
     
     // Validation
     if (battleOver) {
@@ -111,42 +95,246 @@ export function playGem(index) {
       return false;
     }
     
-    // Deduct stamina
-    GameState.setState('player.stamina', player.stamina - gem.cost);
+    // --- Consolidated logic from several functions ---
+    
+    // Calculate multiplier (incorporating calculateGemMultiplier logic)
+    let multiplier = 1;
+    
+    // Apply class bonus
+    if ((player.class === "Knight" && gem.color === "red") || 
+        (player.class === "Mage" && gem.color === "blue") || 
+        (player.class === "Rogue" && gem.color === "green")) {
+      multiplier *= 1.5;
+    }
+    
+    // Apply focus buff
+    if (player.buffs && player.buffs.some(b => b.type === "focused")) {
+      multiplier *= 1.2;
+    }
     
     // Get gem proficiency and check for failure
     const gemKey = `${gem.color}${gem.name}`;
-    const proficiency = getGemProficiency(gemKey);
-    const gemFails = checkGemFails(proficiency);
+    const proficiency = getGemProficiency ? getGemProficiency(gemKey) : { successCount: 6, failureChance: 0 };
+    const gemFails = proficiency.failureChance > 0 && Math.random() < proficiency.failureChance;
     
-    // Process gem effects
+    // Process gem effects based on success/failure
     if (gemFails) {
       // Handle failure effects
-      handleGemFailure(gem);
+      if (gem.damage) {
+        // Self-damage on attack gem failure (50% of normal value)
+        const damage = Math.floor(gem.damage * 0.5);
+        
+        // Apply damage
+        const newHealth = Math.max(0, player.health - damage);
+        
+        // Random chance to stun player
+        let newBuffs = [...(player.buffs || [])];
+        if (Math.random() < 0.5) {
+          newBuffs.push({ type: "stunned", turns: 1 });
+        }
+        
+        // Show visual damage effect (consolidated from showDamageEffect)
+        const element = document.createElement('div');
+        element.className = 'damage-text player-damage';
+        element.textContent = `-${damage}`;
+        document.getElementById('player-section').appendChild(element);
+        setTimeout(() => element.remove(), 1000);
+        
+        // Update health display
+        const healthElem = document.getElementById('player-health');
+        if (healthElem) {
+          healthElem.textContent = newHealth;
+        }
+        
+        // Single state update for player
+        GameState.update({
+          'player.health': newHealth,
+          'player.buffs': newBuffs,
+          'player.stamina': player.stamina - gem.cost
+        });
+        
+        // Emit message
+        EventBus.emit('SHOW_MESSAGE', { 
+          message: `Failed ${gem.name}! Took ${damage} damage${newBuffs.some(b => b.type === "stunned") ? " and stunned!" : "!"}`, 
+          type: "error" 
+        });
+        
+        // Check for player defeat
+        if (newHealth <= 0) {
+          handlePlayerDefeated();
+          return true;
+        }
+      } 
+      else if (gem.heal) {
+        // Handle heal gem failure
+        const damage = 5;
+        const newHealth = Math.max(0, player.health - damage);
+        
+        // Show visual effect
+        const element = document.createElement('div');
+        element.className = 'damage-text player-damage';
+        element.textContent = `-${damage}`;
+        document.getElementById('player-section').appendChild(element);
+        setTimeout(() => element.remove(), 1000);
+        
+        // Update health display
+        const healthElem = document.getElementById('player-health');
+        if (healthElem) {
+          healthElem.textContent = newHealth;
+        }
+        
+        // Single state update
+        GameState.update({
+          'player.health': newHealth,
+          'player.stamina': player.stamina - gem.cost
+        });
+        
+        // Emit message
+        EventBus.emit('SHOW_MESSAGE', { 
+          message: `Failed ${gem.name}! Lost 5 HP!`, 
+          type: "error" 
+        });
+        
+        // Check for player defeat
+        if (newHealth <= 0) {
+          handlePlayerDefeated();
+          return true;
+        }
+      }
     } else {
       // Handle success effects
-      handleGemSuccess(gem);
+      if (gem.damage && enemy) {
+        // Calculate damage with modifiers
+        let damage = Math.floor(gem.damage * multiplier);
+        
+        // Apply shield reduction
+        if (enemy.shield && gem.color !== enemy.shieldColor) {
+          damage = Math.floor(damage / 2);
+        }
+        
+        // Apply defense buff reduction
+        if (enemy.buffs && enemy.buffs.some(b => b.type === "defense")) {
+          damage = Math.floor(damage / 2);
+        }
+        
+        // Apply damage
+        const newHealth = Math.max(0, enemy.health - damage);
+        
+        // Show visual effect (consolidated from showDamageEffect)
+        const element = document.createElement('div');
+        element.className = 'damage-text enemy-damage';
+        element.textContent = `-${damage}`;
+        document.getElementById('enemy-section').appendChild(element);
+        setTimeout(() => element.remove(), 1000);
+        
+        // Update health display
+        const healthElem = document.getElementById('enemy-health');
+        if (healthElem) {
+          healthElem.textContent = newHealth;
+        }
+        
+        // Update enemy health
+        GameState.setState('battle.enemy.health', newHealth);
+        
+        // Emit message
+        EventBus.emit('SHOW_MESSAGE', { 
+          message: `Played ${gem.name} for ${damage} damage!` 
+        });
+        
+        // Check for enemy defeat
+        if (newHealth <= 0) {
+          handleEnemyDefeated();
+          return true;
+        }
+      }
+      else if (gem.heal) {
+        // Calculate healing with modifier
+        const healAmount = Math.floor(gem.heal * multiplier);
+        
+        // Apply healing (capped at max health)
+        const newHealth = Math.min(player.health + healAmount, player.maxHealth);
+        
+        // Apply shield if the gem has that property
+        let newBuffs = [...(player.buffs || [])];
+        if (gem.shield) {
+          newBuffs.push({ type: "defense", turns: 2 });
+          
+          // Show shield effect (consolidated from showShieldEffect)
+          const shieldIcon = document.createElement('div');
+          shieldIcon.className = 'buff-icon shield';
+          shieldIcon.textContent = '🛡️';
+          shieldIcon.title = `Shield: ${gem.defense} (${gem.duration} turns)`;
+          document.getElementById('player-buffs').appendChild(shieldIcon);
+        }
+        
+        // Show visual effect (consolidated from showHealEffect)
+        const element = document.createElement('div');
+        element.className = 'heal-text';
+        element.textContent = `+${healAmount}`;
+        document.getElementById('player-section').appendChild(element);
+        setTimeout(() => element.remove(), 1000);
+        
+        // Update health display
+        const healthElem = document.getElementById('player-health');
+        if (healthElem) {
+          healthElem.textContent = newHealth;
+        }
+        
+        // Single state update
+        GameState.update({
+          'player.health': newHealth,
+          'player.buffs': newBuffs,
+          'player.stamina': player.stamina - gem.cost
+        });
+        
+        // Emit message
+        EventBus.emit('SHOW_MESSAGE', { 
+          message: `Played ${gem.name} for ${healAmount} healing${gem.shield ? " and defense" : ""}!` 
+        });
+      }
+      else if (gem.poison && enemy) {
+        // Calculate poison damage with modifier
+        const poisonDamage = Math.floor(gem.poison * multiplier);
+        
+        // Add poison buff to enemy
+        const enemyBuffs = [...(enemy.buffs || [])];
+        enemyBuffs.push({ type: "poison", turns: 2, damage: poisonDamage });
+        GameState.setState('battle.enemy.buffs', enemyBuffs);
+        
+        // Update player stamina separately
+        GameState.setState('player.stamina', player.stamina - gem.cost);
+        
+        // Emit message
+        EventBus.emit('SHOW_MESSAGE', { 
+          message: `Played ${gem.name} for ${poisonDamage} poison damage/turn!` 
+        });
+      }
       
       // Update proficiency on success
-      updateGemProficiency(gemKey, true);
+      if (updateGemProficiency) {
+        updateGemProficiency(gemKey, true);
+      }
     }
     
     // Remove gem from hand and add to discard
     const newHand = [...hand];
     newHand.splice(index, 1);
-    GameState.setState('hand', newHand);
     
-    const discard = GameState.data.discard || [];
-    GameState.setState('discard', [...discard, gem]);
+    const discard = state.discard || [];
+    const newDiscard = [...discard, gem];
     
-    // Mark that player has played a gem this turn
-    GameState.setState('hasPlayedGemThisTurn', true);
+    // Batch update for hand, discard, and turn state
+    GameState.update({
+      'hand': newHand,
+      'discard': newDiscard,
+      'hasPlayedGemThisTurn': true
+    });
     
     // Emit event for played gem
     EventBus.emit('GEM_PLAYED', { 
       gem, 
       success: !gemFails,
-      proficiency
+      index
     });
     
     return true;
@@ -159,217 +347,7 @@ export function playGem(index) {
     return false;
   }
 }
-/**
- * Handle gem failure effects
- * @param {Object} gem - The gem that failed
- */
-function handleGemFailure(gem) {
-  const player = GameState.data.player;
-  
-  if (gem.damage) {
-    // Self-damage on attack gem failure (50% of normal value)
-    const damage = Math.floor(gem.damage * 0.5);
-    
-    // Apply damage
-    const newHealth = Math.max(0, player.health - damage);
-    GameState.setState('player.health', newHealth);
-    
-    // Random chance to stun player
-    if (Math.random() < 0.5) {
-      const playerBuffs = [...(player.buffs || [])];
-      playerBuffs.push({ type: "stunned", turns: 1 });
-      GameState.setState('player.buffs', playerBuffs);
-      
-      // Emit buff event
-      EventBus.emit('BUFF_APPLIED', { 
-        target: 'player', 
-        buff: { type: "stunned", turns: 1 } 
-      });
-    }
-    
-    // Emit events
-    EventBus.emit('DAMAGE_DEALT', { 
-      amount: damage, 
-      target: 'player', 
-      source: 'gemFailure',
-      type: 'attack'
-    });
-    
-    EventBus.emit('SHOW_MESSAGE', { 
-      message: `Failed ${gem.name}! Took ${damage} damage${player.buffs.some(b => b.type === "stunned") ? " and stunned!" : "!"}`, 
-      type: "error" 
-    });
-    
-    // Check for player defeat
-    if (newHealth <= 0) {
-      handlePlayerDefeated();
-    }
-  } 
-  else if (gem.heal) {
-    // Self-damage on heal gem failure
-    const damage = 5;
-    
-    // Apply damage
-    const newHealth = Math.max(0, player.health - damage);
-    GameState.setState('player.health', newHealth);
-    
-    // Emit events
-    EventBus.emit('DAMAGE_DEALT', { 
-      amount: damage, 
-      target: 'player', 
-      source: 'gemFailure',
-      type: 'attack'
-    });
-    
-    EventBus.emit('SHOW_MESSAGE', { 
-      message: `Failed ${gem.name}! Lost 5 HP!`, 
-      type: "error" 
-    });
-    
-    // Check for player defeat
-    if (newHealth <= 0) {
-      handlePlayerDefeated();
-    }
-  }
-  else if (gem.poison) {
-    // Self-poison on poison gem failure
-    const damage = Math.floor(gem.poison * 0.5);
-    
-    // Apply damage
-    const newHealth = Math.max(0, player.health - damage);
-    GameState.setState('player.health', newHealth);
-    
-    // Emit events
-    EventBus.emit('DAMAGE_DEALT', { 
-      amount: damage, 
-      target: 'player', 
-      source: 'gemFailure',
-      type: 'poison'
-    });
-    
-    EventBus.emit('SHOW_MESSAGE', { 
-      message: `Failed ${gem.name}! Took ${damage} self-poison damage!`, 
-      type: "error" 
-    });
-    
-    // Check for player defeat
-    if (newHealth <= 0) {
-      handlePlayerDefeated();
-    }
-  }
-}
 
-/**
- * Handle gem success effects
- * @param {Object} gem - The gem that succeeded
- */
-function handleGemSuccess(gem) {
-  const player = GameState.data.player;
-  const enemy = GameState.data.battle.enemy;
-  
-  // Apply class bonus
-  let multiplier = 1;
-  if ((player.class === "Knight" && gem.color === "red") || 
-      (player.class === "Mage" && gem.color === "blue") || 
-      (player.class === "Rogue" && gem.color === "green")) {
-    multiplier = 1.5;
-  }
-  
-  // Apply focus buff
-  if (player.buffs && player.buffs.some(b => b.type === "focused")) {
-    multiplier *= 1.2;
-  }
-  
-  if (gem.damage && enemy) {
-    // Calculate damage with modifiers
-    let damage = Math.floor(gem.damage * multiplier);
-    
-    // Apply shield reduction
-    if (enemy.shield && gem.color !== enemy.shieldColor) {
-      damage = Math.floor(damage / 2);
-    }
-    
-    // Apply defense buff reduction
-    if (enemy.buffs && enemy.buffs.some(b => b.type === "defense")) {
-      damage = Math.floor(damage / 2);
-    }
-    
-    // Apply damage
-    const newHealth = Math.max(0, enemy.health - damage);
-    GameState.setState('battle.enemy.health', newHealth);
-    
-    // Emit events
-    EventBus.emit('DAMAGE_DEALT', { 
-      amount: damage, 
-      target: 'enemy', 
-      source: 'player',
-      type: 'attack'
-    });
-    
-    EventBus.emit('SHOW_MESSAGE', { 
-      message: `Played ${gem.name} for ${damage} damage!` 
-    });
-    
-    // Check for enemy defeat
-    if (newHealth <= 0) {
-      handleEnemyDefeated();
-    }
-  }
-  if (gem.heal) {
-    // Calculate healing with modifier
-    const heal = Math.floor(gem.heal * multiplier);
-    
-    // Apply healing (capped at max health)
-    const newHealth = Math.min(player.health + heal, player.maxHealth);
-    GameState.setState('player.health', newHealth);
-    
-    // Apply shield if the gem has that property
-    if (gem.shield) {
-      const playerBuffs = [...(player.buffs || [])];
-      playerBuffs.push({ type: "defense", turns: 2 });
-      GameState.setState('player.buffs', playerBuffs);
-      
-      // Emit buff event
-      EventBus.emit('BUFF_APPLIED', { 
-        target: 'player', 
-        buff: { type: "defense", turns: 2 } 
-      });
-    }
-    
-    // Emit events
-    EventBus.emit('DAMAGE_DEALT', { 
-      amount: -heal, // Negative amount for healing
-      target: 'player', 
-      source: 'player',
-      type: 'heal'
-    });
-    
-    EventBus.emit('SHOW_MESSAGE', { 
-      message: `Played ${gem.name} for ${heal} healing${gem.shield ? " and defense" : ""}!` 
-    });
-  }
-  
-  if (gem.poison && enemy) {
-    // Calculate poison damage with modifier
-    const poisonDamage = Math.floor(gem.poison * multiplier);
-    
-    // Add poison buff to enemy
-    const enemyBuffs = [...(enemy.buffs || [])];
-    enemyBuffs.push({ type: "poison", turns: 2, damage: poisonDamage });
-    GameState.setState('battle.enemy.buffs', enemyBuffs);
-    
-    // Emit buff event
-    EventBus.emit('BUFF_APPLIED', { 
-      target: 'enemy', 
-      buff: { type: "poison", turns: 2, damage: poisonDamage } 
-    });
-    
-    // Emit message
-    EventBus.emit('SHOW_MESSAGE', { 
-      message: `Played ${gem.name} for ${poisonDamage} poison damage/turn!` 
-    });
-  }
-} 
 /**
  * Wait for a turn (gain focus)
  */
@@ -493,19 +471,6 @@ export function fleeBattle() {
   }, 1000);
 }
 
-function calculateDamage(gemType, player) {
-    const baseDamage = gemType.colors?.[player.class?.toLowerCase()] || 3;
-    return Math.floor(baseDamage * (player.gemBonus?.[gemType.color] || 1));
-}
-
-function showShieldEffect() {
-    const shieldIcon = document.createElement('div');
-    shieldIcon.className = 'buff-icon shield';
-    shieldIcon.textContent = '🛡️';
-    shieldIcon.title = `Shield: ${GameState.data.player.buffs.shield} (${GameState.data.player.buffs.shieldTurns} turns)`;
-    document.getElementById('player-buffs').appendChild(shieldIcon);
-}
-
 export function endPlayerTurn() {
     GameState.setState('battle.turn', 'enemy');
     EventBus.emit('TURN_END', { turn: 'enemy' });
@@ -577,24 +542,6 @@ export function startEnemyTurn() {
     }, 1500);
 }
   
-  // Modify showDamageEffect to include health updates:
-function showDamageEffect(amount, target) {
-    // Update health display immediately
-    const healthElem = document.getElementById(`${target}-health`);
-    if (healthElem) {
-      const current = parseInt(healthElem.textContent);
-      healthElem.textContent = current - amount;
-    }
-    
-    // Create damage text effect
-    const element = document.createElement('div');
-    element.className = `damage-text ${target}-damage`;
-    element.textContent = `-${amount}`;
-    document.getElementById(`${target}-section`).appendChild(element);
-    
-    setTimeout(() => element.remove(), 1000);
-}
-
 function createGemElement(gemType) {
     const gem = document.createElement('div');
     gem.className = `gem ${gemType.color || 'red'}`;
@@ -620,13 +567,6 @@ function createGemElement(gemType) {
     return gem;
 }
 
-function showHealEffect(amount) {
-    const element = document.createElement('div');
-    element.className = 'heal-text';
-    element.textContent = `+${amount}`;
-    document.getElementById('player-section').appendChild(element);
-    setTimeout(() => element.remove(), 1000);
-}
 /**
  * Process the enemy turn with a phased approach
  */
@@ -787,54 +727,6 @@ function prepareNextAction() {
     }
 }
   
-  /**
-   * Finish the enemy turn and prepare player turn (Phase 4)
-   */
-function finishEnemyTurn() {
-    // Skip if battle is over
-    if (GameState.data.battleOver) return;
-    
-    // Reset turn state flags
-    GameState.setState('hasActedThisTurn', false);
-    GameState.setState('hasPlayedGemThisTurn', false);
-    GameState.setState('isEnemyTurnPending', false);
-    
-    // Clear any selected gems at the start of player turn
-    GameState.setState('selectedGems', new Set());
-    
-    // Restore player stamina
-    const baseStamina = GameState.data.player.baseStamina;
-    GameState.setState('player.stamina', baseStamina);
-    
-    // Reduce buff durations for player
-    const player = GameState.data.player;
-    if (player.buffs && player.buffs.length > 0) {
-      const updatedPlayerBuffs = player.buffs
-        .map(b => ({ ...b, turns: b.turns - 1 }))
-        .filter(b => b.turns > 0);
-      
-      GameState.setState('player.buffs', updatedPlayerBuffs);
-    }
-    
-    // Reduce buff durations for enemy
-    const enemy = GameState.data.battle.enemy;
-    if (enemy && enemy.buffs && enemy.buffs.length > 0) {
-      const updatedEnemyBuffs = enemy.buffs
-        .map(b => ({ ...b, turns: b.turns - 1 }))
-        .filter(b => b.turns > 0);
-      
-      GameState.setState('battle.enemy.buffs', updatedEnemyBuffs);
-    }
-    
-    // Draw new cards to fill hand
-    drawGems(Config.MAX_HAND_SIZE - GameState.data.hand.length);
-    
-    // Emit event to update UI
-    EventBus.emit('PLAYER_TURN_START', {});
-    
-    // Check if battle is over
-    checkBattleStatus();
-}
 /**
  * Process all status effects for both player and enemy
  * @returns {Boolean} Whether either combatant was defeated
@@ -908,182 +800,6 @@ function processStatusEffects() {
   // processBurning();
   
   return false; // No one was defeated by status effects
-}
-
-/**
- * Apply a buff to a target (player or enemy)
- * @param {String} target - 'player' or 'enemy'
- * @param {Object} buff - Buff object with type and turns properties
- */
-export function applyBuff(target, buff) {
-  if (target !== 'player' && target !== 'enemy') {
-    console.error("Invalid buff target:", target);
-    return;
-  }
-  
-  // Get the current target and their buffs
-  const targetPath = target === 'player' ? 'player' : 'battle.enemy';
-  const targetObj = GameState.data[target === 'player' ? 'player' : 'battle'].enemy;
-  
-  if (!targetObj) {
-    console.error(`Target ${target} not found in state`);
-    return;
-  }
-  
-  // Initialize buffs array if it doesn't exist
-  const currentBuffs = targetObj.buffs || [];
-  
-  // Check if a buff of this type already exists
-  const existingBuffIndex = currentBuffs.findIndex(b => b.type === buff.type);
-  
-  if (existingBuffIndex >= 0) {
-    // Update existing buff
-    const updatedBuffs = [...currentBuffs];
-    updatedBuffs[existingBuffIndex] = {
-      ...currentBuffs[existingBuffIndex],
-      turns: Math.max(currentBuffs[existingBuffIndex].turns, buff.turns), // Use the longer duration
-      ...buff // Override with any new properties
-    };
-    
-    GameState.setState(`${targetPath}.buffs`, updatedBuffs);
-  } else {
-    // Add new buff
-    GameState.setState(`${targetPath}.buffs`, [...currentBuffs, buff]);
-  }
-  
-  // Emit event for UI update
-  EventBus.emit('BUFF_APPLIED', { target, buff });
-  
-  // Show buff message
-  EventBus.emit('SHOW_MESSAGE', { 
-    message: getBuffMessage(target, buff),
-    type: buff.type === 'stunned' && target === 'player' ? 'error' : 'normal'
-  });
-}
-
-/**
- * Get a message describing the buff
- * @param {String} target - 'player' or 'enemy'
- * @param {Object} buff - Buff object
- * @returns {String} Message describing the buff
- */
-function getBuffMessage(target, buff) {
-  const targetName = target === 'player' ? 'You' : GameState.data.battle.enemy.name;
-  
-  switch (buff.type) {
-    case 'defense':
-      return `${targetName} gained Defense (50% damage reduction)!`;
-    case 'focused':
-      return `${targetName} gained Focus (20% increased damage/healing)!`;
-    case 'stunned':
-      return `${targetName} ${target === 'player' ? 'are' : 'is'} Stunned (skip next turn)!`;
-    case 'poison':
-      return `${targetName} ${target === 'player' ? 'are' : 'is'} Poisoned (${buff.damage} damage per turn)!`;
-    default:
-      return `${targetName} gained ${buff.type} buff!`;
-  }
-}
-
-/**
- * Process buff effects at the start of a turn
- * @param {String} target - 'player' or 'enemy'
- */
-export function processBuffEffects(target) {
-  const targetPath = target === 'player' ? 'player' : 'battle.enemy';
-  const targetObj = GameState.data[target === 'player' ? 'player' : 'battle'].enemy;
-  
-  if (!targetObj || !targetObj.buffs || targetObj.buffs.length === 0) {
-    return;
-  }
-  
-  // Process each buff effect
-  targetObj.buffs.forEach(buff => {
-    switch (buff.type) {
-      case 'poison':
-        // Apply poison damage
-        const newHealth = Math.max(0, targetObj.health - buff.damage);
-        GameState.setState(`${targetPath}.health`, newHealth);
-        
-        // Emit events
-        EventBus.emit('DAMAGE_DEALT', { 
-          amount: buff.damage, 
-          target, 
-          source: 'poison',
-          type: 'poison'
-        });
-        
-        EventBus.emit('SHOW_MESSAGE', { 
-          message: `${target === 'player' ? 'You take' : `${targetObj.name} takes`} ${buff.damage} poison damage!` 
-        });
-        
-        // Check for defeat
-        if (newHealth <= 0) {
-          if (target === 'player') {
-            handlePlayerDefeated();
-          } else {
-            handleEnemyDefeated();
-          }
-        }
-        break;
-      
-      // Add other buff type processing as needed
-    }
-  });
-}
-// Add to js/systems/battle.js or js/systems/combat.js
-
-/**
- * Calculate damage with modifiers
- * @param {Object} gem - The gem being used
- * @param {String} source - 'player' or 'enemy'
- * @param {String} target - 'player' or 'enemy'
- * @returns {Number} Final damage amount
- */
-export function calculateDamage(gem, source = 'player', target = 'enemy') {
-  // Get state objects
-  const player = GameState.data.player;
-  const enemy = GameState.data.battle.enemy;
-  
-  // Base damage
-  let damage = gem.damage;
-  
-  // Apply source modifiers
-  if (source === 'player') {
-    // Apply class bonus
-    if ((player.class === "Knight" && gem.color === "red") || 
-        (player.class === "Mage" && gem.color === "blue") || 
-        (player.class === "Rogue" && gem.color === "green")) {
-      damage *= 1.5;
-    }
-    
-    // Apply focus buff
-    if (player.buffs.some(b => b.type === "focused")) {
-      damage *= 1.2;
-    }
-  }
-  
-  // Round to integer
-  damage = Math.floor(damage);
-  
-  // Apply target modifiers
-  if (target === 'enemy') {
-    // Apply shield type reduction (only affects non-matching colors)
-    if (enemy.shield && gem.color !== enemy.shieldColor) {
-      damage = Math.floor(damage / 2);
-    }
-    
-    // Apply defense buff
-    if (enemy.buffs && enemy.buffs.some(b => b.type === "defense")) {
-      damage = Math.floor(damage / 2);
-    }
-  } else if (target === 'player') {
-    // Apply player defense
-    if (player.buffs && player.buffs.some(b => b.type === "defense")) {
-      damage = Math.floor(damage / 2);
-    }
-  }
-  
-  return Math.max(0, damage);
 }
 
 /**
@@ -1235,4 +951,54 @@ function handleGameCompletion() {
 function saveHandState() {
   const hand = GameState.data.hand;
   localStorage.setItem('stw_temp_hand', JSON.stringify(hand));
+}
+
+function toggleGemSelection(index, isShop = false) {
+  const hand = GameState.data.hand;
+  let selectedGems = GameState.data.selectedGems;
+  
+  // Validate index
+  if (index < 0 || index >= hand.length) return;
+  
+  // Create new set to avoid mutation
+  let newSelection;
+  
+  // In shop, only allow one selection
+  if (isShop) {
+    newSelection = selectedGems.has(index) ? new Set() : new Set([index]);
+  } else {
+    // In battle, toggle the selection
+    newSelection = new Set(selectedGems);
+    if (newSelection.has(index)) {
+      newSelection.delete(index);
+    } else {
+      newSelection.add(index);
+    }
+  }
+  
+  // Single update
+  GameState.setState('selectedGems', newSelection);
+}
+
+function finishEnemyTurn() {
+  // Skip if battle is over
+  if (GameState.data.battleOver) return;
+  
+  // Process buffs
+  processBuffs();
+  
+  // Batch update for turn transition
+  GameState.update({
+    'hasActedThisTurn': false,
+    'hasPlayedGemThisTurn': false,
+    'isEnemyTurnPending': false,
+    'selectedGems': new Set(),
+    'player.stamina': GameState.data.player.baseStamina
+  });
+  
+  // Draw cards
+  drawGems(Config.MAX_HAND_SIZE - GameState.data.hand.length);
+  
+  // Emit event
+  EventBus.emit('PLAYER_TURN_START', {});
 }
