@@ -1,62 +1,80 @@
-import { GameState } from './core/state.js';
-import { EventBus } from './core/events.js';
-import { initCharacterSelect } from './systems/character.js';
-import { 
-    drawGems,
-    endPlayerTurn,
-    executeGems,
-    startEnemyTurn,
-    initBattle,
-    updateEnemyDisplay,
-} from './systems/battle.js';
-
-// Initialize core systems
-function init() {
-    initCharacterSelect();
-    
-    // Use the original subscribe method (still supported)
-    GameState.subscribe((state) => {
-      console.log('State updated:', state);
-    });
+const Game = (() => {
+  let initialized = false;
   
-    EventBus.on('SCREEN_CHANGE', ({ screen }) => {
-      handleScreenChange(screen);
-    });
-
-    EventBus.on('TURN_END', ({ turn }) => {
-      if (turn === 'enemy') {
-        window.startEnemyTurn();
-      } else {
-        console.log('Player turn started');
+  const criticalComponents = [
+      { name: 'EventBus', check: () => typeof EventBus !== 'undefined' },
+      { name: 'State', check: () => typeof State !== 'undefined' && State.get && State.set },
+      { name: 'UI', check: () => typeof UI !== 'undefined' && UI.initialize && UI.switchScreen },
+      { name: 'Gems', check: () => typeof Gems !== 'undefined' && Gems.resetGemBag },
+      { name: 'Battle', check: () => typeof Battle !== 'undefined' && Battle.startBattle },
+      { name: 'Shop', check: () => typeof Shop !== 'undefined' && Shop.prepareShop },
+      { name: 'Storage', check: () => typeof Storage !== 'undefined' && Storage.saveGameState }
+  ];
+  
+  function setupEventBusListeners() {
+      // Core system events
+      EventBus.subscribe('GAME_SAVE', () => Storage.saveGameState());
+      EventBus.subscribe('GAME_LOAD', () => Storage.loadGameState());
+      
+      // UI events
+      EventBus.subscribe('SCREEN_CHANGE', (screen) => UI.switchScreen(screen));
+      EventBus.subscribe('SHOW_MESSAGE', ({ message, type }) => UI.showMessage(message, type));
+      
+      // Debug events
+      EventBus.subscribe('DEBUG_LOG', (data) => console.log('[DEBUG]', data));
+  }
+  
+  function initialize() {
+      if (initialized) {
+          console.warn("Game already initialized");
+          return;
       }
-    });
-}
-
-function handleScreenChange(screen) {
-    document.querySelectorAll('.screen').forEach(s => {
-      s.classList.remove('active');
-    });
-    
-    const activeScreen = document.getElementById(`${screen}-screen`);
-    if (!activeScreen) {
-      console.error(`Screen ${screen} not found!`);
-      return;
-    }
+      
+      console.log("Initializing Super Tiny World (EventBus Version)");
+      
+      if (!checkComponentsReady()) {
+          EventBus.publish('SHOW_MESSAGE', {
+              message: "Missing critical components!",
+              type: "error"
+          });
+          return;
+      }
+      
+      try {
+          // Setup core listeners first
+          setupEventBusListeners();
+          
+          // Initialize modules
+          UI.initialize(EventBus);
+          Storage.loadAllSavedData();
+          Battle.initialize(EventBus);
+          Shop.initialize(EventBus);
+          
+          // Start at character selection
+          EventBus.publish('SCREEN_CHANGE', 'characterSelect');
+          
+          // Hide loading screen
+          if (UI.hideLoading) UI.hideLoading();
+          
+          initialized = true;
+          console.log("Game initialized with EventBus architecture");
+      } catch (error) {
+          console.error("Initialization error:", error);
+          EventBus.publish('SHOW_MESSAGE', {
+              message: "Failed to initialize game!",
+              type: "error"
+          });
+      }
+  }
   
-    activeScreen.classList.add('active');
-    
-    // Update the state using new API
-    GameState.set('currentScreen', screen);
-    
-    if (screen === 'battle') {
-      console.log("Battle screen elements:", {
-        endTurnBtn: document.getElementById('end-turn-btn'),
-        enemyName: document.getElementById('enemy-name'),
-        hand: document.getElementById('hand')
-      });
-      initBattle();
-    }
-}
+  return {
+      initialize
+  };
+})();
 
-// Start the game
-init();
+// Initialize when ready
+if (document.readyState === 'complete') {
+  setTimeout(Game.initialize, 100);
+} else {
+  document.addEventListener('DOMContentLoaded', Game.initialize);
+}

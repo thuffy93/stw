@@ -1,19 +1,36 @@
-// core/events.js - Enhanced version based on the scrapped code
-export const EventBus = {
-    // Emit custom events with data
-    emit(event, detail = {}) {
-      console.log(`Event emitted: ${event}`, detail);
-      document.dispatchEvent(new CustomEvent(event, { detail }));
-    },
+// eventbus.js
+const EventBus = (() => {
+  const channels = new Map();
   
-    // Subscribe to events
-    on(event, callback) {
-      document.addEventListener(event, (e) => callback(e.detail));
-      return () => this.off(event, callback); // Return unsubscribe function
-    },
-  
-    // Unsubscribe
-    off(event, callback) {
-      document.removeEventListener(event, callback);
-    }
-};
+  return {
+      subscribe(channel, callback) {
+          if (!channels.has(channel)) channels.set(channel, []);
+          const token = Symbol();
+          channels.get(channel).push({ token, callback });
+          return token;
+      },
+      
+      unsubscribe(channel, token) {
+          const subscribers = channels.get(channel) || [];
+          channels.set(channel, subscribers.filter(sub => sub.token !== token));
+      },
+      
+      publish(channel, data) {
+          const subscribers = channels.get(channel) || [];
+          subscribers.forEach(({ callback }) => {
+              try {
+                  callback(data);
+              } catch (error) {
+                  console.error(`EventBus error in ${channel}:`, error);
+              }
+          });
+      },
+      
+      debug() {
+          return Array.from(channels.entries()).map(([channel, subs]) => ({
+              channel,
+              subscribers: subs.length
+          }));
+      }
+  };
+})();
