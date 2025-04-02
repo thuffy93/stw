@@ -2,9 +2,16 @@ import { GameState } from './core/state.js';
 import { EventBus } from './core/events.js';
 import { initCharacterSelect } from './systems/character.js';
 import { 
-    initBattle,
     drawGems,
     endPlayerTurn,
+    discardAndEndTurn,
+    executeSelectedGems,
+    toggleGemSelection,
+    generateEnemy,
+    startBattle,
+    renderHand,
+    waitTurn,
+    fleeBattle,
     updateEnemyDisplay,
 } from './systems/battle.js';
 
@@ -52,7 +59,7 @@ function handleScreenChange(screen) {
         enemyName: document.getElementById('enemy-name'),
         hand: document.getElementById('hand')
       });
-      initBattle();
+      startBattle();
     }
 }
 
