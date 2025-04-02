@@ -44,39 +44,110 @@ export const GameState = {
       }
     },
     
-    // Enhanced setState with history tracking
-    setState(key, value) {
-        const keys = key.split('.');
-        let obj = this.data;
-        
-        // Get the old value for history
-        const oldValue = this.getNestedValue(this.data, keys);
-        
-        // Set the new value (keep existing logic)
-        for (let i = 0; i < keys.length - 1; i++) {
+    // Enhanced setState with tracking and notification control
+    setState(key, value, notify = true) {
+      const keys = key.split('.');
+      let obj = this.data;
+      
+      // Track old value for history (if needed)
+      let oldValue;
+      if (this.trackStateChange) {
+        oldValue = this.getNestedProperty(this.data, keys);
+      }
+      
+      // Set the value
+      for (let i = 0; i < keys.length - 1; i++) {
         if (!obj[keys[i]]) {
-            obj[keys[i]] = {};
+          obj[keys[i]] = {};
         }
         obj = obj[keys[i]];
-        }
-        
-        obj[keys[keys.length - 1]] = value;
-        
-        // Track the change
+      }
+      
+      obj[keys[keys.length - 1]] = value;
+      
+      // Track state change if tracking is enabled
+      if (this.trackStateChange) {
         this.trackStateChange(key, value, oldValue);
-        
-        // Keep existing notification logic
+      }
+      
+      // Auto-update health bars
+      if (key === 'player.health' || key === 'player.maxHealth') {
+        updateHealthBar('player');
+      }
+      if (key.includes('enemy.health')) {
+        updateHealthBar('enemy');
+      }
+
+      // Only notify if requested
+      if (notify) {
         this.notify();
+      }
     },
     
-    // Helper function to get nested values
-    getNestedValue(obj, keys) {
-        let currentObj = obj;
-        for (const key of keys) {
-        if (!currentObj || typeof currentObj !== 'object') return undefined;
-        currentObj = currentObj[key];
-        }
-        return currentObj;
+    // Optimized batch update method
+    update(updates) {
+      // Track changes for history
+      const changes = {};
+      
+      // Apply all updates at once
+      for (const key in updates) {
+        const oldValue = this.getNestedProperty(this.data, key.split('.'));
+        changes[key] = { oldValue, newValue: updates[key] };
+        
+        // Set the value without triggering notification
+        this.setState(key, updates[key], false);
+      }
+      
+      // Process any special UI updates needed (like health bars)
+      this.processSpecialUpdates(changes);
+      
+      // Single notification at the end
+      this.notify();
+      
+      return true;
+    },
+    
+    // Helper to get a nested property value
+    getNestedProperty(obj, pathArray) {
+      return pathArray.reduce((prev, curr) => 
+        prev && typeof prev === 'object' ? prev[curr] : undefined
+      , obj);
+    },
+    
+    // Process special UI updates based on changed properties
+    processSpecialUpdates(changes) {
+      // Check if health properties changed
+      if (changes['player.health'] || changes['player.maxHealth']) {
+        updateHealthBar('player');
+      }
+      
+      const enemyHealthChanged = Object.keys(changes).some(key => 
+        key.includes('enemy.health')
+      );
+      
+      if (enemyHealthChanged) {
+        updateHealthBar('enemy');
+      }
+      
+      // Can add more special case handling here
+    },
+    
+    // Optional: Add state change tracking for debugging
+    stateChangeHistory: [],
+    MAX_HISTORY_ENTRIES: 100,
+    
+    trackStateChange(property, newValue, oldValue) {
+      this.stateChangeHistory.push({
+        timestamp: new Date(),
+        property,
+        newValue: typeof newValue === 'object' ? JSON.stringify(newValue) : newValue,
+        oldValue: typeof oldValue === 'object' ? JSON.stringify(oldValue) : oldValue
+      });
+      
+      // Limit history size
+      if (this.stateChangeHistory.length > this.MAX_HISTORY_ENTRIES) {
+        this.stateChangeHistory.shift();
+      }
     },
     
     // Add new validate method
@@ -95,11 +166,6 @@ export const GameState = {
         };
     },
     
-    // Batch updates (e.g., loading saved games)
-    update(updates) {
-      Object.assign(this.data, updates);
-      this.notify();
-    },
     // Notify all subscribed UI components
     notify() {
       this.listeners.forEach(callback => callback(this.data));
@@ -112,24 +178,7 @@ export const GameState = {
         this.listeners = this.listeners.filter(cb => cb !== callback);
       };
     },
-    // Add to GameState in state.js
-    update(updates) {
-      // Track changes for history
-      const changes = {};
-      
-      // Apply all updates at once
-      for (const key in updates) {
-        const oldValue = this.get(key);
-        changes[key] = { oldValue, newValue: updates[key] };
-        
-        // Set the value using our existing setState but suppress notifications
-        this.setStateInternal(key, updates[key], false);
-      }
-      
-      // Notify once for all changes
-      this.notifyBatch(changes);
-    },
-
+    
     // Helper to set state without notification
     setStateInternal(key, value, notify = true) {
       const keys = key.split('.');
@@ -173,6 +222,7 @@ export const GameState = {
       }
     }
 };
+
 function updateHealthBar(target) {
     const state = GameState.data;
     const bar = document.getElementById(`${target}-health-bar`);
