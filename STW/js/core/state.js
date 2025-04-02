@@ -25,36 +25,81 @@ export const GameState = {
   
     // State subscribers (for UI updates)
     listeners: [],
-  
-    // Update state and notify listeners
+    
+    // Add stateChangeHistory
+    stateChangeHistory: [],
+    MAX_HISTORY_ENTRIES: 100,
+    
+    trackStateChange(property, newValue, oldValue) {
+      this.stateChangeHistory.push({
+        timestamp: new Date(),
+        property,
+        newValue,
+        oldValue
+      });
+      
+      // Limit history size
+      if (this.stateChangeHistory.length > this.MAX_HISTORY_ENTRIES) {
+        this.stateChangeHistory.shift();
+      }
+    },
+    
+    // Enhanced setState with history tracking
     setState(key, value) {
-      const keys = key.split('.');
-      let obj = this.data;
-      for (let i = 0; i < keys.length - 1; i++) {
+        const keys = key.split('.');
+        let obj = this.data;
+        
+        // Get the old value for history
+        const oldValue = this.getNestedValue(this.data, keys);
+        
+        // Set the new value (keep existing logic)
+        for (let i = 0; i < keys.length - 1; i++) {
         if (!obj[keys[i]]) {
-          obj[keys[i]] = {};
+            obj[keys[i]] = {};
         }
         obj = obj[keys[i]];
-      }
-      
-      obj[keys[keys.length - 1]] = value;
-    // Auto-update health bars
-    if (key === 'player.health' || key === 'player.maxHealth') {
-        updateHealthBar('player');
-    }
-    if (key.includes('enemy.health')) {
-        updateHealthBar('enemy');
-    }
-
-      this.notify();
+        }
+        
+        obj[keys[keys.length - 1]] = value;
+        
+        // Track the change
+        this.trackStateChange(key, value, oldValue);
+        
+        // Keep existing notification logic
+        this.notify();
     },
-  
+    
+    // Helper function to get nested values
+    getNestedValue(obj, keys) {
+        let currentObj = obj;
+        for (const key of keys) {
+        if (!currentObj || typeof currentObj !== 'object') return undefined;
+        currentObj = currentObj[key];
+        }
+        return currentObj;
+    },
+    
+    // Add new validate method
+    validateState() {
+        const issues = [];
+        
+        // Validate critical state properties
+        if (!this.data.player) {
+        issues.push('Missing player object');
+        }
+        // Add more validation checks
+        
+        return {
+        valid: issues.length === 0,
+        issues
+        };
+    },
+    
     // Batch updates (e.g., loading saved games)
     update(updates) {
       Object.assign(this.data, updates);
       this.notify();
     },
-  
     // Notify all subscribed UI components
     notify() {
       this.listeners.forEach(callback => callback(this.data));
