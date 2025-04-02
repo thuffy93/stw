@@ -1,224 +1,130 @@
-// Enhanced game configuration module
-export const Config = {
-  // Game structure constants
-  MAX_HAND_SIZE: 3,
-  MAX_GEM_BAG_SIZE: 20,
-  MAX_DAYS: 7,
-  BATTLES_PER_DAY: 3,
-  PHASES: ["Dawn", "Dusk", "Dark"],
-  
-  // Class definitions
-  CLASSES: {
-      Knight: {
-          color: "red",
-          maxHealth: 40,
-          baseStamina: 3
-      },
-      Mage: {
-          color: "blue",
-          maxHealth: 30,
-          baseStamina: 4
-      },
-      Rogue: {
-          color: "green",
-          maxHealth: 35,
-          baseStamina: 3,
-          startingZenny: 5
-      }
+// Game configuration constants
+
+// Gem types and properties
+export const GEM_TYPES = {
+  ATTACK: {
+    name: "Attack",
+    icon: "🗡️",
+    colors: { 
+      red: 5,    // Knight damage
+      blue: 3,   // Mage damage
+      green: 4   // Rogue damage
+    },
+    staminaCost: { 
+      red: 2,    // Knight stamina cost
+      blue: 2,   // Mage stamina cost
+      green: 1   // Rogue stamina cost
+    },
+    description: "Deal damage to the enemy",
+    color: "red" // Default color
   },
   
-  // Enemy definitions
-  ENEMIES: [
-      { 
-          name: "Grunt", 
-          maxHealth: 20, 
-          actions: ["Attack 5", "Defend", "Attack 3"] 
-      },
-      { 
-          name: "Bandit", 
-          maxHealth: 15, 
-          actions: ["Attack 7", "Steal 3", "Defend"] 
-      },
-      { 
-          name: "Wolf", 
-          maxHealth: 25, 
-          actions: ["Attack 4", "Charge", "Attack 6"] 
-      }
-  ],
-  
-  // Boss definition
-  BOSS: { 
-      name: "Dark Guardian", 
-      maxHealth: 30, 
-      actions: ["Attack 6", "Charge", "Defend"],
-      shield: true, 
-      shieldColor: "red" 
+  HEAL: {
+    name: "Heal",
+    icon: "💚",
+    effect: 3,       // Healing amount
+    staminaCost: 2,
+    description: "Restore health points",
+    color: "blue"
   },
   
-  // Gem type definitions
-  GEM_DEFINITIONS: {
-      // Attack gems
-      attack: {
-          icon: "🗡️",        // For battle/shop
-          label: "Attack",    // For catalog
-          property: "damage"  // Property to check for this type
-      },
-      strongAttack: {
-          icon: "⚔️",
-          label: "Strong",
-          property: "damage",
-          nameCheck: "Strong"
-      },
-      quickAttack: {
-          icon: "⚡",
-          label: "Quick",
-          property: "damage",
-          nameCheck: "Quick"
-      },
-      burstAttack: {
-          icon: "💥",
-          label: "Burst",
-          property: "damage",
-          nameCheck: "Burst"
-      },
-      
-      // Healing gems
-      heal: {
-          icon: "💚",
-          label: "Heal",
-          property: "heal"
-      },
-      strongHeal: {
-          icon: "❤️",
-          label: "Strong Heal",
-          property: "heal",
-          nameCheck: "Strong"
-      },
-      
-      // Special types
-      shield: {
-          icon: "🛡️",
-          label: "Shield",
-          property: "shield"
-      },
-      poison: {
-          icon: "☠️",
-          label: "Poison",
-          property: "poison"
-      }
+  SHIELD: {
+    name: "Shield",
+    icon: "🛡️",
+    defense: 2,      // Damage reduction
+    duration: 3,     // Turns
+    staminaCost: 1,
+    description: "Reduce incoming damage for several turns",
+    color: "grey"
   },
   
-  // Base gem definitions
-  BASE_GEMS: {
-      redAttack: { name: "Attack", color: "red", cost: 2, damage: 5, upgradeCount: 0, rarity: "Common" },
-      redBurst: { name: "Burst", color: "red", cost: 3, damage: 10, upgradeCount: 0, rarity: "Rare" },
-      redStrongAttack: { name: "Strong Attack", color: "red", cost: 3, damage: 8, upgradeCount: 0, rarity: "Uncommon" },
-      blueMagicAttack: { name: "Magic Attack", color: "blue", cost: 2, damage: 7, upgradeCount: 0, rarity: "Common" },
-      blueShield: { name: "Shield", color: "blue", cost: 2, heal: 3, upgradeCount: 0, rarity: "Rare", shield: true },
-      blueStrongHeal: { name: "Strong Heal", color: "blue", cost: 3, heal: 8, upgradeCount: 0, rarity: "Uncommon" },
-      greenAttack: { name: "Attack", color: "green", cost: 1, damage: 5, upgradeCount: 0, rarity: "Common" },
-      greenPoison: { name: "Poison", color: "green", cost: 2, damage: 3, upgradeCount: 0, rarity: "Rare", poison: 2 },
-      greenQuickAttack: { name: "Quick Attack", color: "green", cost: 1, damage: 3, upgradeCount: 0, rarity: "Uncommon" },
-      greyHeal: { name: "Heal", color: "grey", cost: 1, heal: 5, upgradeCount: 0, rarity: "Common" }
+  FOCUS: {
+    name: "Focus",
+    icon: "🔍",
+    staminaGain: 2,   // Stamina recovery
+    staminaCost: 0,   // Free to use
+    description: "Recover stamina, skipping your attack",
+    color: "grey" 
   },
   
-  // Standard starting gems for each class
-  STARTING_GEMS: {
-      Knight: ["redAttack", "blueMagicAttack", "greenAttack", "greyHeal", "redStrongAttack"],
-      Mage: ["redAttack", "blueMagicAttack", "greenAttack", "greyHeal", "blueStrongHeal"],
-      Rogue: ["redAttack", "blueMagicAttack", "greenAttack", "greyHeal", "greenQuickAttack"]
-  },
-  
-  // Initial gem unlocks for each class
-  INITIAL_GEM_UNLOCKS: {
-      Knight: {
-          unlocked: ["redAttack", "greyHeal", "redStrongAttack", "blueMagicAttack", "greenAttack"],
-          available: ["redBurst"]
-      },
-      Mage: {
-          unlocked: ["blueMagicAttack", "greyHeal", "blueStrongHeal", "redAttack", "greenAttack"],
-          available: ["blueShield"]
-      },
-      Rogue: {
-          unlocked: ["greenAttack", "greyHeal", "greenQuickAttack", "redAttack", "blueMagicAttack"],
-          available: ["greenPoison"]
-      }
-  },
-  
-  // Initial gem proficiency for each class
-  INITIAL_GEM_PROFICIENCY: {
-      Knight: {
-          redAttack: { successCount: 6, failureChance: 0 },
-          blueMagicAttack: { successCount: 6, failureChance: 0 },
-          greenAttack: { successCount: 6, failureChance: 0 },
-          greyHeal: { successCount: 6, failureChance: 0 },
-          redStrongAttack: { successCount: 6, failureChance: 0 }
-      },
-      Mage: {
-          redAttack: { successCount: 6, failureChance: 0 },
-          blueMagicAttack: { successCount: 6, failureChance: 0 },
-          greenAttack: { successCount: 6, failureChance: 0 },
-          greyHeal: { successCount: 6, failureChance: 0 },
-          blueStrongHeal: { successCount: 6, failureChance: 0 }
-      },
-      Rogue: {
-          redAttack: { successCount: 6, failureChance: 0 },
-          blueMagicAttack: { successCount: 6, failureChance: 0 },
-          greenAttack: { successCount: 6, failureChance: 0 },
-          greyHeal: { successCount: 6, failureChance: 0 },
-          greenQuickAttack: { successCount: 6, failureChance: 0 }
-      }
-  },
-  
-  // Storage keys for persistence
-  STORAGE_KEYS: {
-      META_ZENNY: "stw_metaZenny",
-      GEM_UNLOCKS_PREFIX: "stw_gemUnlocks_",
-      GEM_PROFICIENCY_PREFIX: "stw_gemProficiency_",
-      GAME_STATE: "stw_gameState",
-      AUDIO_ENABLED: "stw_audioEnabled",
-      AUDIO_VOLUME: "stw_audioVolume"
-  },
-  
-  // Game progression constants
-  ZENNY: {
-      UNLOCK_GEM_COST: 50,
-      UPGRADE_GEM_COST: 5,
-      DISCARD_GEM_COST: 3,
-      BUY_RANDOM_GEM_COST: 3,
-      HEAL_COST: 3,
-      HEAL_AMOUNT: 10,
-      BOSS_REWARD: 30,
-      ENEMY_REWARD: 10,
-      GAME_COMPLETION_BONUS: 100
-  },
-  
-  // Combat mechanics
-  COMBAT: {
-      BASE_PROFICIENCY_FAILURE: 0.9,
-      PROFICIENCY_IMPROVEMENT_RATE: 0.15,
-      FULL_PROFICIENCY_THRESHOLD: 6,
-      CLASS_BONUS_MULTIPLIER: 1.5,
-      FOCUS_BONUS_MULTIPLIER: 1.2,
-      SHIELD_DAMAGE_REDUCTION: 0.5,
-      DEFENSE_DAMAGE_REDUCTION: 0.5,
-      GEM_FAIL_DAMAGE_MULTIPLIER: 0.5,
-      GEM_FAIL_SELF_DAMAGE: 5,
-      GEM_FAIL_STUN_CHANCE: 0.5,
-      BUFF_DURATION: {
-          DEFENSE: 2,
-          POISON: 2,
-          FOCUS: 2,
-          STUN: 1
-      }
-  },
-  
-  // UI settings
-  UI: {
-      MESSAGE_DURATION: 2000,
-      ANIMATION_DELAY: 300,
-      TURN_TRANSITION_DELAY: 500,
-      VICTORY_DEFEAT_DELAY: 1500,
-      SCREEN_TRANSITION_DELAY: 300
+  POISON: {
+    name: "Poison",
+    icon: "☠️",
+    damage: 1,        // Damage per turn
+    duration: 3,      // Turns
+    staminaCost: 2,
+    description: "Apply poison that damages over time",
+    color: "green"
   }
+};
+
+// Enemy types
+export const ENEMY_TYPES = {
+  // Day 1: Ruined Village
+  GRUNT: {
+    name: "Grunt",
+    health: 20,
+    maxHealth: 20,
+    attack: 5,
+    icon: "👹",
+    day: 1,
+    phase: "Dawn",
+    zenny: 10
+  },
+  
+  WOLF: {
+    name: "Wolf",
+    health: 15,
+    maxHealth: 15,
+    attack: 7,
+    icon: "🐺",
+    day: 1,
+    phase: "Dusk",
+    zenny: 15
+  },
+  
+  VILLAGE_CHIEF: {
+    name: "Corrupted Chief",
+    health: 30,
+    maxHealth: 30,
+    attack: 8,
+    icon: "👑",
+    day: 1,
+    phase: "Dark",
+    isBoss: true,
+    zenny: 50
+  }
+};
+
+// Phase configuration
+export const PHASES = [
+  "Dawn",
+  "Dusk",
+  "Dark"
+];
+
+// Game difficulty scaling
+export const DIFFICULTY = {
+  healthScaling: 1.2,   // Enemy health increase per day
+  damageScaling: 1.15,  // Enemy damage increase per day
+  zennyScaling: 1.5     // Zenny rewards increase per day
+};
+
+// Player progression
+export const PROGRESSION = {
+  maxGems: 20,         // Maximum gems in bag
+  baseStamina: 3,      // Starting stamina
+  maxHealth: {
+    Knight: 40,
+    Mage: 30,
+    Rogue: 25
+  }
+};
+
+// Game text constants
+export const TEXT = {
+  victoryMessage: "Victory!",
+  defeatMessage: "Defeat...",
+  dayComplete: "Day Complete!",
+  shopPrompt: "Upgrade your gems or restore stamina before continuing"
 };

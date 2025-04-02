@@ -1,767 +1,1324 @@
+// Enhanced battle system with improved mechanics from standalone version
 import { GameState } from '../core/state.js';
 import { EventBus } from '../core/events.js';
-import { GEM_TYPES, ENEMY_TYPES, PHASES } from '../core/config.js';
+import { GEM_TYPES } from '../core/config.js';
 
-export function initBattle() {
-  console.log("Initializing battle...");
+/**
+ * Initialize a new battle
+ */
+export function startBattle() {
+  console.log("Starting battle with enhanced system...");
   
-  // Reset player stamina to base value
-  GameState.setState('player.stamina', GameState.data.player.baseStamina || 3);
+  // Generate enemy
+  const enemy = generateEnemy();
+  GameState.set('battle.enemy', enemy);
   
-  // Initialize enemy data if not set
-  if (!GameState.data.battle.enemy) {
-    // Get current day and phase
-    const currentDay = GameState.data.battle.day || 1;
-    const currentPhase = GameState.data.battle.phase || 'Dawn';
-    
-    // Find appropriate enemy for this day/phase
-    const enemy = getEnemyForPhase(currentDay, currentPhase);
-    
-    // Set enemy in game state
-    GameState.setState('battle.enemy', enemy);
-  }
-  
-  // Set initial turn to player
-  GameState.setState('battle.turn', 'player');
-  
-  // Update battle UI
-  updateBattleUI();
-  
-  // Draw initial gems
-  drawGems(3);
-  
-  // Set up battle event handlers
-  setupBattleControls();
-}
-
-function getEnemyForPhase(day, phase) {
-  // Find enemies for the current day/phase
-  const potentialEnemies = Object.values(ENEMY_TYPES).filter(enemy => {
-    return enemy.day === day && enemy.phase === phase;
+  // Reset battle state
+  GameState.set({
+    'battleOver': false,
+    'hasActedThisTurn': false,
+    'hasPlayedGemThisTurn': false,
+    'isEnemyTurnPending': false,
+    'selectedGems': new Set()
   });
   
-  // If no specific enemies found, create scaled generic enemy
-  if (potentialEnemies.length === 0) {
-    // Create basic enemy with scaling based on day
-    const scaledHealth = Math.floor(20 * (1 + (day - 1) * 0.2));
-    const scaledDamage = Math.floor(5 * (1 + (day - 1) * 0.15));
-    
-    return {
-      name: `${phase} Minion`,
-      health: scaledHealth,
-      maxHealth: scaledHealth,
-      attack: scaledDamage,
-      icon: "👾",
-      day: day,
-      phase: phase,
-      zenny: 10 * day
+  // Clear player buffs
+  GameState.set('player.buffs', []);
+  
+  // Reset stamina
+  const player = GameState.get('player');
+  GameState.set('player.stamina', player.baseStamina);
+  
+  // Draw initial cards
+  drawGems(3);
+  
+  // Update UI
+  updateBattleUI();
+}
+
+/**
+ * Generate an enemy for the current battle
+ * @returns {Object} Enemy data
+ */
+export function generateEnemy() {
+  const currentPhaseIndex = GameState.get('currentPhaseIndex') || 0;
+  const battleCount = GameState.get('battleCount') || 0;
+  
+  // Simple enemy types - could be expanded from config
+  const enemies = [
+    { name: "Grunt", maxHealth: 20, attack: 5, actions: ["Attack 5", "Defend"] },
+    { name: "Bandit", maxHealth: 15, attack: 7, actions: ["Attack 7", "Steal 3"] },
+    { name: "Wolf", maxHealth: 25, attack: 4, actions: ["Attack 4", "Charge"] }
+  ];
+  
+  // Use a boss for the last battle of each phase
+  const isBossBattle = battleCount % 3 === 2;
+  
+  let enemyBase;
+  
+  if (isBossBattle) {
+    enemyBase = {
+      name: "Dark Guardian",
+      maxHealth: 30 + (currentPhaseIndex * 5),
+      attack: 6 + currentPhaseIndex,
+      actions: ["Attack 6", "Charge", "Defend"],
+      isBoss: true,
+      shield: true,
+      shieldColor: "red"
     };
-  }
-  
-  // Return random enemy from potential enemies
-  return { ...potentialEnemies[Math.floor(Math.random() * potentialEnemies.length)] };
-}
-
-function setupBattleControls() {
-  // Set up end turn button
-  const endTurnBtn = document.getElementById('end-turn-btn');
-  if (endTurnBtn) {
-    // Remove any existing listeners to prevent duplicates
-    const newBtn = endTurnBtn.cloneNode(true);
-    endTurnBtn.parentNode.replaceChild(newBtn, endTurnBtn);
-    newBtn.addEventListener('click', endPlayerTurn);
   } else {
-    console.error("End Turn button not found!");
+    // Select a regular enemy based on battle count
+    enemyBase = { ...enemies[battleCount % enemies.length] };
+    
+    // Scale up with phase
+    enemyBase.maxHealth += currentPhaseIndex * 3;
+    enemyBase.attack += currentPhaseIndex;
   }
   
-  // Add flee button if not present
-  if (!document.getElementById('flee-btn')) {
-    const battleScreen = document.getElementById('battle-screen');
-    if (battleScreen) {
-      const fleeBtn = document.createElement('button');
-      fleeBtn.id = 'flee-btn';
-      fleeBtn.className = 'btn-flee';
-      fleeBtn.textContent = 'Flee';
-      fleeBtn.addEventListener('click', fleeBattle);
-      battleScreen.appendChild(fleeBtn);
-    }
-  }
+  // Prepare enemy for battle
+  const enemy = {
+    ...enemyBase,
+    health: enemyBase.maxHealth,
+    actionQueue: shuffleArray([...enemyBase.actions]),
+    currentAction: null,
+    buffs: []
+  };
+  
+  // Set initial action
+  enemy.currentAction = enemy.actionQueue.shift();
+  
+  return enemy;
 }
 
-function updateBattleUI() {
-  // Update enemy display
-  updateEnemyDisplay();
-  
-  // Update phase indicators
-  const day = GameState.data.battle.day || 1;
-  const phase = GameState.data.battle.phase || 'Dawn';
-  
-  // Update phase indicator if it exists
-  const phaseIndicator = document.getElementById('day-phase-indicator');
-  if (phaseIndicator) {
-    phaseIndicator.textContent = `Day ${day}: ${phase}`;
-  }
-  
-  // Update battle screen background based on phase
-  const battleScreen = document.getElementById('battle-screen');
-  if (battleScreen) {
-    battleScreen.classList.remove('dawn', 'dusk', 'dark');
-    battleScreen.classList.add(phase.toLowerCase());
-  }
-}
-
+/**
+ * Draw cards from the gem bag to hand
+ * @param {Number} count - Number of cards to draw
+ */
 export function drawGems(count) {
   const hand = document.getElementById('hand');
   if (!hand) {
-    console.error("Hand element not found!");
+    console.error("Hand container not found!");
     return;
   }
   
-  // Clear current hand
+  // Clear the hand display
   hand.innerHTML = '';
   
-  // Get player's gem bag
-  const gemBag = GameState.data.player.gemBag || [];
+  // Keep existing hand or initialize empty
+  let currentHand = GameState.get('hand') || [];
   
-  // If gem bag is empty, use basic gems
-  if (gemBag.length === 0) {
-    // Draw random gems from GEM_TYPES
-    const gemTypeKeys = Object.keys(GEM_TYPES);
+  // Calculate how many we need to draw
+  const maxHandSize = 3; // Could come from config
+  const neededCards = Math.min(count, maxHandSize - currentHand.length);
+  
+  if (neededCards <= 0) {
+    // Just update UI if no new cards needed
+    renderHand();
+    return;
+  }
+  
+  // Get gem bag
+  let gemBag = GameState.get('gemBag') || [];
+  let discard = GameState.get('discard') || [];
+  
+  // If gem bag is empty, shuffle discard pile into it
+  if (gemBag.length < neededCards && discard.length > 0) {
+    gemBag = [...gemBag, ...discard];
+    discard = [];
+    gemBag = shuffleArray(gemBag);
     
-    for (let i = 0; i < count; i++) {
-      // Select random gem type
+    GameState.set('gemBag', gemBag);
+    GameState.set('discard', discard);
+  }
+  
+  // For now, generate random gems since we don't have a full gem bag system yet
+  for (let i = 0; i < neededCards; i++) {
+    if (gemBag.length > 0) {
+      // Draw from actual gem bag when implemented
+      const gem = gemBag.pop();
+      currentHand.push(gem);
+    } else {
+      // Fallback: create a random gem
+      const gemTypeKeys = Object.keys(GEM_TYPES);
       const randomTypeKey = gemTypeKeys[Math.floor(Math.random() * gemTypeKeys.length)];
       const gemType = GEM_TYPES[randomTypeKey];
       
-      // Create and add gem to hand
-      const gemElement = createGemElement(gemType);
-      hand.appendChild(gemElement);
-    }
-  } else {
-    // Draw from player's gem bag (randomly)
-    // Shuffle the gem bag first (temporary copy)
-    const shuffledBag = [...gemBag].sort(() => Math.random() - 0.5);
-    
-    // Draw the requested number of gems (or all if bag is smaller)
-    const drawCount = Math.min(count, shuffledBag.length);
-    
-    for (let i = 0; i < drawCount; i++) {
-      const gem = shuffledBag[i];
-      const gemType = GEM_TYPES[gem.type];
+      // Create gem with unique ID
+      const gem = {
+        id: `${randomTypeKey}-${Date.now()}-${i}`,
+        name: gemType.name,
+        color: gemType.color || 'red',
+        cost: gemType.staminaCost,
+        damage: gemType.colors ? 
+          (gemType.colors.red || gemType.colors.blue || gemType.colors.green || 0) : 0,
+        heal: gemType.effect || 0,
+        shield: gemType.name === 'Shield'
+      };
       
-      if (gemType) {
-        // Override color if specified in gem
-        const gemWithColor = { ...gemType };
-        if (gem.color) gemWithColor.color = gem.color;
-        
-        // Create gem element and add to hand
-        const gemElement = createGemElement(gemWithColor);
-        hand.appendChild(gemElement);
-      }
+      currentHand.push(gem);
     }
   }
   
-  // Store drawn gems in player state
-  GameState.setState('player.hand', Array.from(hand.children).map(element => {
-    return {
-      type: element.dataset.gemType,
-      color: element.dataset.gemColor
-    };
-  }));
+  // Update state
+  GameState.set('hand', currentHand);
+  GameState.set('gemBag', gemBag);
+  
+  // Render the hand
+  renderHand();
 }
 
+/**
+ * Render the player's hand of gems
+ */
+export function renderHand() {
+  const hand = document.getElementById('hand');
+  if (!hand) return;
+  
+  // Clear the hand area
+  hand.innerHTML = '';
+  
+  // Get current hand from state
+  const currentHand = GameState.get('hand') || [];
+  const selectedGems = GameState.get('selectedGems') || new Set();
+  const playerClass = GameState.get('player.class');
+  
+  // Add gems to the display
+  currentHand.forEach((gem, index) => {
+    const gemElement = createGemElement(gem, index, playerClass);
+    hand.appendChild(gemElement);
+  });
+}
+
+/**
+ * Create a gem DOM element
+ * @param {Object} gem - Gem data
+ * @param {Number} index - Index in hand
+ * @param {String} playerClass - Player's class
+ * @returns {HTMLElement} Gem element
+ */
+function createGemElement(gem, index, playerClass) {
+  // Create the gem element
+  const gemElement = document.createElement('div');
+  gemElement.className = `gem ${gem.color || 'red'}`;
+  
+  // Add selected class if needed
+  const selectedGems = GameState.get('selectedGems') || new Set();
+  if (selectedGems.has(index)) {
+    gemElement.classList.add('selected');
+  }
+  
+  // Check for class bonus
+  const hasClassBonus = 
+    (playerClass === 'Knight' && gem.color === 'red') || 
+    (playerClass === 'Mage' && gem.color === 'blue') || 
+    (playerClass === 'Rogue' && gem.color === 'green');
+  
+  if (hasClassBonus) {
+    gemElement.classList.add('class-bonus');
+  }
+  
+  // Build the gem content
+  gemElement.innerHTML = `
+    <div class="gem-content">
+      <div class="gem-icon">${getGemIcon(gem)}</div>
+      <div class="gem-value">${gem.damage || gem.heal || ''}</div>
+    </div>
+    <div class="gem-cost">${gem.cost}</div>
+  `;
+  
+  // Add tooltip
+  let tooltip = '';
+  if (gem.damage) tooltip += `Damage: ${gem.damage}${hasClassBonus ? ' (+50%)' : ''}`;
+  if (gem.heal) tooltip += `Heal: ${gem.heal}${hasClassBonus ? ' (+50%)' : ''}`;
+  if (gem.shield) tooltip += 'Adds shield buff';
+  
+  if (tooltip) {
+    gemElement.setAttribute('data-tooltip', tooltip);
+  }
+  
+  // Add click handler
+  gemElement.addEventListener('click', () => toggleGemSelection(index));
+  
+  return gemElement;
+}
+
+/**
+ * Get the appropriate icon for a gem
+ * @param {Object} gem - Gem data
+ * @returns {String} Icon character
+ */
+function getGemIcon(gem) {
+  if (gem.damage) return '🗡️';
+  if (gem.heal) return '💚';
+  if (gem.shield) return '🛡️';
+  return '✨';
+}
+
+/**
+ * Toggle gem selection in the hand
+ * @param {Number} index - Index of the gem in the hand
+ */
+export function toggleGemSelection(index) {
+  const hand = GameState.get('hand') || [];
+  let selectedGems = GameState.get('selectedGems') || new Set();
+  
+  // Validate index
+  if (index < 0 || index >= hand.length) {
+    console.warn(`Invalid gem index: ${index}`);
+    return;
+  }
+  
+  // Toggle selection
+  if (selectedGems.has(index)) {
+    selectedGems.delete(index);
+  } else {
+    selectedGems.add(index);
+  }
+  
+  // Update state
+  GameState.set('selectedGems', selectedGems);
+  
+  // Update UI
+  renderHand();
+  updateBattleUI();
+}
+
+/**
+ * Execute selected gems
+ */
+export function executeSelectedGems() {
+  const battleOver = GameState.get('battleOver');
+  const selectedGems = GameState.get('selectedGems') || new Set();
+  const isEnemyTurnPending = GameState.get('isEnemyTurnPending');
+  const hand = GameState.get('hand') || [];
+  
+  // Skip if battle is over or no gems selected
+  if (battleOver || selectedGems.size === 0 || isEnemyTurnPending) {
+    return;
+  }
+  
+  // Verify all selected indices are valid
+  const validIndices = Array.from(selectedGems).filter(index => 
+    index >= 0 && index < hand.length
+  );
+  
+  if (validIndices.length === 0) {
+    console.warn("No valid gems selected");
+    return;
+  }
+  
+  // Sort indices in descending order to avoid index shifting problems
+  const sortedIndices = validIndices.sort((a, b) => b - a);
+  
+  // Try to play each selected gem
+  for (const index of sortedIndices) {
+    playGem(index);
+  }
+  
+  // Clear selection
+  GameState.set('selectedGems', new Set());
+  
+  // Update UI
+  renderHand();
+  updateBattleUI();
+}
+
+/**
+ * Play a gem from the player's hand
+ * @param {Number} index - Index of the gem in the hand
+ * @returns {Boolean} Whether the gem was successfully played
+ */
+function playGem(index) {
+  try {
+    const hand = GameState.get('hand') || [];
+    const player = GameState.get('player');
+    
+    // Validate index
+    if (index < 0 || index >= hand.length) {
+      console.warn(`Invalid gem index: ${index}`);
+      return false;
+    }
+    
+    const gem = hand[index];
+    
+    // Check stamina cost
+    if (player.stamina < gem.cost) {
+      showMessage("Not enough stamina!", "error");
+      return false;
+    }
+    
+    // Deduct stamina
+    GameState.set('player.stamina', player.stamina - gem.cost);
+    
+    // Calculate damage/healing multiplier
+    const multiplier = calculateGemMultiplier(gem);
+    
+    // Process gem effects
+    processGemEffect(gem, false, multiplier);
+    
+    // Remove gem from hand and add to discard
+    const newHand = [...hand];
+    const playedGem = newHand.splice(index, 1)[0];
+    
+    GameState.set('hand', newHand);
+    
+    const discard = GameState.get('discard') || [];
+    GameState.set('discard', [...discard, playedGem]);
+    
+    // Mark that player has played a gem this turn
+    GameState.set('hasPlayedGemThisTurn', true);
+    
+    return true;
+  } catch (error) {
+    console.error("Error playing gem:", error);
+    return false;
+  }
+}
+
+/**
+ * Calculate gem effect multiplier
+ * @param {Object} gem - Gem data
+ * @returns {Number} Multiplier value
+ */
+function calculateGemMultiplier(gem) {
+  const player = GameState.get('player');
+  let multiplier = 1;
+  
+  // Class bonus
+  if ((player.class === "Knight" && gem.color === "red") || 
+      (player.class === "Mage" && gem.color === "blue") || 
+      (player.class === "Rogue" && gem.color === "green")) {
+    multiplier *= 1.5;
+  }
+  
+  // Focus buff
+  const hasFocusBuff = player.buffs && player.buffs.some(b => b.type === "focused");
+  if (hasFocusBuff) {
+    multiplier *= 1.2;
+  }
+  
+  return multiplier;
+}
+
+/**
+ * Process gem effect
+ * @param {Object} gem - Gem data
+ * @param {Boolean} failed - Whether the gem effect failed
+ * @param {Number} multiplier - Effect multiplier
+ */
+function processGemEffect(gem, failed, multiplier) {
+  if (failed) {
+    // Handle failed effects
+    const player = GameState.get('player');
+    
+    if (gem.damage) {
+      const damage = Math.floor(gem.damage * multiplier * 0.5);
+      const newHealth = Math.max(0, player.health - damage);
+      GameState.set('player.health', newHealth);
+      
+      showMessage(`Failed ${gem.name}! Took ${damage} damage!`, "error");
+      showDamageEffect(damage, 'player');
+    } else if (gem.heal) {
+      const damage = 5; // Fixed value for heal failures
+      const newHealth = Math.max(0, player.health - damage);
+      GameState.set('player.health', newHealth);
+      
+      showMessage(`Failed ${gem.name}! Lost ${damage} health!`, "error");
+      showDamageEffect(damage, 'player');
+    }
+  } else {
+    // Handle successful effects
+    const player = GameState.get('player');
+    const enemy = GameState.get('battle.enemy');
+    
+    if (gem.damage && enemy) {
+      // Calculate final damage
+      let damage = Math.floor(gem.damage * multiplier);
+      
+      // Apply enemy defense if present
+      const hasDefenseBuff = enemy.buffs && enemy.buffs.some(b => b.type === "defense");
+      if (hasDefenseBuff) {
+        damage = Math.floor(damage / 2);
+      }
+      
+      // Check for shield bypass
+      if (enemy.shield && gem.color !== enemy.shieldColor) {
+        damage = Math.floor(damage / 2);
+        showMessage(`Shield reduced damage!`);
+      }
+      
+      // Apply damage
+      const newHealth = Math.max(0, enemy.health - damage);
+      GameState.set('battle.enemy.health', newHealth);
+      
+      showMessage(`Dealt ${damage} damage to ${enemy.name}!`);
+      showDamageEffect(damage, 'enemy');
+      
+      // Check for enemy defeat
+      if (newHealth <= 0) {
+        handleEnemyDefeated();
+      }
+    }
+    
+    if (gem.heal) {
+      // Calculate healing
+      const healAmount = Math.floor(gem.heal * multiplier);
+      const newHealth = Math.min(player.health + healAmount, player.maxHealth);
+      GameState.set('player.health', newHealth);
+      
+      showMessage(`Healed for ${healAmount} health!`);
+      showHealEffect(healAmount);
+    }
+    
+    if (gem.shield) {
+      // Add shield buff to player
+      const buffs = [...(player.buffs || [])];
+      buffs.push({
+        type: "defense",
+        turns: 2
+      });
+      
+      GameState.set('player.buffs', buffs);
+      showMessage(`Gained defensive shield for 2 turns!`);
+    }
+  }
+}
+
+/**
+ * End the current turn
+ */
 export function endPlayerTurn() {
-  console.log("Player turn ended");
+  const battleOver = GameState.get('battleOver');
   
-  // Update game state
-  GameState.setState('battle.turn', 'enemy');
+  // Don't process if battle is over
+  if (battleOver) return;
   
-  // Disable gem clicking during enemy turn
-  const gems = document.querySelectorAll('.gem');
-  gems.forEach(gem => {
-    gem.style.pointerEvents = 'none';
-    gem.classList.add('disabled');
+  // Check if player is stunned
+  const player = GameState.get('player');
+  const isStunned = player.buffs && player.buffs.some(b => b.type === "stunned");
+  
+  if (isStunned) {
+    showMessage("You are stunned and skip your turn!", "error");
+  }
+  
+  // Mark enemy turn as pending
+  GameState.set('isEnemyTurnPending', true);
+  GameState.set('battle.turn', 'enemy');
+  
+  // Update UI
+  updateBattleUI();
+  
+  // Process enemy turn with a delay
+  setTimeout(() => {
+    processEnemyTurn();
+  }, 500);
+}
+
+/**
+ * Process the enemy's turn
+ */
+function processEnemyTurn() {
+  // Skip if battle is over
+  if (GameState.get('battleOver')) {
+    console.log("Battle is over, skipping enemy turn");
+    return;
+  }
+  
+  const enemy = GameState.get('battle.enemy');
+  if (!enemy) {
+    console.error("No enemy found for turn processing");
+    finishEnemyTurn();
+    return;
+  }
+  
+  // Execute enemy action with delay
+  setTimeout(() => {
+    executeEnemyAction();
+    
+    // Apply poison effects after executing action
+    setTimeout(() => {
+      applyStatusEffects();
+      
+      // Prepare next action
+      setTimeout(() => {
+        prepareNextEnemyAction();
+        
+        // Finish turn
+        setTimeout(() => {
+          finishEnemyTurn();
+        }, 500);
+      }, 500);
+    }, 500);
+  }, 500);
+}
+
+/**
+ * Execute the enemy's current action
+ */
+function executeEnemyAction() {
+  const enemy = GameState.get('battle.enemy');
+  const player = GameState.get('player');
+  
+  if (!enemy || !enemy.currentAction || enemy.health <= 0) {
+    console.log("No enemy action to execute");
+    return;
+  }
+  
+  // Process based on action type
+  if (enemy.currentAction.startsWith("Attack")) {
+    // Extract damage value
+    let damage = 0;
+    try {
+      const parts = enemy.currentAction.split(" ");
+      damage = parseInt(parts[1]) || 5; // Default to 5 if parsing fails
+    } catch (e) {
+      console.warn("Error parsing enemy attack damage, using default");
+      damage = 5;
+    }
+    
+    // Apply attack boost if present
+    if (enemy.nextAttackBoost) {
+      damage *= enemy.nextAttackBoost;
+      enemy.nextAttackBoost = null;
+      GameState.set('battle.enemy', enemy);
+    }
+    
+    // Apply player defense if present
+    if (player.buffs && player.buffs.some(b => b.type === "defense")) {
+      damage = Math.floor(damage / 2);
+    }
+    
+    // Apply damage to player
+    const newHealth = Math.max(0, player.health - damage);
+    GameState.set('player.health', newHealth);
+    
+    showMessage(`${enemy.name} attacks for ${damage} damage!`);
+    showDamageEffect(damage, 'player');
+    
+    // Check if player defeated
+    if (newHealth <= 0) {
+      handlePlayerDefeated();
+    }
+  } else if (enemy.currentAction === "Defend") {
+    showMessage(`${enemy.name} defends, reducing next damage!`);
+    
+    // Add defense buff
+    const buffs = [...(enemy.buffs || [])];
+    buffs.push({ type: "defense", turns: 2 });
+    
+    enemy.buffs = buffs;
+    GameState.set('battle.enemy', enemy);
+  } else if (enemy.currentAction === "Charge") {
+    showMessage(`${enemy.name} charges for a stronger attack next turn!`);
+    
+    enemy.nextAttackBoost = 2;
+    GameState.set('battle.enemy', enemy);
+  } else if (enemy.currentAction.startsWith("Steal")) {
+    // Extract zenny value
+    let zenny = 3; // Default value
+    try {
+      const parts = enemy.currentAction.split(" ");
+      zenny = parseInt(parts[1]) || zenny;
+    } catch (e) {
+      console.warn("Error parsing steal amount, using default");
+    }
+    
+    // Steal zenny from player
+    const currentZenny = player.zenny || 0;
+    const stolenAmount = Math.min(currentZenny, zenny);
+    GameState.set('player.zenny', currentZenny - stolenAmount);
+    
+    showMessage(`${enemy.name} steals ${stolenAmount} $ZENNY!`);
+  }
+}
+
+/**
+ * Apply status effects like poison
+ */
+function applyStatusEffects() {
+  const player = GameState.get('player');
+  const enemy = GameState.get('battle.enemy');
+  
+  if (!enemy) return;
+  
+  // Apply poison effect to enemy
+  const poisonBuff = enemy.buffs && enemy.buffs.find(b => b.type === "poison");
+  if (poisonBuff) {
+    const damage = poisonBuff.damage || 2;
+    const newHealth = Math.max(0, enemy.health - damage);
+    
+    GameState.set('battle.enemy.health', newHealth);
+    showMessage(`${enemy.name} takes ${damage} poison damage!`);
+    showDamageEffect(damage, 'enemy', true);
+    
+    // Check if enemy defeated
+    if (newHealth <= 0) {
+      handleEnemyDefeated();
+      return;
+    }
+  }
+  
+  // Apply poison effect to player
+  const playerPoisonBuff = player.buffs && player.buffs.find(b => b.type === "poison");
+  if (playerPoisonBuff) {
+    const damage = playerPoisonBuff.damage || 2;
+    const newHealth = Math.max(0, player.health - damage);
+    
+    GameState.set('player.health', newHealth);
+    showMessage(`You take ${damage} poison damage!`);
+    showDamageEffect(damage, 'player', true);
+    
+    // Check if player defeated
+    if (newHealth <= 0) {
+      handlePlayerDefeated();
+    }
+  }
+}
+
+/**
+ * Prepare the enemy's next action
+ */
+function prepareNextEnemyAction() {
+  const enemy = GameState.get('battle.enemy');
+  
+  if (!enemy || enemy.health <= 0) return;
+  
+  // Get next action from queue
+  enemy.currentAction = enemy.actionQueue.shift();
+  
+  // Refill action queue if needed
+  if (enemy.actionQueue.length < 2) {
+    const shuffledActions = shuffleArray([...enemy.actions]);
+    enemy.actionQueue.push(...shuffledActions);
+  }
+  
+  // Update enemy state
+  GameState.set('battle.enemy', enemy);
+  
+  // Show message about next action
+  if (enemy.currentAction) {
+    showMessage(`${enemy.name} prepares to ${enemy.currentAction.toLowerCase()}...`);
+  }
+}
+
+/**
+ * Finish the enemy turn and prepare player turn
+ */
+function finishEnemyTurn() {
+  const battleOver = GameState.get('battleOver');
+  
+  // Skip if battle is over
+  if (battleOver) return;
+  
+  // Reset turn state flags
+  GameState.set({
+    'hasActedThisTurn': false,
+    'hasPlayedGemThisTurn': false,
+    'isEnemyTurnPending': false,
+    'battle.turn': 'player'
   });
   
-  // Disable end turn button
-  const endTurnBtn = document.getElementById('end-turn-btn');
-  if (endTurnBtn) endTurnBtn.disabled = true;
+  // Clear any selected gems
+  GameState.set('selectedGems', new Set());
   
-  // Trigger enemy turn
-  EventBus.emit('TURN_END', { turn: 'enemy' });
+  // Restore player stamina
+  const baseStamina = GameState.get('player.baseStamina') || 3;
+  GameState.set('player.stamina', baseStamina);
+  
+  // Reduce buff durations for player
+  const playerBuffs = GameState.get('player.buffs') || [];
+  const updatedPlayerBuffs = playerBuffs
+    .map(buff => ({ ...buff, turns: buff.turns - 1 }))
+    .filter(buff => buff.turns > 0);
+  
+  GameState.set('player.buffs', updatedPlayerBuffs);
+  
+  // Reduce buff durations for enemy
+  const enemy = GameState.get('battle.enemy');
+  if (enemy && enemy.buffs) {
+    const updatedEnemyBuffs = enemy.buffs
+      .map(buff => ({ ...buff, turns: buff.turns - 1 }))
+      .filter(buff => buff.turns > 0);
+    
+    enemy.buffs = updatedEnemyBuffs;
+    GameState.set('battle.enemy', enemy);
+  }
+  
+  // Draw new cards
+  drawGems(3);
+  
+  // Update UI
+  updateBattleUI();
+  showMessage("Your turn", "info");
 }
 
+/**
+ * Wait to gain focus (focus buff)
+ */
+export function waitTurn() {
+  const battleOver = GameState.get('battleOver');
+  const hasActedThisTurn = GameState.get('hasActedThisTurn');
+  const hasPlayedGemThisTurn = GameState.get('hasPlayedGemThisTurn');
+  
+  if (battleOver || hasActedThisTurn || hasPlayedGemThisTurn) {
+    return;
+  }
+  
+  // Mark as acted this turn
+  GameState.set('hasActedThisTurn', true);
+  
+  // Add focus buff
+  const playerBuffs = GameState.get('player.buffs') || [];
+  playerBuffs.push({ type: "focused", turns: 2 });
+  GameState.set('player.buffs', playerBuffs);
+  
+  showMessage("Waited, gaining focus for next turn (+20% damage/heal)!");
+  
+  // End turn after delay
+  setTimeout(() => {
+    endPlayerTurn();
+  }, 300);
+}
+
+/**
+ * Discard selected gems and end turn
+ */
+export function discardAndEndTurn() {
+  const battleOver = GameState.get('battleOver');
+  const selectedGems = GameState.get('selectedGems') || new Set();
+  const hasActedThisTurn = GameState.get('hasActedThisTurn');
+  
+  if (battleOver || selectedGems.size === 0 || hasActedThisTurn) {
+    return;
+  }
+  
+  // Get current hand and gem bag
+  const hand = GameState.get('hand') || [];
+  const gemBag = GameState.get('gemBag') || [];
+  
+  // Get indices in descending order
+  const indices = Array.from(selectedGems).sort((a, b) => b - a);
+  
+  // Remove gems from hand and add to gem bag
+  const newHand = [...hand];
+  const discardedGems = [];
+  
+  indices.forEach(index => {
+    if (index >= 0 && index < newHand.length) {
+      const gem = newHand.splice(index, 1)[0];
+      discardedGems.push(gem);
+    }
+  });
+  
+  // Update state
+  GameState.set('hand', newHand);
+  GameState.set('gemBag', [...gemBag, ...discardedGems]);
+  GameState.set('selectedGems', new Set());
+  GameState.set('hasActedThisTurn', true);
+  
+  showMessage(`Discarded ${discardedGems.length} gems and recycled to gem bag`);
+  
+  // Update UI
+  renderHand();
+  updateBattleUI();
+  
+  // End turn after delay
+  setTimeout(() => {
+    endPlayerTurn();
+  }, 300);
+}
+
+/**
+ * Flee from battle
+ */
+export function fleeBattle() {
+  const battleOver = GameState.get('battleOver');
+  const isEnemyTurnPending = GameState.get('isEnemyTurnPending');
+  const currentPhaseIndex = GameState.get('currentPhaseIndex') || 0;
+  
+  // Can only flee in first two phases
+  if (battleOver || isEnemyTurnPending || currentPhaseIndex >= 2) {
+    return;
+  }
+  
+  // Mark battle as over
+  GameState.set('battleOver', true);
+  
+  // Clear buffs
+  GameState.set('player.buffs', []);
+  
+  const enemy = GameState.get('battle.enemy');
+  if (enemy) {
+    enemy.buffs = [];
+    GameState.set('battle.enemy', enemy);
+  }
+  
+  showMessage("You fled the battle, skipping rewards!");
+  
+  // Increment battle count and phase
+  const battleCount = GameState.get('battleCount') || 0;
+  GameState.set('battleCount', battleCount + 1);
+  GameState.set('currentPhaseIndex', currentPhaseIndex + 1);
+  
+  // Transition to shop after delay
+  setTimeout(() => {
+    // This would transition to the shop screen
+    EventBus.emit('SCREEN_CHANGE', { screen: 'shop' });
+  }, 1000);
+}
+
+/**
+ * Handle enemy defeat
+ */
+function handleEnemyDefeated() {
+  const enemy = GameState.get('battle.enemy');
+  
+  // Mark battle as over
+  GameState.set('battleOver', true);
+  
+  // Calculate reward based on enemy type
+  const reward = enemy.isBoss ? 30 : 10;
+  
+  // Give reward to player
+  const currentZenny = GameState.get('player.zenny') || 0;
+  GameState.set('player.zenny', currentZenny + reward);
+  
+  showMessage(`${enemy.name} defeated! +${reward} $ZENNY`, "success");
+  
+  // Show victory effect
+  showVictoryEffect();
+  
+  // Update battle count
+  const battleCount = GameState.get('battleCount') || 0;
+  GameState.set('battleCount', battleCount + 1);
+  
+  // Progress game state after delay
+  setTimeout(() => {
+    progressGameState();
+  }, 1500);
+}
+
+/**
+ * Handle player defeat
+ */
+function handlePlayerDefeated() {
+  // Mark battle as over
+  GameState.set('battleOver', true);
+  
+  showMessage("You were defeated!", "error");
+  
+  // Show defeat effect
+  showDefeatEffect();
+  
+  // Transition to character select after delay
+  setTimeout(() => {
+    EventBus.emit('SCREEN_CHANGE', { screen: 'character-select' });
+  }, 2000);
+}
+
+/**
+ * Progress game state after battle victory
+ */
+function progressGameState() {
+  const battleCount = GameState.get('battleCount') || 0;
+  const currentPhaseIndex = GameState.get('currentPhaseIndex') || 0;
+  const currentDay = GameState.get('currentDay') || 1;
+  
+  // Check if we need to move to the next phase
+  if (battleCount % 3 !== 0) {
+    // Move to next phase within the same day
+    GameState.set('currentPhaseIndex', currentPhaseIndex + 1);
+    
+    // Transition to shop
+    setTimeout(() => {
+      EventBus.emit('SCREEN_CHANGE', { screen: 'shop' });
+    }, 1000);
+  } else {
+    // Complete day - reset phase and increment day
+    GameState.set('currentPhaseIndex', 0);
+    GameState.set('currentDay', currentDay + 1);
+    
+    // Check if game is complete (7 days)
+    if (currentDay + 1 > 7) {
+      // Handle game completion
+      handleGameCompletion();
+    } else {
+      // Transition to camp screen
+      setTimeout(() => {
+        EventBus.emit('SCREEN_CHANGE', { screen: 'camp' });
+      }, 1000);
+    }
+  }
+}
+
+/**
+ * Handle game completion
+ */
+function handleGameCompletion() {
+  // Award bonus meta zenny
+  const metaZenny = GameState.get('metaZenny') || 0;
+  GameState.set('metaZenny', metaZenny + 100);
+  
+  showMessage("Journey complete! Victory!");
+  
+  // Return to character select
+  setTimeout(() => {
+    EventBus.emit('SCREEN_CHANGE', { screen: 'character-select' });
+  }, 2000);
+}
+
+/**
+ * Update battle UI based on current state
+ */
+function updateBattleUI() {
+  // This will be implemented in the UI module
+  // For now we'll just update some basic elements
+  
+  // Update enemy health bar
+  const enemy = GameState.get('battle.enemy');
+  if (enemy) {
+    updateEnemyDisplay();
+  }
+  
+  // Update player stats
+  const player = GameState.get('player');
+  updatePlayerDisplay();
+  
+  // Update turn indicator
+  const isEnemyTurn = GameState.get('isEnemyTurnPending');
+  const turnIndicator = document.getElementById('turn-indicator');
+  
+  if (turnIndicator) {
+    turnIndicator.textContent = isEnemyTurn ? "Enemy Turn" : "Your Turn";
+    turnIndicator.className = isEnemyTurn ? "enemy" : "player";
+  }
+  
+  // Update stamina bar
+  updateStaminaDisplay();
+  
+  // Update action buttons
+  updateActionButtons();
+}
+
+/**
+ * Update the player display
+ */
+function updatePlayerDisplay() {
+  const player = GameState.get('player');
+  
+  // Update health values
+  const playerHealthElem = document.getElementById('player-health');
+  const playerMaxHealthElem = document.getElementById('player-max-health');
+  
+  if (playerHealthElem) playerHealthElem.textContent = player.health;
+  if (playerMaxHealthElem) playerMaxHealthElem.textContent = player.maxHealth;
+  
+  // Update health bar
+  const playerHealthBar = document.getElementById('player-health-bar');
+  if (playerHealthBar) {
+    const percent = (player.health / player.maxHealth) * 100;
+    playerHealthBar.style.width = `${percent}%`;
+  }
+  
+  // Update buffs display
+  const playerBuffsElem = document.getElementById('player-buffs');
+  if (playerBuffsElem) {
+    playerBuffsElem.innerHTML = '';
+    
+    if (player.buffs && player.buffs.length > 0) {
+      player.buffs.forEach(buff => {
+        const buffIcon = document.createElement('div');
+        buffIcon.className = `buff-icon ${buff.type}`;
+        
+        // Set icon based on buff type
+        let icon = '⚡';
+        if (buff.type === 'focused') icon = '✦';
+        if (buff.type === 'defense') icon = '🛡️';
+        if (buff.type === 'stunned') icon = '💫';
+        if (buff.type === 'poison') icon = '☠️';
+        
+        buffIcon.innerHTML = `${icon}<span class="turns">${buff.turns}</span>`;
+        buffIcon.setAttribute('data-tooltip', `${buff.type} (${buff.turns} turns)`);
+        
+        playerBuffsElem.appendChild(buffIcon);
+      });
+    }
+  }
+}
+
+/**
+ * Update the enemy display
+ */
 export function updateEnemyDisplay() {
+  const enemy = GameState.get('battle.enemy');
+  if (!enemy) return;
+  
+  // Update name and health
   const enemyNameElem = document.getElementById('enemy-name');
   const enemyHealthElem = document.getElementById('enemy-health');
   const enemyMaxHealthElem = document.getElementById('enemy-max-health');
-  const enemyHealthBar = document.getElementById('enemy-health-bar');
   
-  // Safely get enemy data
-  const enemy = GameState.data.battle.enemy || { 
-    name: "Grunt", 
-    health: 20,
-    maxHealth: 20
-  };
-  
-  // Update text elements if they exist
   if (enemyNameElem) enemyNameElem.textContent = enemy.name;
   if (enemyHealthElem) enemyHealthElem.textContent = enemy.health;
   if (enemyMaxHealthElem) enemyMaxHealthElem.textContent = enemy.maxHealth;
   
   // Update health bar
+  const enemyHealthBar = document.getElementById('enemy-health-bar');
   if (enemyHealthBar) {
     const percent = (enemy.health / enemy.maxHealth) * 100;
     enemyHealthBar.style.width = `${percent}%`;
   }
   
-  // Check for victory condition
-  if (enemy.health <= 0) {
-    // Award zenny
-    if (enemy.zenny) {
-      const currentZenny = GameState.data.player.zenny || 0;
-      GameState.setState('player.zenny', currentZenny + enemy.zenny);
-      showZennyEffect(enemy.zenny);
+  // Update attack display
+  const enemyAttackElem = document.getElementById('enemy-attack');
+  if (enemyAttackElem) {
+    let attackValue = "?";
+    
+    // Extract attack value from current action if it's an attack
+    if (enemy.currentAction && enemy.currentAction.startsWith("Attack")) {
+      const parts = enemy.currentAction.split(" ");
+      attackValue = parts[1] || "?";
     }
     
-    // Show victory message
-    showBattleResult('victory');
-    
-    // Emit victory event
-    EventBus.emit('BATTLE_VICTORY');
-  }
-}
-
-export function startEnemyTurn() {
-  console.log("Enemy turn started");
-  
-  const enemy = GameState.data.battle.enemy;
-  const player = GameState.data.player;
-  
-  if (!enemy || !player) {
-    console.error("Missing enemy or player data!");
-    return;
+    enemyAttackElem.textContent = attackValue;
   }
   
-  // Process poison effect if enemy is poisoned
-  if (enemy.poisoned) {
-    const poisonDamage = enemy.poisonDamage || 1;
-    enemy.health = Math.max(0, enemy.health - poisonDamage);
-    enemy.poisonTurns = (enemy.poisonTurns || 0) - 1;
+  // Update enemy condition (shield, etc.)
+  const enemyConditionElem = document.getElementById('enemy-condition');
+  if (enemyConditionElem) {
+    let conditionText = "";
     
-    // Show poison damage
-    showPoisonEffect(poisonDamage, 'enemy');
-    
-    // Remove poison if duration is over
-    if (enemy.poisonTurns <= 0) {
-      enemy.poisoned = false;
-      
-      // Remove poison icon if it exists
-      const poisonIcon = document.querySelector('.enemy-poison');
-      if (poisonIcon) poisonIcon.remove();
+    if (enemy.shield) {
+      conditionText = `Shielded: Use ${enemy.shieldColor} Gems to bypass`;
     }
     
-    // Update enemy display
-    updateEnemyDisplay();
+    enemyConditionElem.textContent = conditionText;
+  }
+  
+  // Update enemy buffs
+  const enemyBuffsElem = document.getElementById('enemy-buffs');
+  if (enemyBuffsElem && enemy.buffs) {
+    enemyBuffsElem.innerHTML = '';
     
-    // Check if enemy died from poison
-    if (enemy.health <= 0) {
-      setTimeout(() => {
-        // This will trigger BATTLE_VICTORY event
-        updateEnemyDisplay();
-      }, 1000);
-      return;
-    }
-  }
-  
-  // Enemy chooses action (simple AI)
-  setTimeout(() => {
-    // Always attack for now
-    let damage = enemy.attack;
-    
-    // Apply shield if player has it
-    if (player.buffs && player.buffs.shield > 0) {
-      const originalDamage = damage;
-      damage = Math.max(0, damage - player.buffs.shield);
+    enemy.buffs.forEach(buff => {
+      const buffIcon = document.createElement('div');
+      buffIcon.className = `buff-icon ${buff.type}`;
       
-      // Show shield effect
-      if (originalDamage > damage) {
-        showShieldBlockEffect(originalDamage - damage);
-      }
+      // Set icon based on buff type
+      let icon = '⚡';
+      if (buff.type === 'defense') icon = '🛡️';
+      if (buff.type === 'poison') icon = '☠️';
       
-      // Reduce shield duration
-      const newTurns = player.buffs.shieldTurns - 1;
-      GameState.setState('player.buffs.shieldTurns', newTurns);
+      buffIcon.innerHTML = `${icon}<span class="turns">${buff.turns}</span>`;
+      buffIcon.setAttribute('data-tooltip', `${buff.type} (${buff.turns} turns)`);
       
-      // Remove shield if duration is over
-      if (newTurns <= 0) {
-        GameState.setState('player.buffs.shield', 0);
-        document.querySelector('.buff-icon.shield')?.remove();
-      }
-    }
-    
-    // Apply damage to player
-    GameState.setState('player.health', Math.max(0, player.health - damage));
-    
-    // Show damage effect
-    if (damage > 0) {
-      showDamageEffect(damage, 'player');
-    }
-    
-    // Check for defeat condition
-    if (player.health <= 0) {
-      // Show defeat message
-      showBattleResult('defeat');
-      
-      // Emit defeat event
-      EventBus.emit('BATTLE_DEFEAT');
-      return;
-    }
-    
-    // Return to player turn after 1.5s delay
-    setTimeout(() => {
-      // Re-enable gem clicking for player turn
-      const gems = document.querySelectorAll('.gem');
-      gems.forEach(gem => {
-        gem.style.pointerEvents = 'auto';
-        gem.classList.remove('disabled');
-      });
-      
-      // Re-enable end turn button
-      const endTurnBtn = document.getElementById('end-turn-btn');
-      if (endTurnBtn) endTurnBtn.disabled = false;
-      
-      // Update game state for player turn
-      GameState.setState('battle.turn', 'player');
-      
-      // Emit player turn event
-      EventBus.emit('TURN_END', { turn: 'player' });
-    }, 1500);
-  }, 1000);
-}
-
-function playGem(gemType, gemElement) {
-  const player = GameState.data.player;
-  const enemy = GameState.data.battle.enemy;
-  
-  if (!player || !enemy) {
-    console.error("Missing player or enemy data!");
-    return;
-  }
-  
-  // Get the correct stamina cost based on gem type and player class
-  let staminaCost = getGemStaminaCost(gemType, player);
-  
-  // Check if player has enough stamina
-  if (player.stamina < staminaCost) {
-    console.log("Not enough stamina!");
-    gemElement.classList.add('disabled');
-    setTimeout(() => gemElement.classList.remove('disabled'), 500);
-    return;
-  }
-  
-  // Deduct stamina
-  GameState.setState('player.stamina', player.stamina - staminaCost);
-  
-  // Apply effects based on gem type
-  switch(gemType.name) {
-    case 'Attack':
-      const damage = calculateDamage(gemType, player);
-      GameState.setState('battle.enemy.health', Math.max(0, enemy.health - damage));
-      showDamageEffect(damage, 'enemy');
-      break;
-      
-    case 'Heal':
-      const healAmount = gemType.effect;
-      GameState.setState('player.health', 
-        Math.min(player.maxHealth, player.health + healAmount));
-      showHealEffect(healAmount);
-      break;
-      
-    case 'Shield':
-      // Initialize buffs if undefined
-      if (!player.buffs) {
-        GameState.setState('player.buffs', { shield: 0, shieldTurns: 0 });
-      }
-      GameState.setState('player.buffs.shield', gemType.defense);
-      GameState.setState('player.buffs.shieldTurns', gemType.duration);
-      showShieldEffect();
-      break;
-      
-    case 'Focus':
-      // Restore stamina
-      const staminaGain = gemType.staminaGain || 2;
-      GameState.setState('player.stamina', 
-        Math.min(player.baseStamina, player.stamina + staminaGain));
-      showFocusEffect(staminaGain);
-      break;
-      
-    case 'Poison':
-      // Apply poison to enemy
-      enemy.poisoned = true;
-      enemy.poisonDamage = gemType.damage || 1;
-      enemy.poisonTurns = gemType.duration || 3;
-      showPoisonApplyEffect();
-      break;
-  }
-  
-  // Update displays
-  updateEnemyDisplay();
-  
-  // Play gem animation
-  gemElement.classList.add('playing');
-  setTimeout(() => {
-    gemElement.remove();
-    
-    // Update hand in state
-    const hand = document.getElementById('hand');
-    if (hand) {
-      GameState.setState('player.hand', Array.from(hand.children).map(element => {
-        return {
-          type: element.dataset.gemType,
-          color: element.dataset.gemColor
-        };
-      }));
-    }
-  }, 500);
-}
-
-function getGemStaminaCost(gemType, player) {
-  if (!gemType) return 1;
-  
-  // Handle gems with fixed costs
-  if (typeof gemType.staminaCost === 'number') {
-    return gemType.staminaCost;
-  }
-  
-  // Handle gems with color-specific costs (like Attack)
-  if (typeof gemType.staminaCost === 'object') {
-    const playerClass = player.class?.toLowerCase();
-    
-    // If player class matches a specific cost, use it
-    if (playerClass && gemType.staminaCost[playerClass]) {
-      return gemType.staminaCost[playerClass];
-    }
-    
-    // Otherwise use the cost for the gem's color
-    const gemColor = gemType.color || 'grey';
-    if (gemType.staminaCost[gemColor]) {
-      return gemType.staminaCost[gemColor];
-    }
-    
-    // Default fallback
-    return 1;
-  }
-  
-  // Default fallback
-  return 1;
-}
-
-function calculateDamage(gemType, player) {
-  // Get base damage for the gem color
-  let baseDamage = 3; // Default damage
-  
-  if (gemType.colors) {
-    // Try to get class-specific damage
-    const playerClass = player.class?.toLowerCase();
-    if (playerClass && gemType.colors[playerClass]) {
-      baseDamage = gemType.colors[playerClass];
-    } else {
-      // Try to get color-specific damage
-      const gemColor = gemType.color || 'red';
-      if (gemType.colors[gemColor]) {
-        baseDamage = gemType.colors[gemColor];
-      } else {
-        // Use the first available damage value
-        const firstColor = Object.keys(gemType.colors)[0];
-        baseDamage = gemType.colors[firstColor];
-      }
-    }
-  }
-  
-  // Apply class bonus if applicable
-  const gemColor = gemType.color || 'red';
-  const bonus = player.gemBonus?.[gemColor] || 1;
-  
-  const finalDamage = Math.floor(baseDamage * bonus);
-  console.log(`Damage calculation: ${baseDamage} × ${bonus} = ${finalDamage}`);
-  
-  return finalDamage;
-}
-
-function createGemElement(gemType) {
-  const gem = document.createElement('div');
-  
-  // Set class based on gem color
-  const gemColor = gemType.color || 'red';
-  gem.className = `gem ${gemColor}`;
-  
-  // Store gem data for reference
-  gem.dataset.gemType = gemType.name;
-  gem.dataset.gemColor = gemColor;
-  
-  // Add class bonus indicator if applicable
-  const player = GameState.data.player;
-  if (player && player.gemBonus && player.gemBonus[gemColor] > 1) {
-    gem.classList.add('class-bonus');
-  }
-  
-  // Create gem content
-  gem.innerHTML = `
-    <div class="gem-content">
-      <div class="gem-icon">${gemType.icon}</div>
-      <div class="gem-name">${gemType.name}</div>
-    </div>
-    <div class="gem-cost">${getGemStaminaCost(gemType, GameState.data.player)}</div>
-  `;
-  
-  // Add tooltip with description
-  const description = getGemDescription(gemType);
-  gem.setAttribute('data-tooltip', description);
-
-  // Add click handler
-  gem.addEventListener('click', () => {
-    playGem(gemType, gem);
-  });
-  
-  return gem;
-}
-
-function getGemDescription(gemType) {
-  if (!gemType) return "Unknown";
-  
-  switch(gemType.name) {
-    case 'Attack':
-      // Get damage value based on player class
-      const player = GameState.data.player;
-      let damage = 3;
-      
-      if (gemType.colors && player) {
-        const playerClass = player.class?.toLowerCase();
-        if (playerClass && gemType.colors[playerClass]) {
-          damage = gemType.colors[playerClass];
-        } else if (gemType.colors[gemType.color]) {
-          damage = gemType.colors[gemType.color];
-        }
-      }
-      
-      // Apply class bonus if applicable
-      const gemColor = gemType.color || 'red';
-      const bonus = player?.gemBonus?.[gemColor] || 1;
-      
-      const finalDamage = Math.floor(damage * bonus);
-      return `Deal ${finalDamage} damage to enemy.`;
-      
-    case 'Heal':
-      return `Restore ${gemType.effect} health points.`;
-      
-    case 'Shield':
-      return `Reduce incoming damage by ${gemType.defense} for ${gemType.duration} turns.`;
-      
-    case 'Focus':
-      return `Recover ${gemType.staminaGain} stamina.`;
-      
-    case 'Poison':
-      return `Apply poison dealing ${gemType.damage} damage per turn for ${gemType.duration} turns.`;
-      
-    default:
-      return gemType.description || gemType.name;
+      enemyBuffsElem.appendChild(buffIcon);
+    });
   }
 }
 
-function showDamageEffect(amount, target) {
-  // Create floating damage text
-  const element = document.createElement('div');
-  element.className = `damage-text ${target}-damage`;
-  element.textContent = `-${amount}`;
+/**
+ * Update stamina display
+ */
+function updateStaminaDisplay() {
+  const player = GameState.get('player');
+  const staminaFill = document.getElementById('stamina-fill');
+  const staminaText = document.getElementById('stamina-text');
   
-  const targetSection = document.getElementById(`${target}-section`);
-  if (targetSection) {
-    targetSection.appendChild(element);
-    setTimeout(() => element.remove(), 1000);
-  }
-}
-
-function showHealEffect(amount) {
-  const element = document.createElement('div');
-  element.className = 'heal-text';
-  element.textContent = `+${amount}`;
+  if (!staminaFill || !staminaText) return;
   
-  const playerSection = document.getElementById('player-section');
-  if (playerSection) {
-    playerSection.appendChild(element);
-    setTimeout(() => element.remove(), 1000);
-  }
-}
-
-function showShieldEffect() {
-  // Remove existing shield icon if present
-  const existingShield = document.querySelector('.buff-icon.shield');
-  if (existingShield) {
-    existingShield.remove();
-  }
+  // Update stamina bar
+  const staminaPercent = (player.stamina / player.baseStamina) * 100;
+  staminaFill.style.width = `${staminaPercent}%`;
   
-  // Create new shield buff icon
-  const shieldIcon = document.createElement('div');
-  shieldIcon.className = 'buff-icon shield';
-  shieldIcon.textContent = '🛡️';
+  // Update stamina classes
+  staminaFill.classList.remove('full', 'medium', 'low');
   
-  const playerBuffs = document.getElementById('player-buffs');
-  if (!playerBuffs) {
-    console.error("Player buffs container not found!");
-    return;
-  }
-  
-  // Set tooltip with shield info
-  const shieldValue = GameState.data.player.buffs.shield;
-  const shieldTurns = GameState.data.player.buffs.shieldTurns;
-  shieldIcon.setAttribute('data-tooltip', `Shield: Reduces damage by ${shieldValue} for ${shieldTurns} turns`);
-  
-  playerBuffs.appendChild(shieldIcon);
-}
-
-function showShieldBlockEffect(amount) {
-  const element = document.createElement('div');
-  element.className = 'block-text';
-  element.textContent = `BLOCKED ${amount}`;
-  element.style.color = '#6666ff';
-  element.style.position = 'absolute';
-  element.style.fontSize = '1.2em';
-  element.style.fontWeight = 'bold';
-  element.style.animation = 'float-up 1s forwards';
-  
-  const playerSection = document.getElementById('player-section');
-  if (playerSection) {
-    playerSection.appendChild(element);
-    setTimeout(() => element.remove(), 1000);
-  }
-}
-
-function showFocusEffect(amount) {
-  const element = document.createElement('div');
-  element.className = 'focus-text';
-  element.textContent = `+${amount} STAMINA`;
-  element.style.color = '#ffcc00';
-  element.style.position = 'absolute';
-  element.style.fontSize = '1.2em';
-  element.style.fontWeight = 'bold';
-  element.style.animation = 'float-up 1s forwards';
-  
-  const playerSection = document.getElementById('player-section');
-  if (playerSection) {
-    playerSection.appendChild(element);
-    setTimeout(() => element.remove(), 1000);
-  }
-}
-
-function showPoisonApplyEffect() {
-  // Create poison icon on enemy
-  const enemySection = document.getElementById('enemy-section');
-  if (!enemySection) return;
-  
-  const poisonIcon = document.createElement('div');
-  poisonIcon.className = 'buff-icon enemy-poison';
-  poisonIcon.textContent = '☠️';
-  poisonIcon.style.position = 'absolute';
-  poisonIcon.style.top = '10px';
-  poisonIcon.style.right = '10px';
-  poisonIcon.style.backgroundColor = '#55aa55';
-  
-  // Set tooltip
-  const enemy = GameState.data.battle.enemy;
-  if (enemy) {
-    poisonIcon.setAttribute('data-tooltip', 
-      `Poison: ${enemy.poisonDamage} damage per turn for ${enemy.poisonTurns} turns`);
-  }
-  
-  enemySection.appendChild(poisonIcon);
-  
-  // Floating text effect
-  const element = document.createElement('div');
-  element.className = 'poison-text';
-  element.textContent = 'POISONED';
-  element.style.color = '#55aa55';
-  element.style.position = 'absolute';
-  element.style.fontSize = '1.2em';
-  element.style.fontWeight = 'bold';
-  element.style.animation = 'float-up 1s forwards';
-  
-  enemySection.appendChild(element);
-  setTimeout(() => element.remove(), 1000);
-}
-
-function showPoisonEffect(amount, target) {
-  const element = document.createElement('div');
-  element.className = 'poison-damage';
-  element.textContent = `-${amount} POISON`;
-  element.style.color = '#55aa55';
-  element.style.position = 'absolute';
-  element.style.fontSize = '1.2em';
-  element.style.fontWeight = 'bold';
-  element.style.animation = 'float-up 1s forwards';
-  
-  const targetSection = document.getElementById(`${target}-section`);
-  if (targetSection) {
-    targetSection.appendChild(element);
-    setTimeout(() => element.remove(), 1000);
-  }
-}
-
-function showZennyEffect(amount) {
-  const element = document.createElement('div');
-  element.className = 'zenny-text';
-  element.textContent = `+${amount} ZENNY`;
-  element.style.color = '#ffcc00';
-  element.style.position = 'absolute';
-  element.style.fontSize = '1.5em';
-  element.style.fontWeight = 'bold';
-  element.style.animation = 'float-up 1.5s forwards';
-  
-  const battleScreen = document.getElementById('battle-screen');
-  if (battleScreen) {
-    element.style.top = '50%';
-    element.style.left = '50%';
-    element.style.transform = 'translate(-50%, -50%)';
-    
-    battleScreen.appendChild(element);
-    setTimeout(() => element.remove(), 1500);
-  }
-}
-
-function showBattleResult(result) {
-  const messageElement = document.createElement('div');
-  
-  if (result === 'victory') {
-    messageElement.className = 'victory-text';
-    messageElement.textContent = 'VICTORY!';
+  if (player.stamina === player.baseStamina) {
+    staminaFill.classList.add('full');
+  } else if (player.stamina >= player.baseStamina / 2) {
+    staminaFill.classList.add('medium');
   } else {
-    messageElement.className = 'defeat-text';
-    messageElement.textContent = 'DEFEAT!';
+    staminaFill.classList.add('low');
   }
   
-  const battleScreen = document.getElementById('battle-screen');
-  if (battleScreen) {
-    battleScreen.appendChild(messageElement);
+  // Update stamina text
+  staminaText.textContent = `${player.stamina}/${player.baseStamina}`;
+}
+
+/**
+ * Update action buttons based on game state
+ */
+function updateActionButtons() {
+  const battleOver = GameState.get('battleOver');
+  const isEnemyTurnPending = GameState.get('isEnemyTurnPending');
+  const selectedGems = GameState.get('selectedGems') || new Set();
+  const hasActedThisTurn = GameState.get('hasActedThisTurn');
+  const hasPlayedGemThisTurn = GameState.get('hasPlayedGemThisTurn');
+  const player = GameState.get('player');
+  const hand = GameState.get('hand') || [];
+  
+  // Check if player is stunned
+  const isStunned = player.buffs && player.buffs.some(b => b.type === "stunned");
+  
+  // Get action buttons
+  const executeBtn = document.getElementById('execute-btn');
+  const waitBtn = document.getElementById('wait-btn');
+  const discardEndBtn = document.getElementById('discard-end-btn');
+  const endTurnBtn = document.getElementById('end-turn-btn');
+  const fleeBtn = document.getElementById('flee-btn');
+  
+  // Check if execute button is available
+  if (executeBtn) {
+    const canPlayGems = selectedGems.size > 0 && 
+                     Array.from(selectedGems).every(i => i >= 0 && i < hand.length) &&
+                     player.stamina >= Math.min(...Array.from(selectedGems).map(i => hand[i].cost));
+                     
+    executeBtn.disabled = battleOver || !canPlayGems || isEnemyTurnPending || isStunned;
+  }
+  
+  // Update wait button
+  if (waitBtn) {
+    waitBtn.disabled = battleOver || isEnemyTurnPending || hasActedThisTurn || hasPlayedGemThisTurn || isStunned;
+  }
+  
+  // Update discard button
+  if (discardEndBtn) {
+    discardEndBtn.disabled = battleOver || !selectedGems.size || isEnemyTurnPending || hasActedThisTurn || isStunned;
+  }
+  
+  // Update end turn button
+  if (endTurnBtn) {
+    endTurnBtn.disabled = battleOver || isEnemyTurnPending || isStunned;
+  }
+  
+  // Update flee button
+  if (fleeBtn) {
+    const currentPhaseIndex = GameState.get('currentPhaseIndex') || 0;
+    fleeBtn.style.display = (currentPhaseIndex < 2 && !battleOver && !isEnemyTurnPending && !isStunned) ? "block" : "none";
+  }
+}
+
+/**
+ * Show a damage/healing effect
+ * @param {Number} amount - Amount of damage or healing
+ * @param {String} target - Target ('player' or 'enemy')
+ * @param {Boolean} isPoison - Whether it's poison damage
+ */
+function showDamageEffect(amount, target, isPoison = false) {
+  // Create effect element
+  const effect = document.createElement('div');
+  
+  if (amount > 0) {
+    // Damage effect
+    effect.className = isPoison ? 'poison-text' : 'damage-text';
+    effect.textContent = `-${amount}`;
+  } else {
+    // Healing effect
+    effect.className = 'heal-text';
+    effect.textContent = `+${Math.abs(amount)}`;
+  }
+  
+  // Position effect based on target
+  const targetSection = document.getElementById(`${target}-section`);
+  if (targetSection) {
+    targetSection.appendChild(effect);
     
-    // Remove after transition to next screen
-    setTimeout(() => messageElement.remove(), 3000);
+    // Remove after animation
+    setTimeout(() => {
+      effect.remove();
+    }, 1000);
   }
 }
 
-function fleeBattle() {
-  console.log("Fleeing battle...");
-  
-  // Can only flee during Dawn or Dusk phases (not during Dark/boss phase)
-  const currentPhase = GameState.data.battle.phase;
-  if (currentPhase === 'Dark') {
-    // Cannot flee from boss battles
-    alert("You cannot flee from boss battles!");
-    return;
-  }
-  
-  // Return to character select for now (later could go to shop/camp)
-  EventBus.emit('SCREEN_CHANGE', { screen: 'character-select' });
+/**
+ * Show healing effect
+ * @param {Number} amount - Healing amount
+ */
+function showHealEffect(amount) {
+  showDamageEffect(-amount, 'player');
 }
 
-// Export additional functions for testing
-export { playGem, fleeBattle, showBattleResult };
+/**
+ * Show victory effect
+ */
+function showVictoryEffect() {
+  const battleScreen = document.getElementById('battle-screen');
+  if (!battleScreen) return;
+  
+  // Create victory text
+  const victoryText = document.createElement('div');
+  victoryText.className = 'victory-text';
+  victoryText.textContent = 'VICTORY!';
+  
+  // Add to battle screen
+  battleScreen.appendChild(victoryText);
+  
+  // Remove after animation
+  setTimeout(() => {
+    victoryText.remove();
+  }, 1500);
+}
+
+/**
+ * Show defeat effect
+ */
+function showDefeatEffect() {
+  const battleScreen = document.getElementById('battle-screen');
+  if (!battleScreen) return;
+  
+  // Create defeat text
+  const defeatText = document.createElement('div');
+  defeatText.className = 'defeat-text';
+  defeatText.textContent = 'DEFEAT';
+  
+  // Add to battle screen
+  battleScreen.appendChild(defeatText);
+  
+  // Remove after animation
+  setTimeout(() => {
+    defeatText.remove();
+  }, 1500);
+}
+
+/**
+ * Show a message to the player
+ * @param {String} text - Message text
+ * @param {String} type - Message type ('success', 'error', 'info')
+ */
+function showMessage(text, type = 'info') {
+  // Find message element or create it
+  let messageElement = document.getElementById('message');
+  
+  if (!messageElement) {
+    messageElement = document.createElement('div');
+    messageElement.id = 'message';
+    document.body.appendChild(messageElement);
+  }
+  
+  // Set message content and style
+  messageElement.textContent = text;
+  messageElement.className = type;
+  messageElement.classList.add('visible');
+  
+  // Hide message after delay
+  setTimeout(() => {
+    messageElement.classList.remove('visible');
+  }, 2000);
+}
+
+/**
+ * Utility function to shuffle an array
+ * @param {Array} array - Array to shuffle
+ * @returns {Array} Shuffled array
+ */
+function shuffleArray(array) {
+  const result = [...array];
+  
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  
+  return result;
+}
