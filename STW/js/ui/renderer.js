@@ -1,143 +1,123 @@
 import { GameState } from '../core/state.js';
-import { GAME_PHASES } from '../core/config.js';
-import { EventBus } from '../core/events.js';
 
 export function initRenderer() {
-  // Subscribe to all state changes
+  console.log("Initializing renderer...");
+  
+  // Create stamina bar if it doesn't exist
+  createStaminaBar();
+  
+  // Create turn indicator if it doesn't exist
+  createTurnIndicator();
+  
+  // Create day/phase indicator if it doesn't exist
+  createDayPhaseIndicator();
+  
+  // Subscribe to state changes for UI updates
   const unsubscribe = GameState.subscribe((state) => {
-    updateHealthDisplays(state);
-    updateStaminaDisplay(state);
-    updatePhaseBackground(state);
-    updateBuffsDisplay(state);
+    // Update active screen
+    updateActiveScreen(state.currentScreen);
+    
+    // Update battle-specific UI if on battle screen
+    if (state.currentScreen === 'battle') {
+      updateBattleUI(state);
+    }
   });
+
+  // Initial UI update
+  updateActiveScreen(GameState.data.currentScreen);
   
-  // Listen for screen change events
-  EventBus.on('SCREEN_CHANGE', ({ screen }) => {
-    updateActiveScreen(screen);
-  });
-  
-  // Initial render
-  updateHealthDisplays(GameState.data);
-  
-  // Cleanup on game exit
+  // Return unsubscribe function for cleanup
   return unsubscribe;
 }
 
-function updateHealthDisplays(state) {
-  // Update player health
-  const playerHealth = state.player?.health || 0;
-  const playerMaxHealth = state.player?.maxHealth || 1;
-  const playerHealthPercent = (playerHealth / playerMaxHealth) * 100;
-  
-  const playerHealthBar = document.getElementById('player-health-bar');
-  const playerHealthText = document.getElementById('player-health');
-  const playerMaxHealthText = document.getElementById('player-max-health');
-  
-  if (playerHealthBar) {
-    playerHealthBar.style.width = `${playerHealthPercent}%`;
-  }
-  
-  if (playerHealthText) {
-    playerHealthText.textContent = playerHealth;
-  }
-  
-  if (playerMaxHealthText) {
-    playerMaxHealthText.textContent = playerMaxHealth;
-  }
-  
-  // Update enemy health
-  const enemy = state.battle?.enemy;
-  if (enemy) {
-    const enemyHealthPercent = (enemy.health / enemy.maxHealth) * 100;
-    const enemyHealthBar = document.getElementById('enemy-health-bar');
-    const enemyHealthText = document.getElementById('enemy-health');
-    const enemyMaxHealthText = document.getElementById('enemy-max-health');
-    
-    if (enemyHealthBar) {
-      enemyHealthBar.style.width = `${enemyHealthPercent}%`;
-    }
-    
-    if (enemyHealthText) {
-      enemyHealthText.textContent = enemy.health;
-    }
-    
-    if (enemyMaxHealthText) {
-      enemyMaxHealthText.textContent = enemy.maxHealth;
-    }
-  }
-}
-
-function updateStaminaDisplay(state) {
-  const staminaFill = document.getElementById('stamina-fill');
-  const staminaText = document.getElementById('stamina-text');
-  
-  if (!staminaFill || !staminaText) return;
-  
-  const currentStamina = state.player?.stamina || 0;
-  const maxStamina = state.player?.baseStamina || 3;
-  const staminaPercent = (currentStamina / maxStamina) * 100;
-  
-  staminaFill.style.width = `${staminaPercent}%`;
-  staminaText.textContent = `${currentStamina}/${maxStamina}`;
-  
-  // Update stamina color based on amount
-  staminaFill.className = '';
-  if (currentStamina >= maxStamina) {
-    staminaFill.classList.add('full');
-  } else if (currentStamina >= maxStamina / 2) {
-    staminaFill.classList.add('medium');
-  } else {
-    staminaFill.classList.add('low');
-  }
-}
-
-function updatePhaseBackground(state) {
-  const battleScreen = document.getElementById('battle-screen');
-  if (!battleScreen) return;
-  
-  const phase = state.battle?.phase;
-  if (!phase) return;
-  
-  // Remove existing phase classes
-  battleScreen.classList.remove('dawn', 'dusk', 'dark');
-  
-  // Add new phase class
-  battleScreen.classList.add(phase.toLowerCase());
-  
-  // Update phase indicator if it exists
-  const phaseIndicator = document.getElementById('day-phase-indicator');
-  if (phaseIndicator) {
-    phaseIndicator.textContent = phase;
-  }
-}
-
-function updateBuffsDisplay(state) {
-  const playerBuffs = state.player?.buffs;
-  if (!playerBuffs) return;
-  
-  const buffContainer = document.getElementById('player-buffs');
-  if (!buffContainer) return;
-  
-  // Clear existing buffs
-  buffContainer.innerHTML = '';
-  
-  // Add shield buff if active
-  if (playerBuffs.shield > 0 && playerBuffs.shieldTurns > 0) {
-    const shieldIcon = document.createElement('div');
-    shieldIcon.className = 'buff-icon shield';
-    shieldIcon.textContent = '🛡️';
-    shieldIcon.dataset.tooltip = `Shield: ${playerBuffs.shield} (${playerBuffs.shieldTurns} turns)`;
-    buffContainer.appendChild(shieldIcon);
-  }
-  
-  // Add other buffs here as needed
-}
-
-function updateActiveScreen(screenId) {
+function updateActiveScreen(screenName) {
   document.querySelectorAll('.screen').forEach(screen => {
-    screen.classList.toggle('active', screen.id === `${screenId}-screen`);
+    screen.classList.toggle('active', screen.id === `${screenName}-screen`);
   });
+}
+
+function updateBattleUI(state) {
+  // Update health bars
+  GameState.updateHealthBar('player');
+  GameState.updateHealthBar('enemy');
   
-  // Update game state with current screen
-  GameState.setState('currentScreen', screenId);
+  // Update stamina bar
+  GameState.updateStaminaBar();
+  
+  // Update turn indicator
+  updateTurnIndicator(state.battle.turn);
+  
+  // Update day/phase indicator
+  updateDayPhaseIndicator(state.battle.day, state.battle.phase);
+}
+
+function createStaminaBar() {
+  // Only create if it doesn't exist
+  if (!document.getElementById('stamina-bar')) {
+    const playerStats = document.getElementById('player-stats');
+    if (!playerStats) return;
+    
+    const staminaBar = document.createElement('div');
+    staminaBar.className = 'stamina-bar';
+    staminaBar.id = 'stamina-bar';
+    staminaBar.innerHTML = `
+      <div id="stamina-fill" class="full"></div>
+      <div id="stamina-text">3/3</div>
+    `;
+    
+    playerStats.appendChild(staminaBar);
+  }
+  
+  // Initial update
+  GameState.updateStaminaBar();
+}
+
+function createTurnIndicator() {
+  if (!document.getElementById('turn-indicator')) {
+    const battleScreen = document.getElementById('battle-screen');
+    if (!battleScreen) return;
+    
+    const turnIndicator = document.createElement('div');
+    turnIndicator.id = 'turn-indicator';
+    turnIndicator.className = 'player';
+    turnIndicator.textContent = 'Your Turn';
+    
+    battleScreen.appendChild(turnIndicator);
+  }
+}
+
+function createDayPhaseIndicator() {
+  if (!document.getElementById('day-phase-indicator')) {
+    const battleScreen = document.getElementById('battle-screen');
+    if (!battleScreen) return;
+    
+    const dayPhaseIndicator = document.createElement('div');
+    dayPhaseIndicator.id = 'day-phase-indicator';
+    dayPhaseIndicator.textContent = 'Day 1: Dawn';
+    
+    battleScreen.appendChild(dayPhaseIndicator);
+  }
+}
+
+function updateTurnIndicator(turn) {
+  const indicator = document.getElementById('turn-indicator');
+  if (indicator) {
+    indicator.className = turn;
+    indicator.textContent = turn === 'player' ? 'Your Turn' : 'Enemy Turn';
+  }
+}
+
+function updateDayPhaseIndicator(day, phase) {
+  const indicator = document.getElementById('day-phase-indicator');
+  if (indicator) {
+    indicator.textContent = `Day ${day}: ${phase}`;
+    
+    // Update battle screen background based on phase
+    const battleScreen = document.getElementById('battle-screen');
+    if (battleScreen) {
+      battleScreen.className = 'screen'; // Reset classes
+      battleScreen.classList.add('active');
+      battleScreen.classList.add(phase.toLowerCase());
+    }
+  }
 }
