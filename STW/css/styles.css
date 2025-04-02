@@ -542,16 +542,16 @@
         }
 
         .buff-icon {
-            width: 30px;
-            height: 30px;
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            background: rgba(0,0,0,0.5);
             border-radius: 50%;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            font-size: 18px;
-            color: #fff;
-        }
+            margin-left: 5px;
+            text-align: center;
+            line-height: 24px;
+          }
+          
 
         .buff-icon.focused { background-color: var(--color-success); }
         .buff-icon.defense { background-color: #6666ff; }
@@ -742,6 +742,15 @@
 
         .damage-text { color: var(--color-danger); }
         .heal-text { color: var(--color-success); }
+        
+        .heal-text {
+            position: absolute;
+            color: #4CAF50;
+            font-size: 1.8em;
+            font-weight: bold;
+            animation: float-up 1s forwards;
+            z-index: 100;
+        }
 
         /* Battle effects */
         #battle-effects {
@@ -919,6 +928,81 @@
               @keyframes float-up {
                 0% { transform: translateY(0); opacity: 1; }
                 100% { transform: translateY(-50px); opacity: 0; }
+            }
+            /* Add to CSS */
+            .damage-text, .heal-text, .poison-text {
+                position: absolute;
+                font-size: 1.8em;
+                font-weight: bold;
+                animation: floating-text 1.5s forwards;
+                text-shadow: 0 0 3px rgba(0,0,0,0.5);
+            }
+            
+            .damage-text { color: var(--color-danger); }
+            .heal-text { color: var(--color-success); }
+            .poison-text { color: #9933cc; }
+            
+            @keyframes floating-text {
+                0% {
+                transform: translateY(0);
+                opacity: 0;
+                }
+                10% {
+                opacity: 1;
+                }
+                90% {
+                opacity: 1;
+                }
+                100% {
+                transform: translateY(-40px);
+                opacity: 0;
+                }
+            }
+            
+            /* Add buff icon styles */
+            .buff-icon {
+                width: 30px;
+                height: 30px;
+                border-radius: 50%;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                position: relative;
+                font-size: 18px;
+                color: #fff;
+            }
+            
+            .buff-icon.focused { background-color: var(--color-success); }
+            .buff-icon.defense { background-color: #6666ff; }
+            .buff-icon.stunned { background-color: var(--color-danger); }
+            .buff-icon.poison { background-color: #9933cc; }
+            
+            .buff-icon .turns {
+                position: absolute;
+                top: -5px;
+                right: -5px;
+                font-size: 0.6em;
+                background-color: rgba(0, 0, 0, 0.7);
+                border-radius: 50%;
+                width: 12px;
+                height: 12px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            /* Add gem selection styling */
+            .gem.selected {
+                transform: translateY(-10px);
+                box-shadow: 0 10px 15px rgba(255,215,0,0.8), 0 0 30px rgba(255,215,0,0.5);
+                border: 3px solid #ffdd00;
+                animation: pulse 1.5s infinite;
+            }
+            
+            @keyframes pulse {
+                0% { box-shadow: 0 10px 15px rgba(255,215,0,0.8), 0 0 30px rgba(255,215,0,0.5); }
+                50% { box-shadow: 0 10px 20px rgba(255,215,0,0.9), 0 0 40px rgba(255,215,0,0.7); }
+                100% { box-shadow: 0 10px 15px rgba(255,215,0,0.8), 0 0 30px rgba(255,215,0,0.5); }
             }
         }
         
