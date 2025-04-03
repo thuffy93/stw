@@ -1,13 +1,13 @@
 // Main entry point for Super Tiny World
-import { EventBus } from './core/events.js';
+import { EventBus } from './core/eventbus.js';
 import { Config } from './core/config.js';
 import { GameState } from './core/state.js';
 import { Utils } from './core/utils.js';
 import { Storage } from './core/storage.js';
-import { Renderer } from './ui/renderer.js';
+import { initialize } from './ui/renderer.js';
 import { Character } from './systems/character.js';
 import { Gems } from './systems/gem.js';
-import { Battle } from './systems/battle.js';
+import { initBattle } from './systems/battle.js';
 import { Shop } from './systems/shop.js';
 import { EventHandler } from './systems/eventHandler.js';
 
@@ -49,30 +49,20 @@ const Game = (() => {
     /**
      * Set up core EventBus listeners
      */
+      
     function setupEventBusListeners() {
         // Core system events
-        EventBus.on('SAVE_GAME_STATE', () => Storage.saveGameState());
-        EventBus.on('LOAD_GAME_STATE', () => Storage.loadGameState());
-        EventBus.on('SAVE_META_ZENNY', () => Storage.saveMetaZenny());
+        EventBus.subscribe('GAME_SAVE', () => Storage.saveGameState());
+        EventBus.subscribe('GAME_LOAD', () => Storage.loadGameState());
         
-        // Gem catalog events
-        EventBus.on('UNLOCK_GEM', ({ gemKey }) => {
-            EventHandler.unlockGem(gemKey);
-        });
-        
-        // Selection events
-        EventBus.on('GEM_SELECT', ({ index, context }) => {
-            EventHandler.toggleGemSelection(index, context === 'shop');
-        });
-        
-        // Journey events
-        EventBus.on('JOURNEY_START', () => {
-            Gems.resetGemBag(true);
-        });
+        // UI events
+        EventBus.on('SCREEN_CHANGE', (screen) => UI.switchScreen(screen));
+        EventBus.on('SHOW_MESSAGE', ({ message, type }) => UI.showMessage(message, type));
         
         // Debug events
         EventBus.on('DEBUG_LOG', (data) => console.log('[DEBUG]', data));
     }
+
     
     /**
      * Initialize the game
