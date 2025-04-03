@@ -1,4 +1,4 @@
-import { EventBus } from '../core/events.js';
+import { EventBus } from '../core/eventbus.js';
 import { GameState } from '../core/state.js';
 import { Utils } from '../core/utils.js';
 import { Config } from '../core/config.js';
