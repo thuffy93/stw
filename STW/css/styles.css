@@ -362,13 +362,165 @@
             position: relative;
         }
 
+                /* Enhanced Enemy Section Styling */
         #enemy-section {
             flex: 0 0 auto;
             margin-bottom: 30px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding-top: 40px;
+            padding-top: 20px;
+            position: relative;
+            width: 100%;
+        }
+
+        #enemy-stats {
+            background-color: rgba(40, 40, 40, 0.8);
+            color: white;
+            border-radius: var(--border-radius-md);
+            padding: 15px 20px;
+            margin-bottom: 10px;
+            box-shadow: var(--shadow-md);
+            min-width: 300px;
+            text-align: center;
+            position: relative;
+            z-index: 5;
+        }
+
+        .enemy-header {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 10px;
+            position: relative;
+        }
+
+        #enemy-name {
+            font-size: 1.8em;
+            font-weight: bold;
+            text-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
+        }
+
+        #enemy-buffs {
+            position: absolute;
+            right: 0;
+            top: 0;
+            display: flex;
+            gap: 5px;
+        }
+
+        .enemy-health-container {
+            margin: 10px 0;
+        }
+
+        .health-bar {
+            height: 20px;
+            background-color: #444;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+            margin-bottom: 5px;
+        }
+
+        #enemy-health-bar {
+            height: 100%;
+            background-color: #ff5555;
+            width: 100%;
+            transition: width 0.3s ease-out;
+        }
+
+        .health-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-weight: bold;
+            font-size: 0.9em;
+            text-shadow: 0 0 2px black;
+        }
+
+        .enemy-actions {
+            font-size: 1em;
+            text-align: left;
+            margin-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            padding-top: 8px;
+        }
+
+        .action-label {
+            font-weight: bold;
+            color: #aaa;
+        }
+
+        .current-action {
+            margin-bottom: 5px;
+        }
+
+        #enemy-current-action {
+            font-weight: bold;
+        }
+
+        #enemy-attack {
+            background-color: #ff5555;
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 5px;
+            font-weight: bold;
+        }
+
+        #enemy-attack.hidden {
+            display: none;
+        }
+
+        .enemy-condition {
+            margin-top: 8px;
+            color: #ffcc00;
+            font-style: italic;
+            font-size: 0.9em;
+        }
+
+        #enemy-appearance {
+            margin-top: 10px;
+            position: relative;
+        }
+
+        .enemy-avatar {
+            width: 100px;
+            height: 100px;
+            position: relative;
+            margin: 0 auto;
+        }
+
+        .enemy-image {
+            font-size: 5em;
+            text-align: center;
+            line-height: 1;
+            text-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+        }
+
+        /* Enemy types for visual differentiation */
+        .enemy-grunt .enemy-image { 
+            content: "👹"; 
+        }
+
+        .enemy-bandit .enemy-image { 
+            content: "💀"; 
+        }
+
+        .enemy-wolf .enemy-image { 
+            content: "🐺"; 
+        }
+
+        .enemy-boss .enemy-image {
+            content: "👿";
+            font-size: 6em;
+            text-shadow: 0 0 20px rgba(255, 0, 0, 0.8);
         }
 
         #player-section {
@@ -890,10 +1042,6 @@
             #player-stats {
                 width: 200px;
                 font-size: 0.9em;
-            }
-            
-            #enemy-stats {
-                font-size: 1.2em;
             }
             
             #player-section {
