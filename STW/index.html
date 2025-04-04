@@ -83,9 +83,8 @@
         <button id="continue-journey-btn" class="btn-large">Continue Journey</button>
     </div>
     
-    <!-- Battle Screen -->
+    <!-- Battle Screen with Fixed Elements -->
     <div id="battle-screen" class="screen">
-        <h1>Battle</h1>
         <div id="battle-container">
             <!-- Enemy Section -->
             <div id="enemy-section">
@@ -98,13 +97,30 @@
                 </div>
             </div>
             
-            <!-- Battle Effects -->
+            <!-- Battle Effects Container -->
             <div id="battle-effects"></div>
             
-            <button id="end-turn-btn" class="btn-end-turn">End Turn</button>
+            <!-- Day/Phase and Turn Indicators -->
+            <div id="day-phase-indicator">Day 1 ☀️</div>
+            <div id="turn-indicator" class="player">Your Turn</div>
             
+            <!-- Player Action Buttons -->
+            <div id="player-actions">
+                <div id="action-buttons">
+                    <button id="execute-btn" class="btn-execute">Execute Gems</button>
+                    <button id="wait-btn">Wait for Focus</button>
+                    <button id="discard-end-btn">Discard and End</button>
+                    <button id="end-turn-btn" class="btn-end-turn">End Turn</button>
+                </div>
+            </div>
+            
+            <!-- Hand container -->
             <div id="hand"></div>
             
+            <!-- Flee Button -->
+            <button id="flee-btn" class="btn-flee">Flee</button>
+            
+            <!-- Player Section -->
             <div id="player-section">
                 <div id="player-stats">
                     <div id="player-buffs"></div>
@@ -112,7 +128,17 @@
                         <div id="player-health-bar"></div>
                         <span id="player-health">30</span>/<span id="player-max-health">30</span>
                     </div>
+                    <div class="stamina-bar">
+                        <div id="stamina-fill"></div>
+                        <span id="stamina-text">3/3</span>
+                    </div>
+                    <p>Zenny: <span id="zenny">0</span></p>
                 </div>
+            </div>
+            
+            <!-- Gem Bag Info -->
+            <div id="gem-bag-container">
+                Gem Bag: <span id="gem-bag-count">0</span>/<span id="gem-bag-total">20</span>
             </div>
         </div>
     </div>
@@ -177,6 +203,6 @@
     </div>
     
     <!-- Game scripts -->
-    <script src="js/component-main.js" type="module"></script>
+    <script src="js/main.js" type="module"></script>
 </body>
 </html>
