@@ -1,6 +1,6 @@
-// Enhanced state management system with backward compatibility
+// Enhanced state management system with simplified API
 export const GameState = (() => {
-  // Private internal state with initial values matching the current structure
+  // Private internal state with initial values
   const _state = {
     player: {
       class: null,
@@ -9,9 +9,7 @@ export const GameState = (() => {
       stamina: 3,
       baseStamina: 3,
       zenny: 0,
-      hand: [],       // Active gems in battle
-      deck: [],       // All owned gems
-      buffs: []       // Active buffs
+      buffs: []
     },
     battle: {
       phase: 'Dawn',  // Dawn/Dusk/Dark
@@ -43,34 +41,21 @@ export const GameState = (() => {
     },
     
     // Meta progression
-    metaZenny: 0,
-    
-    // For compatibility with existing code
-    _listeners: []
+    metaZenny: 0
   };
   
-  // Keep a change history for debugging
+  // Property-specific listeners
+  const propertyListeners = {
+    '*': [] // Wildcard listeners for any property change
+  };
+  
+  // Keep a change history for debugging (limited size)
   const stateChangeHistory = [];
   const MAX_HISTORY_ENTRIES = 100;
   
-  // Property-specific listeners
-  const propertyListeners = {};
-  
-  /**
-   * Add a listener for state changes
-   * @param {Function} listener - Function to call when state changes
-   * @returns {Function} Function to remove the listener
-   */
-  function subscribe(listener) {
-    _state._listeners.push(listener);
-    return () => {
-      _state._listeners = _state._listeners.filter(cb => cb !== listener);
-    };
-  }
-  
   /**
    * Add a listener for specific property changes
-   * @param {String} property - Property to listen for
+   * @param {String} property - Property to listen for (use '*' for all changes)
    * @param {Function} listener - Function to call when property changes
    * @returns {Function} Function to remove the listener
    */
@@ -116,15 +101,6 @@ export const GameState = (() => {
         }
       });
     }
-    
-    // Legacy notification for backward compatibility
-    _state._listeners.forEach(callback => {
-      try {
-        callback(_state);
-      } catch (error) {
-        console.error(`Error in legacy state change listener:`, error);
-      }
-    });
   }
   
   /**
@@ -259,46 +235,6 @@ export const GameState = (() => {
   }
   
   /**
-   * Validate state against expected structure
-   * @returns {Object} Validation results
-   */
-  function validateState() {
-    const issues = [];
-    
-    // Check critical fields
-    if (!_state.player) {
-      issues.push('Missing player object');
-    } else {
-      // Check player fields
-      if (_state.player.health === undefined) {
-        issues.push('Missing player.health');
-      }
-      if (_state.player.maxHealth === undefined) {
-        issues.push('Missing player.maxHealth');
-      }
-      if (_state.player.stamina === undefined) {
-        issues.push('Missing player.stamina');
-      }
-    }
-    
-    // Check collections
-    if (!Array.isArray(_state.hand)) {
-      issues.push('Hand is not an array');
-    }
-    if (!Array.isArray(_state.gemBag)) {
-      issues.push('GemBag is not an array');
-    }
-    if (!Array.isArray(_state.discard)) {
-      issues.push('Discard is not an array');
-    }
-    
-    return {
-      valid: issues.length === 0,
-      issues
-    };
-  }
-  
-  /**
    * Export a snapshot of the current state for saving
    * @returns {Object} State snapshot
    */
@@ -381,9 +317,6 @@ export const GameState = (() => {
     try {
       // Restore all state properties
       Object.keys(backup).forEach(key => {
-        // Skip internal properties
-        if (key.startsWith('_')) return;
-        
         set(key, backup[key]);
       });
       
@@ -407,14 +340,6 @@ export const GameState = (() => {
    */
   function clearStateChangeHistory() {
     stateChangeHistory.length = 0;
-  }
-  
-  /**
-   * Get full state (for debugging)
-   * @returns {Object} Full state
-   */
-  function getFullState() {
-    return JSON.parse(JSON.stringify(_state));
   }
   
   /**
@@ -463,11 +388,6 @@ export const GameState = (() => {
     return true;
   }
   
-  // For backward compatibility
-  function setState(key, value) {
-    return set(key, value);
-  }
-  
   // For backward compatibility with health bar updates
   function updateHealthBar(target) {
     const bar = document.getElementById(`${target}-health-bar`);
@@ -489,26 +409,23 @@ export const GameState = (() => {
 
   // Return public methods and properties
   return {
-    // Enhanced API
+    // Core API - simplified but comprehensive
     get,
     set,
     update,
     addListener,
+    
+    // State management
     resetPlayerStats,
     exportSaveData,
     importSaveData,
     createBackup,
     restoreFromBackup,
-    validateState,
-    getStateChangeHistory,
-    clearStateChangeHistory,
-    getFullState,
     
-    // For backward compatibility
-    data: _state,  // Expose state directly for backward compatibility
-    listeners: _state._listeners,
-    setState,
-    subscribe,
-    notify: () => notifyListeners('*', null, null)
+    // Debugging
+    getStateChangeHistory,
+    clearStateChangeHistory
   };
 })();
+
+export default GameState;
