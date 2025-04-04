@@ -1,11 +1,16 @@
-// Main entry point for Super Tiny World
-import { EventBus } from './core/events.js';
+// main.js - Updated to use proper ES6 module imports and initialization
+
+// Core system imports
+import { EventBus } from './core/eventbus.js';
 import { Config } from './core/config.js';
 import { GameState } from './core/state.js';
 import { Utils } from './core/utils.js';
 import { Storage } from './core/storage.js';
-import { ModuleLoader } from './core/moduleLoader.js';
-import { Renderer } from './ui/renderer.js';
+
+// UI system imports
+import { initializeComponentUI } from './ui/integration.js';
+
+// Game system imports
 import { Character } from './systems/character.js';
 import { Gems } from './systems/gem.js';
 import { Battle } from './systems/battle.js';
@@ -16,56 +21,74 @@ import { EventHandler } from './systems/eventHandler.js';
  * Game - Main application controller
  */
 const Game = (() => {
-    // Track initialization status
-    let initialized = false;
-    
-    /**
-     * Initialize the game
+  // Track initialization status
+  let initialized = false;
+  
+  /**
+   * Initialize the game
+   */
+  function initialize() {
+      if (initialized) {
+          console.warn("Game already initialized, skipping");
+          return;
+      }
+      
+      console.log("Initializing Super Tiny World...");
+      
+      try {
+          // Setup core EventBus listeners
+          setupEventBusListeners();
+          
+          // Initialize the component UI architecture
+          initializeComponentUI();
+          
+          // Initialize all core systems in the correct order
+          initializeSystems();
+          
+          // Load saved game data
+          Storage.loadAllSavedData();
+          
+          // Mark initialization as complete
+          initialized = true;
+          console.log("Game initialized successfully");
+          
+          // Start at character selection screen
+          EventBus.emit('SCREEN_CHANGE', 'characterSelect');
+          
+          return true;
+      } catch (error) {
+          console.error("Error during game initialization:", error);
+          alert("Failed to initialize game. Please refresh the page.");
+          return false;
+      }
+        /**
+     * Initialize game systems
      */
-    function initialize() {
-        if (initialized) {
-            console.warn("Game already initialized, skipping");
-            return;
-        }
-        
-        console.log("Initializing Super Tiny World...");
-        
-        try {
-            // Register global objects for module loader to find
-            window.EventBus = EventBus;
-            window.Config = Config;
-            window.GameState = GameState;
-            window.Utils = Utils;
-            window.Storage = Storage;
-            window.Renderer = Renderer;
-            window.Character = Character;
-            window.Gems = Gems;
-            window.Battle = Battle;
-            window.Shop = Shop;
-            window.EventHandler = EventHandler;
-            window.Game = this;
-            
-            // Setup core EventBus listeners
-            setupEventBusListeners();
-            
-            // Initialize all modules using ModuleLoader
-            ModuleLoader.initializeAllModules();
-            
-            // Mark initialization as complete
-            initialized = true;
-            console.log("Game initialized successfully");
-            
-            // Start at character selection screen
-            EventBus.emit('SCREEN_CHANGE', 'characterSelect');
-            
-            return true;
-        } catch (error) {
-            console.error("Error during game initialization:", error);
-            alert("Failed to initialize game. Please refresh the page.");
-            return false;
-        }
-    }
+        function initializeSystems() {
+          const systems = [
+              { name: 'Character', init: Character.initialize },
+              { name: 'Gems', init: Gems.initialize },
+              { name: 'Battle', init: Battle.initialize },
+              { name: 'Shop', init: Shop.initialize },
+              { name: 'EventHandler', init: EventHandler.initialize }
+          ];
+          
+          // Initialize each system
+          systems.forEach(system => {
+              try {
+                  console.log(`Initializing ${system.name}...`);
+                  const result = system.init();
+                  
+                  if (result === false) {
+                      console.error(`Failed to initialize ${system.name}`);
+                  }
+              } catch (err) {
+                  console.error(`Error initializing ${system.name}:`, err);
+              }
+          });
+      }
     
+  }    
     /**
      * Set up core EventBus listeners
      */
@@ -77,12 +100,8 @@ const Game = (() => {
         
         // Screen management
         EventBus.on('SCREEN_CHANGE', (screen) => {
-            // Use correct pattern for renderer
-            if (typeof Renderer.updateActiveScreen === 'function') {
-                Renderer.updateActiveScreen(screen);
-            } else if (typeof Renderer.switchScreen === 'function') {
-                Renderer.switchScreen(screen);
-            }
+            // Emit UI update event for screen change
+            EventBus.emit('UI_UPDATE', { target: 'screen', screen });
         });
         
         // Selection events

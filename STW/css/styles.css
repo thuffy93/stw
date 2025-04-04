@@ -1005,4 +1005,38 @@
                 100% { box-shadow: 0 10px 15px rgba(255,215,0,0.8), 0 0 30px rgba(255,215,0,0.5); }
             }
         }
+        /* Add to CSS */
+
+        /* Base responsive structure */
+        @media (max-width: 768px) {
+            /* Tablet layout adjustments */
+            #battle-container {
+            flex-direction: column;
+            }
+            
+            #player-section {
+            order: 1;
+            }
+            
+            #enemy-section {
+            order: 2;
+            margin-top: 10px;
+            }
+            
+            #hand {
+            order: 3;
+            }
+        }
         
+        @media (max-width: 480px) {
+            /* Mobile layout adjustments */
+            .gem {
+            width: 80px;
+            height: 80px;
+            }
+            
+            #player-stats, #enemy-stats {
+            padding: 10px;
+            font-size: 0.9em;
+            }
+        }

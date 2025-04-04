@@ -1,5 +1,5 @@
 import { GameState } from '../core/state.js';
-import { EventBus } from '../core/eventbus.js';
+import { EventBus } from '../core/eventbus.js'; // Standardized import path
 import { Utils } from '../core/utils.js';
 import { Gems } from './gem.js';
 
@@ -1007,8 +1007,8 @@ export function initialize(initializer = {}) {
     return true;
 }
 
-// Export both named functions and a default object for flexibility
-export default {
+// Export all public functions as a single module object
+export const Battle = {
     initialize,
     initBattle,
     executeSelectedGems,

@@ -1,5 +1,7 @@
+// Standardized renderer.js with consistent ES6 export pattern
+
 import { GameState } from '../core/state.js';
-import { EventBus } from '../core/eventbus.js';
+import { EventBus } from '../core/eventbus.js'; // Standardized import path
 import { Utils } from '../core/utils.js';
 
 /**
@@ -16,7 +18,6 @@ export function initialize() {
   
   return true;
 }
-
 /**
  * Set up event listeners for UI updates
  */
@@ -1288,8 +1289,8 @@ function updateCampUI() {
   if (depositBtn) depositBtn.disabled = metaZenny <= 0;
 }
 
-// Export methods
-export default {
+
+export const Renderer = {
   initialize,
   showMessage,
   updateBattleUI,
@@ -1300,5 +1301,6 @@ export default {
   renderShopHand,
   showDamageAnimation,
   showVictoryEffect,
-  showDefeatEffect
+  showDefeatEffect,
+  updateActiveScreen
 };
