@@ -5,50 +5,178 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Super Tiny World</title>
     <link rel="stylesheet" href="css/styles.css">
+    <style>
+        /* Fallback styles in case CSS file doesn't load */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #222;
+            color: #333;
+        }
+        
+        .screen {
+            display: none;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 1200px;
+            margin: 20px auto;
+            min-height: 500px;
+        }
+        
+        .screen.active {
+            display: block;
+        }
+        
+        .btn-large {
+            padding: 12px 24px;
+            margin: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-knight { background-color: #ff5555; color: white; }
+        .btn-mage { background-color: #4a6cb7; color: white; }
+        .btn-rogue { background-color: #55cc55; color: white; }
+        
+        .btn-large:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+    </style>
 </head>
 <body>
-    <body>
-        <!-- Character Select Screen -->
-        <div id="character-select-screen" class="screen active">
+    <!-- Character Select Screen -->
+    <div id="character-select-screen" class="screen">
+        <h1>Choose Your Character</h1>
+        <div class="character-selection">
             <button id="knight-btn" class="btn-knight btn-large">Knight</button>
             <button id="mage-btn" class="btn-mage btn-large">Mage</button>
             <button id="rogue-btn" class="btn-rogue btn-large">Rogue</button>
         </div>
+    </div>
+    
+    <!-- Gem Catalog Screen -->
+    <div id="gemCatalog-screen" class="screen">
+        <h1>Gem Catalog</h1>
+        <div>
+            <p>Meta $ZENNY: <span id="meta-zenny-display">0</span></p>
+        </div>
         
-        <!-- Battle Screen -->
-        <div id="battle-screen" class="screen">
-            <div id="battle-container">
-                <!-- Enemy Section -->
-                <div id="enemy-section">
-                    <div id="enemy-stats">
-                    <span id="enemy-name">Enemy</span> <!-- This element must exist -->
+        <div id="unlocked-gems-section">
+            <h2>Unlocked Gems</h2>
+            <div id="unlocked-gems" class="gem-grid"></div>
+        </div>
+        
+        <div id="available-gems-section">
+            <h2>Available Gems</h2>
+            <div id="available-gems" class="gem-grid"></div>
+        </div>
+        
+        <button id="continue-journey-btn" class="btn-large">Continue Journey</button>
+    </div>
+    
+    <!-- Battle Screen -->
+    <div id="battle-screen" class="screen">
+        <h1>Battle</h1>
+        <div id="battle-container">
+            <!-- Enemy Section -->
+            <div id="enemy-section">
+                <div id="enemy-stats">
+                    <span id="enemy-name">Enemy</span>
                     <div class="health-bar">
                         <div id="enemy-health-bar"></div>
                         <span id="enemy-health">20</span>/<span id="enemy-max-health">20</span>
                     </div>
-                    </div>
                 </div>
-                <!-- Add inside battle-screen div -->
-                <div id="battle-effects"></div>
-  
-                <button id="end-turn-btn" class="btn-end-turn">End Turn</button>
-        
-                <div id="hand"></div> <!-- Gems injected here via JS -->
+            </div>
             
-                <div id="player-section">
-                   <div id="player-stats">
-                        <div id="player-buffs"></div>
-                        <div class="health-bar">
+            <!-- Battle Effects -->
+            <div id="battle-effects"></div>
+            
+            <button id="end-turn-btn" class="btn-end-turn">End Turn</button>
+            
+            <div id="hand"></div>
+            
+            <div id="player-section">
+                <div id="player-stats">
+                    <div id="player-buffs"></div>
+                    <div class="health-bar">
                         <div id="player-health-bar"></div>
                         <span id="player-health">30</span>/<span id="player-max-health">30</span>
                     </div>
                 </div>
             </div>
         </div>
-        
-        <!-- Other screens (empty for now) -->
-        <div id="shop-screen" class="screen"></div>
-        <div id="camp-screen" class="screen"></div>
-        <script src="js/component-main.js.js" type="module"></script>
-    </body>
+    </div>
+    
+    <!-- Shop Screen -->
+    <div id="shop-screen" class="screen">
+        <h1>Shop</h1>
+        <div id="shop-selections">
+            <div id="shop-hand"></div>
+            
+            <p id="gem-pool-instructions">Select a gem from your hand</p>
+            
+            <div id="shop-buttons">
+                <button id="buy-random-gem">Buy Random Gem</button>
+                <button id="discard-gem">Discard Gem</button>
+                <button id="upgrade-gem">Upgrade Gem</button>
+                <button id="heal-10">Heal 10 HP</button>
+                <button id="continue-btn">Continue</button>
+                <button id="cancel-upgrade" style="display: none;">Cancel Upgrade</button>
+            </div>
+            
+            <div id="gem-pool" style="display: none;"></div>
+        </div>
+    </div>
+    
+    <!-- Camp Screen -->
+    <div id="camp-screen" class="screen">
+        <h1>Camp</h1>
+        <div>
+            <p>Day: <span id="camp-day">1</span></p>
+            <p>Journey $ZENNY: <span id="camp-zenny">0</span></p>
+            <p>Meta $ZENNY: <span id="camp-meta-zenny">0</span></p>
+            
+            <div>
+                <h3>Withdraw $ZENNY</h3>
+                <input type="number" id="withdraw-amount" min="1" placeholder="Amount">
+                <button id="withdraw-btn">Withdraw to Meta Wallet</button>
+            </div>
+            
+            <div>
+                <h3>Deposit $ZENNY</h3>
+                <input type="number" id="deposit-amount" min="1" placeholder="Amount">
+                <button id="deposit-btn">Deposit to Journey Wallet</button>
+            </div>
+            
+            <button id="next-day-btn" class="btn-large">Start Next Day</button>
+        </div>
+    </div>
+    
+    <!-- Message notification box -->
+    <div id="message" class="message"></div>
+    
+    <!-- Loading and error overlays -->
+    <div id="loading-overlay" style="display: none;">
+        <div class="loading-spinner"></div>
+        <div class="loading-message">Loading...</div>
+    </div>
+    
+    <div id="error-overlay" style="display: none;">
+        <div class="error-message">An error occurred.</div>
+        <button class="error-close">Continue</button>
+    </div>
+    
+    <!-- Game scripts -->
+    <script src="js/component-main.js" type="module"></script>
+</body>
 </html>
