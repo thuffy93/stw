@@ -4,7 +4,7 @@
  * This module provides a way to monitor and debug events in the 
  * application by intercepting all EventBus communications.
  */
-import { EventBus } from './events.js';
+import { EventBus } from '..core/eventbus.js';
 
 export const EventDispatcher = (() => {
     // Store original EventBus methods

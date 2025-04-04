@@ -1,4 +1,6 @@
-// Standardized EventBus implementation that supports both patterns
+/**
+ * Centralized event bus system for game-wide communication
+ */
 export const EventBus = (() => {
     // Store subscribers by channel
     const channels = new Map();
@@ -109,7 +111,7 @@ export const EventBus = (() => {
       eventLog = [];
     }
     
-    // Public API
+    // Return public API
     return {
       subscribe,
       unsubscribe,
@@ -119,6 +121,4 @@ export const EventBus = (() => {
       debug,
       clear
     };
-  })();
-  
-  export default EventBus;
+})();

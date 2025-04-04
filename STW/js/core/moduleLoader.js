@@ -1,5 +1,5 @@
 // Updated MODULE LOADER with improved EventBus support
-import { EventBus } from './events.js';
+import { EventBus } from '..core/eventbus.js';
 
 export const ModuleLoader = (() => {
     // Track module status
