@@ -7,9 +7,7 @@ import { Gems } from './gem.js';
 const MAX_HAND_SIZE = 3;
 const BATTLES_PER_DAY = 3;
 
-/**
- * Initialize a new battle
- */
+// Enhanced battle initialization function to ensure hand is properly drawn
 export function initBattle() {
     console.log("Initializing battle...");
     
@@ -26,23 +24,35 @@ export function initBattle() {
         'selectedGems': new Set()
     });
     
-    // Clear player buffs
-    GameState.set('player.buffs', []);
-    
-    // Reset stamina
+    // Clear player buffs and reset stamina
     const player = GameState.get('player');
+    GameState.set('player.buffs', []);
     GameState.set('player.stamina', player.baseStamina);
     
-    // Draw initial hand
+    // Ensure hand is empty before drawing
+    GameState.set('hand', []);
+    
+    // Force a reset of the Gem Bag if needed
+    const gemBag = GameState.get('gemBag');
+    if (!gemBag || !Array.isArray(gemBag) || gemBag.length === 0) {
+        console.log("Gem bag empty, resetting...");
+        Gems.resetGemBag(true);
+    }
+    
+    // Draw initial hand - make sure it's doing something
+    console.log("Drawing initial hand...");
     Gems.drawCards(MAX_HAND_SIZE);
     
-    // Update UI
-    updateBattleUI();
+    // Log hand state for debugging
+    console.log("Initial hand:", GameState.get('hand'));
+    
+    // Update UI with force=true to ensure rendering
+    updateBattleUI(null, true);
     
     // Emit event for UI updates
     EventBus.emit('BATTLE_INIT', { enemy });
+    EventBus.emit('HAND_UPDATED');
 }
-
 /**
  * Generate an enemy for the current battle
  * @returns {Object} Enemy data
@@ -879,49 +889,59 @@ export function fleeBattle() {
     }, 1000);
 }
 
-/**
- * Update the battle UI
- */
-function updateBattleUI() {
-    const player = GameState.get('player');
-    const enemy = GameState.get('battle.enemy');
-    const currentPhaseIndex = GameState.get('currentPhaseIndex');
-    const currentDay = GameState.get('currentDay');
-    const isEnemyTurnPending = GameState.get('isEnemyTurnPending');
+// Update battle UI with force option
+function updateBattleUI(data, force = false) {
+    if (!data) {
+        // Fetch current battle data
+        const player = GameState.get('player');
+        const enemy = GameState.get('battle.enemy');
+        const currentPhaseIndex = GameState.get('currentPhaseIndex');
+        const currentDay = GameState.get('currentDay');
+        const isEnemyTurnPending = GameState.get('isEnemyTurnPending');
+        
+        data = {
+            player: {
+                health: player.health,
+                maxHealth: player.maxHealth,
+                stamina: player.stamina,
+                baseStamina: player.baseStamina,
+                zenny: player.zenny,
+                buffs: player.buffs
+            },
+            enemy: enemy ? {
+                name: enemy.name,
+                health: enemy.health,
+                maxHealth: enemy.maxHealth,
+                currentAction: enemy.currentAction,
+                actionQueue: enemy.actionQueue,
+                buffs: enemy.buffs,
+                shield: enemy.shield,
+                shieldColor: enemy.shieldColor
+            } : null,
+            battle: {
+                day: currentDay,
+                phase: currentPhaseIndex,
+                isEnemyTurn: isEnemyTurnPending,
+                battleOver: GameState.get('battleOver'),
+                selectedGems: GameState.get('selectedGems')
+            },
+            gems: {
+                hand: GameState.get('hand'),
+                gemBag: GameState.get('gemBag'),
+                discard: GameState.get('discard')
+            }
+        };
+    }
     
-    // Emit a comprehensive UI update event
-    EventBus.emit('BATTLE_UI_UPDATE', {
-        player: {
-            health: player.health,
-            maxHealth: player.maxHealth,
-            stamina: player.stamina,
-            baseStamina: player.baseStamina,
-            zenny: player.zenny,
-            buffs: player.buffs
-        },
-        enemy: enemy ? {
-            name: enemy.name,
-            health: enemy.health,
-            maxHealth: enemy.maxHealth,
-            currentAction: enemy.currentAction,
-            actionQueue: enemy.actionQueue,
-            buffs: enemy.buffs,
-            shield: enemy.shield,
-            shieldColor: enemy.shieldColor
-        } : null,
-        battle: {
-            day: currentDay,
-            phase: currentPhaseIndex,
-            isEnemyTurn: isEnemyTurnPending,
-            battleOver: GameState.get('battleOver'),
-            selectedGems: GameState.get('selectedGems')
-        },
-        gems: {
-            hand: GameState.get('hand'),
-            gemBag: GameState.get('gemBag'),
-            discard: GameState.get('discard')
-        }
-    });
+    // Force UI update with the EventBus
+    EventBus.emit('BATTLE_UI_UPDATE', data);
+    
+    // Also force a hand update
+    if (force) {
+        setTimeout(() => {
+            EventBus.emit('HAND_UPDATED');
+        }, 100);
+    }
 }
 
 /**
