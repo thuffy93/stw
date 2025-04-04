@@ -5,7 +5,7 @@ import { Config } from './core/config.js';
 import { Storage } from './core/storage.js';
 import { Utils } from './core/utils.js';
 import { ModuleManager } from './core/moduleManager.js';
-
+import { AssetManager } from './core/AssetManager.js'
 
 // Basic UI management without importing missing files
 const BasicUI = {
@@ -82,39 +82,57 @@ const BasicUI = {
      */
     startJourney() {
         console.log("Starting journey");
-        
-        this.showMessage("Starting your adventure...");
-        
-        // Load saved game state if available
+        this.showMessage("Preparing gems, please wait...");
+    
         if (typeof Storage !== 'undefined' && Storage.loadGameState) {
             Storage.loadGameState();
         }
-        
-        // Reset for a new run if needed
+    
         if (!GameState.get('battleCount')) {
             GameState.set('currentDay', 1);
             GameState.set('currentPhaseIndex', 0);
             GameState.set('battleCount', 0);
         }
-        
-        // Reset battle-related state
+    
         GameState.set('battleOver', false);
         GameState.set('selectedGems', new Set());
-        
-        // Reset player buffs
+    
         const player = GameState.get('player');
         if (player) {
             player.buffs = [];
             GameState.set('player.buffs', []);
-            
-            // Ensure player has full stamina
             GameState.set('player.stamina', player.baseStamina);
         }
-        
-        // Switch to battle screen after a short delay
-        setTimeout(() => {
-            this.switchScreen('battle');
-        }, 100);
+    
+        // Load gem data and initialize gemBag
+        AssetManager.downloadAll((success, loadedAssets) => {
+            if (success) {
+                console.log("All gems loaded:", loadedAssets);
+                this.showMessage("Gems ready, starting battle!");
+    
+                // Initialize gemBag with loaded gem data
+                const gemBag = Object.values(loadedAssets).map(gem => ({
+                    ...gem,
+                    id: `${gem.name}-${Utils.generateId()}` // Add unique ID for game use
+                }));
+                GameState.set('gemBag', Utils.shuffle(gemBag));
+                GameState.set('hand', []); // Reset hand
+                GameState.set('discard', []); // Reset discard
+    
+                // Draw initial hand (e.g., 3 cards)
+                const initialHand = gemBag.slice(0, Config.MAX_HAND_SIZE);
+                GameState.set('hand', initialHand);
+                GameState.set('gemBag', gemBag.slice(Config.MAX_HAND_SIZE));
+    
+                console.log("Initial hand:", GameState.get('hand'));
+                console.log("Remaining gemBag:", GameState.get('gemBag'));
+    
+                setTimeout(() => this.switchScreen('battle'), 100);
+            } else {
+                console.error("Failed to load some gems:", loadedAssets);
+                this.showMessage("Failed to prepare gems, please retry.", 'error', 5000);
+            }
+        });
     },
     
     initializeScreens() {
@@ -232,10 +250,9 @@ const BasicUI = {
     },
     
     setupGemCatalog(className) {
-        // Initialize gem catalog from default configuration
-        const initialUnlocks = Config.INITIAL_GEM_UNLOCKS[className].unlocked || [];
-        const initialAvailable = Config.INITIAL_GEM_UNLOCKS[className].available || [];
-        
+        const initialUnlocks = Config.INITIAL_GEM_UNLOCKS[className]?.unlocked || [];
+        const initialAvailable = Config.INITIAL_GEM_UNLOCKS[className]?.available || [];
+    
         const newCatalog = {
             unlocked: [...initialUnlocks],
             available: [...initialAvailable],
@@ -243,15 +260,25 @@ const BasicUI = {
             gemPool: [],
             upgradedThisShop: new Set()
         };
-        
-        // Set up both the current catalog and class-specific catalog
+    
         GameState.set('gemCatalog', newCatalog);
         GameState.set(`classGemCatalogs.${className}`, Utils.deepClone(newCatalog));
-        
-        // Initialize gem proficiency
+    
         const initialProficiency = Config.INITIAL_GEM_PROFICIENCY[className] || {};
         GameState.set('gemProficiency', Utils.deepClone(initialProficiency));
         GameState.set(`classGemProficiency.${className}`, Utils.deepClone(initialProficiency));
+    
+        // Queue gem data from Config.BASE_GEMS
+        AssetManager.clear(); // Reset previous queue
+        initialUnlocks.forEach(gemKey => {
+            const gem = Config.BASE_GEMS[gemKey];
+            if (gem) {
+                AssetManager.queue(gemKey, gem, 'data');
+                console.log(`Queued gem data: ${gemKey}`, gem);
+            } else {
+                console.warn(`Gem not found in BASE_GEMS: ${gemKey}`);
+            }
+        });
     },
     
     updateGemCatalog() {

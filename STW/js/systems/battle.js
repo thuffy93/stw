@@ -21,9 +21,12 @@ export const Battle = {
      */
     initialize() {
         console.log("Initializing Battle System");
-        
-        // Register core event handlers
         this.setupEventHandlers();
+        
+        const gemBag = GameState.get('gemBag');
+        const hand = GameState.get('hand');
+        console.log("Battle starting with gemBag:", gemBag);
+        console.log("Battle starting with hand:", hand);
         
         return true;
     },
