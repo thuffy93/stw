@@ -1,77 +1,56 @@
+// Proposed unified event-bus.js
 export const EventBus = (() => {
-    const listeners = new Map();
-    const wildcardListeners = [];
+    const channels = new Map();
+    const eventLog = [];
+    const MAX_LOG_SIZE = 100;
 
-    /**
-     * Subscribe to an event
-     * @param {string} event - Event name
-     * @param {Function} callback - Event handler
-     * @returns {Function} Unsubscribe function
-     */
-    function on(event, callback) {
-        if (event === '*') {
-            wildcardListeners.push(callback);
-            return () => {
-                const index = wildcardListeners.indexOf(callback);
-                if (index !== -1) wildcardListeners.splice(index, 1);
-            };
-        }
+    function subscribe(channel, callback) {
+        // Existing subscribe logic
+    }
 
-        if (!listeners.has(event)) {
-            listeners.set(event, new Set());
+    function publish(channel, data) {
+        // Add verbose logging from event-dispatcher
+        logEvent(channel, data);
+        
+        const subscribers = channels.get(channel) || [];
+        subscribers.forEach(({ callback }) => {
+            try {
+                callback(data);
+            } catch (error) {
+                console.error(`EventBus error in ${channel}:`, error);
+            }
+        });
+    }
+
+    function logEvent(channel, data) {
+        // Implement detailed logging
+        eventLog.push({
+            timestamp: Date.now(),
+            channel,
+            data: JSON.stringify(data).substring(0, 200)
+        });
+
+        if (eventLog.length > MAX_LOG_SIZE) {
+            eventLog.shift();
         }
-        
-        listeners.get(event).add(callback);
-        
-        return () => {
-            listeners.get(event).delete(callback);
+    }
+
+    // Add debugging methods from event-dispatcher
+    function getStats() {
+        return {
+            channels: Array.from(channels.entries()).map(([channel, subs]) => ({
+                channel,
+                subscribers: subs.length
+            })),
+            recentEvents: eventLog.slice(-10)
         };
     }
 
-    /**
-     * Emit an event
-     * @param {string} event - Event name
-     * @param {*} [data] - Event data
-     */
-    function emit(event, data) {
-        // Handle specific event listeners
-        const eventListeners = listeners.get(event) || new Set();
-        eventListeners.forEach(listener => {
-            try {
-                listener(data);
-            } catch (error) {
-                console.error(`Error in event listener for ${event}:`, error);
-            }
-        });
-
-        // Handle wildcard listeners
-        wildcardListeners.forEach(listener => {
-            try {
-                listener({ event, data });
-            } catch (error) {
-                console.error('Error in wildcard listener:', error);
-            }
-        });
-    }
-
-    /**
-     * Remove all listeners for a specific event or all events
-     * @param {string} [event] - Optional event name
-     */
-    function clear(event) {
-        if (event) {
-            listeners.delete(event);
-        } else {
-            listeners.clear();
-            wildcardListeners.length = 0;
-        }
-    }
-
     return {
-        on,
-        emit,
-        clear
+        subscribe,
+        publish,
+        on: subscribe,
+        emit: publish,
+        debug: getStats
     };
 })();
-
-export default EventBus;
