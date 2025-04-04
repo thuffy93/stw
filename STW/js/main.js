@@ -4,6 +4,8 @@ import { GameState } from './core/state.js';
 import { Config } from './core/config.js';
 import { Storage } from './core/storage.js';
 import { Utils } from './core/utils.js';
+import { ModuleManager } from './core/moduleManager.js';
+
 
 // Basic UI management without importing missing files
 const BasicUI = {
@@ -350,6 +352,100 @@ export function cleanupComponentUI() {
     cleanup();
     return true;
 }
+/**
+ * Game - Main application controller
+ */
+const Game = (() => {
+    // Track initialization status
+    let initialized = false;
+    
+    /**
+     * Initialize the game
+     */
+    function initialize() {
+        if (initialized) {
+            console.warn("Game already initialized, skipping");
+            return false;
+        }
+        
+        console.log("Initializing Super Tiny World...");
+        
+        try {
+            // Initialize all modules using ModuleManager
+            const allInitialized = ModuleManager.initializeAllModules();
+            
+            if (!allInitialized) {
+                throw new Error("Failed to initialize all modules");
+            }
+            
+            // Mark initialization as complete
+            initialized = true;
+            console.log("Game initialized successfully");
+            
+            // Start at character selection screen
+            EventBus.emit('SCREEN_CHANGE', 'characterSelect');
+            
+            return true;
+        } catch (error) {
+            console.error("Error during game initialization:", error);
+            alert("Failed to initialize game. Please refresh the page.");
+            return false;
+        }
+    }
+    
+    /**
+     * Reset the game state (for testing)
+     */
+    function reset() {
+        if (!initialized) {
+            console.warn("Game not yet initialized, cannot reset");
+            return;
+        }
+        
+        // Reset key systems
+        const modulesToReset = [
+            'GameState', 
+            'Character', 
+            'Gems', 
+            'Battle'
+        ];
+        
+        modulesToReset.forEach(moduleName => {
+            const module = ModuleManager.isModuleInitialized(moduleName) 
+                ? ModuleManager.getModuleStatus()[moduleName] 
+                : null;
+            
+            if (module && module.reset) {
+                module.reset();
+            }
+        });
+        
+        // Restart at character selection
+        EventBus.emit('SCREEN_CHANGE', 'characterSelect');
+        
+        console.log("Game reset complete");
+    }
+    
+    // Public interface
+    return {
+        initialize,
+        reset
+    };
+})();
+
+// Set up initialization to happen after DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("DOM content loaded, initializing game");
+    Game.initialize();
+});
+
+// Backup initialization for older browsers or if DOMContentLoaded already fired
+if (document.readyState === 'interactive' || document.readyState === 'complete') {
+    console.log("Document already interactive/complete, initializing game");
+    setTimeout(Game.initialize, 100);
+}
+
+export default Game;
 
 // Set up cleanup on unload
 window.addEventListener('beforeunload', cleanup);

@@ -221,77 +221,67 @@ export function resetGemBag(fullReset = false) {
     return shuffledBag;
 }
 
-/**
- * Draw cards from the gem bag
- * @param {Number} count - Number of cards to draw
- * @param {Boolean} force - Whether to force drawing even if hand is full
- */
-export function drawCards(count, force = false) {
-    const hand = window.GameState.get('hand') || [];
-    const gemBag = window.GameState.get('gemBag') || [];
-    const discard = window.GameState.get('discard') || [];
+function drawCards(num) {
+    console.log('Drawing cards', { 
+        currentHand: GameState.get('hand'), 
+        currentBag: GameState.get('gemBag'),
+        drawRequest: num
+    });
+
+    let hand = GameState.get('hand') || [];
+    let gemBag = GameState.get('gemBag') || [];
+    let discard = GameState.get('discard') || [];
     
-    console.log(`Drawing ${count} cards. Current hand: ${hand.length}, Gem bag: ${gemBag.length}, Discard: ${discard.length}`);
+    // Calculate how many cards we need to draw
+    const needed = Math.min(num, MAX_HAND_SIZE - hand.length);
     
-    // Calculate how many we need to draw
-    const MAX_HAND_SIZE = 3;
-    const needed = force ? count : Math.min(count, MAX_HAND_SIZE - hand.length);
+    console.log('Draw details', { needed, handLength: hand.length, bagLength: gemBag.length });
     
     if (needed <= 0) {
-        console.log("No cards needed");
-        return hand;
+        console.log('No cards needed to be drawn');
+        return;
     }
     
-    // Check if we need to recycle the discard pile
+    // If gem bag is empty, recycle discard
     if (gemBag.length < needed && discard.length > 0) {
-        // Move all cards from discard to gem bag
-        const recycledBag = [...gemBag, ...discard];
-        window.GameState.set('gemBag', shuffleArray(recycledBag));
-        window.GameState.set('discard', []);
-        console.log(`Recycled ${discard.length} cards from discard to gem bag`);
+        console.log('Recycling discard pile');
+        recycleDiscardPile();
+        gemBag = GameState.get('gemBag'); // Get updated gem bag
     }
     
-    // Get updated gem bag
-    const updatedGemBag = window.GameState.get('gemBag') || [];
-    
-    // If we still don't have enough cards, generate some emergency cards
-    if (updatedGemBag.length < needed) {
-        const playerClass = window.GameState.get('player.class');
-        const emergencyBag = initializeGemBag(playerClass);
-        console.log(`Created emergency gem bag with ${emergencyBag.length} cards`);
+    // Emergency refill if bag is still empty
+    if (gemBag.length === 0) {
+        console.warn('Gem bag is empty after recycling. Resetting.');
+        resetGemBag(true);
+        gemBag = GameState.get('gemBag');
     }
     
-    // Final gem bag after all potential updates
-    const finalGemBag = window.GameState.get('gemBag') || [];
-    
-    // Draw cards
+    // Draw cards from bag to hand
     const newHand = [...hand];
-    const drawnCards = [];
+    const drawnGems = [];
     
-    for (let i = 0; i < needed && finalGemBag.length > 0; i++) {
-        // Draw from the end of the bag
-        const card = finalGemBag[finalGemBag.length - 1];
-        newHand.push(card);
-        drawnCards.push(card);
-        finalGemBag.pop();
+    for (let i = 0; i < needed && gemBag.length > 0; i++) {
+        // Draw from the end for better performance than shift()
+        const drawnGem = gemBag[gemBag.length - 1];
+        newHand.push(drawnGem);
+        drawnGems.push(drawnGem);
+        gemBag = gemBag.slice(0, -1);
     }
+    
+    console.log('Draw result', { 
+        drawnGemsCount: drawnGems.length, 
+        newHandSize: newHand.length, 
+        remainingBagSize: gemBag.length 
+    });
     
     // Update state
-    window.GameState.set('hand', newHand);
-    window.GameState.set('gemBag', finalGemBag);
+    GameState.set('hand', newHand);
+    GameState.set('gemBag', gemBag);
     
-    console.log(`Drew ${drawnCards.length} cards. New hand size: ${newHand.length}`);
-    
-    // Emit draw event
-    if (window.EventBus) {
-        window.EventBus.emit('GEMS_DRAWN', { gems: drawnCards, count: drawnCards.length });
-        window.EventBus.emit('HAND_UPDATED');
-    }
-    
-    return newHand;
+    // Emit events for UI updates
+    EventBus.emit('GEMS_DRAWN', { gems: drawnGems, count: drawnGems.length });
+    EventBus.emit('HAND_UPDATED');
 }
-
-
 /**
  * Recycle discard pile into gem bag
  */
