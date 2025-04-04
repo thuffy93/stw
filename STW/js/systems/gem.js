@@ -21,6 +21,99 @@ const BASE_GEMS = {
     greyHeal: { name: "Heal", color: "grey", cost: 1, heal: 5, upgradeCount: 0, rarity: "Common" }
 };
 
+
+export function initializeGemBag(playerClass) {
+    console.log(`Initializing gem bag for ${playerClass}`);
+    
+    // Make sure we have a valid class
+    if (!playerClass || !['Knight', 'Mage', 'Rogue'].includes(playerClass)) {
+        console.error(`Invalid player class: ${playerClass}`);
+        return [];
+    }
+    
+    // Get base gem definitions from Config if available
+    let BASE_GEMS = {};
+    if (window.Config && window.Config.BASE_GEMS) {
+        BASE_GEMS = window.Config.BASE_GEMS;
+    } else {
+        // Fallback definitions if Config is not available
+        BASE_GEMS = {
+            redAttack: { name: "Attack", color: "red", cost: 2, damage: 5, upgradeCount: 0, rarity: "Common" },
+            redBurst: { name: "Burst", color: "red", cost: 3, damage: 10, upgradeCount: 0, rarity: "Rare" },
+            redStrongAttack: { name: "Strong Attack", color: "red", cost: 3, damage: 8, upgradeCount: 0, rarity: "Uncommon" },
+            blueMagicAttack: { name: "Magic Attack", color: "blue", cost: 2, damage: 7, upgradeCount: 0, rarity: "Common" },
+            blueShield: { name: "Shield", color: "blue", cost: 2, heal: 3, upgradeCount: 0, rarity: "Rare", shield: true },
+            blueStrongHeal: { name: "Strong Heal", color: "blue", cost: 3, heal: 8, upgradeCount: 0, rarity: "Uncommon" },
+            greenAttack: { name: "Attack", color: "green", cost: 1, damage: 5, upgradeCount: 0, rarity: "Common" },
+            greenPoison: { name: "Poison", color: "green", cost: 2, damage: 3, upgradeCount: 0, rarity: "Rare", poison: 2 },
+            greenQuickAttack: { name: "Quick Attack", color: "green", cost: 1, damage: 3, upgradeCount: 0, rarity: "Uncommon" },
+            greyHeal: { name: "Heal", color: "grey", cost: 1, heal: 5, upgradeCount: 0, rarity: "Common" }
+        };
+    }
+
+    // Define starting gems for each class
+    const classStartingGems = {
+        Knight: ["redAttack", "blueMagicAttack", "greenAttack", "greyHeal", "redStrongAttack"],
+        Mage: ["redAttack", "blueMagicAttack", "greenAttack", "greyHeal", "blueStrongHeal"],
+        Rogue: ["redAttack", "blueMagicAttack", "greenAttack", "greyHeal", "greenQuickAttack"]
+    };
+    
+    // Get the starting gems for the player's class
+    const startingGemKeys = classStartingGems[playerClass] || [];
+    
+    // Create the gem bag with the starting gems
+    const gemBag = [];
+    
+    // Add each gem to the bag (2-3 copies of each)
+    startingGemKeys.forEach(gemKey => {
+        const baseGem = BASE_GEMS[gemKey];
+        if (!baseGem) {
+            console.warn(`Gem key not found: ${gemKey}`);
+            return;
+        }
+        
+        // Determine how many copies to add based on gem type
+        let copies = 2;
+        if (gemKey.includes('Attack')) {
+            copies = 3; // More attack gems
+        }
+        
+        // Add copies of this gem
+        for (let i = 0; i < copies; i++) {
+            gemBag.push({ 
+                ...baseGem, 
+                id: `${gemKey}-${i}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+                freshlySwapped: false 
+            });
+        }
+    });
+    
+    // Shuffle the gem bag
+    const shuffledBag = shuffleArray(gemBag);
+    
+    // Update the game state with the new gem bag
+    if (window.GameState) {
+        window.GameState.set('gemBag', shuffledBag);
+        console.log(`Gem bag initialized with ${shuffledBag.length} gems`);
+    } else {
+        console.error("GameState not found, cannot update gem bag");
+    }
+    
+    return shuffledBag;
+}
+/**
+ * Shuffle an array using Fisher-Yates algorithm
+ * @param {Array} array - Array to shuffle
+ * @returns {Array} Shuffled array
+ */
+function shuffleArray(array) {
+    const result = [...array];
+    for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+}
 /**
  * Reset the gem bag
  * @param {Boolean} fullReset - Whether to fully reset the bag
@@ -127,64 +220,77 @@ export function resetGemBag(fullReset = false) {
     
     return shuffledBag;
 }
+
 /**
- * Draw cards from the gem bag to hand
- * @param {Number} num - Number of cards to draw
+ * Draw cards from the gem bag
+ * @param {Number} count - Number of cards to draw
+ * @param {Boolean} force - Whether to force drawing even if hand is full
  */
-export function drawCards(num) {
-    // Ensure num is at least the max hand size if not specified
-    num = num || Config.MAX_HAND_SIZE;
+export function drawCards(count, force = false) {
+    const hand = window.GameState.get('hand') || [];
+    const gemBag = window.GameState.get('gemBag') || [];
+    const discard = window.GameState.get('discard') || [];
     
-    let hand = GameState.get('hand') || [];
-    let gemBag = GameState.get('gemBag') || [];
-    let discard = GameState.get('discard') || [];
+    console.log(`Drawing ${count} cards. Current hand: ${hand.length}, Gem bag: ${gemBag.length}, Discard: ${discard.length}`);
     
-    // Calculate how many cards we need to draw
-    const needed = Math.min(num, Config.MAX_HAND_SIZE - hand.length);
-    
-    console.log(`Drawing cards: needed=${needed}, hand length=${hand.length}, bag length=${gemBag.length}, discard length=${discard.length}`);
+    // Calculate how many we need to draw
+    const MAX_HAND_SIZE = 3;
+    const needed = force ? count : Math.min(count, MAX_HAND_SIZE - hand.length);
     
     if (needed <= 0) {
-        console.log("No cards needed to be drawn");
+        console.log("No cards needed");
         return hand;
     }
     
-    // If gem bag is empty, shuffle discard pile into it
+    // Check if we need to recycle the discard pile
     if (gemBag.length < needed && discard.length > 0) {
-        console.log("Recycling discard pile into gem bag");
-        recycleDiscardPile();
-        gemBag = GameState.get('gemBag'); // Get updated gem bag
+        // Move all cards from discard to gem bag
+        const recycledBag = [...gemBag, ...discard];
+        window.GameState.set('gemBag', shuffleArray(recycledBag));
+        window.GameState.set('discard', []);
+        console.log(`Recycled ${discard.length} cards from discard to gem bag`);
     }
     
-    // If still not enough cards, log a warning
-    if (gemBag.length < needed) {
-        console.warn(`Not enough cards in gem bag to draw. Needed: ${needed}, Available: ${gemBag.length}`);
+    // Get updated gem bag
+    const updatedGemBag = window.GameState.get('gemBag') || [];
+    
+    // If we still don't have enough cards, generate some emergency cards
+    if (updatedGemBag.length < needed) {
+        const playerClass = window.GameState.get('player.class');
+        const emergencyBag = initializeGemBag(playerClass);
+        console.log(`Created emergency gem bag with ${emergencyBag.length} cards`);
     }
     
-    // Draw cards from bag to hand
+    // Final gem bag after all potential updates
+    const finalGemBag = window.GameState.get('gemBag') || [];
+    
+    // Draw cards
     const newHand = [...hand];
-    const drawnGems = [];
+    const drawnCards = [];
     
-    for (let i = 0; i < needed && gemBag.length > 0; i++) {
-        // Draw from the end for better performance than shift()
-        const drawnGem = gemBag[gemBag.length - 1];
-        newHand.push(drawnGem);
-        drawnGems.push(drawnGem);
-        gemBag = gemBag.slice(0, -1);
+    for (let i = 0; i < needed && finalGemBag.length > 0; i++) {
+        // Draw from the end of the bag
+        const card = finalGemBag[finalGemBag.length - 1];
+        newHand.push(card);
+        drawnCards.push(card);
+        finalGemBag.pop();
     }
     
     // Update state
-    GameState.set('hand', newHand);
-    GameState.set('gemBag', gemBag);
+    window.GameState.set('hand', newHand);
+    window.GameState.set('gemBag', finalGemBag);
     
-    console.log(`Drew ${drawnGems.length} cards. New hand length: ${newHand.length}, New bag length: ${gemBag.length}`);
+    console.log(`Drew ${drawnCards.length} cards. New hand size: ${newHand.length}`);
     
-    // Emit events for UI updates
-    EventBus.emit('GEMS_DRAWN', { gems: drawnGems, count: drawnGems.length });
-    EventBus.emit('HAND_UPDATED');
+    // Emit draw event
+    if (window.EventBus) {
+        window.EventBus.emit('GEMS_DRAWN', { gems: drawnCards, count: drawnCards.length });
+        window.EventBus.emit('HAND_UPDATED');
+    }
     
     return newHand;
 }
+
 
 /**
  * Recycle discard pile into gem bag

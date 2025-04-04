@@ -9,7 +9,14 @@ const BATTLES_PER_DAY = 3;
 
 // Enhanced battle initialization function to ensure hand is properly drawn
 export function initBattle() {
-    console.log("Initializing battle...");
+    console.log("Initializing battle with enhanced gem handling...");
+    
+    // Ensure we have a proper player class
+    const playerClass = GameState.get('player.class');
+    if (!playerClass) {
+        console.error("No player class found during battle initialization!");
+        return;
+    }
     
     // Generate enemy if not present
     const enemy = generateEnemy();
@@ -24,34 +31,83 @@ export function initBattle() {
         'selectedGems': new Set()
     });
     
-    // Clear player buffs and reset stamina
+    // Clear player buffs
     const player = GameState.get('player');
     GameState.set('player.buffs', []);
     GameState.set('player.stamina', player.baseStamina);
     
-    // Ensure hand is empty before drawing
-    GameState.set('hand', []);
+    // Setup the visual representation of the enemy
+    setupEnemyVisual(enemy);
     
-    // Force a reset of the Gem Bag if needed
+    // Check if gem bag exists and has items - if not, initialize it
     const gemBag = GameState.get('gemBag');
     if (!gemBag || !Array.isArray(gemBag) || gemBag.length === 0) {
-        console.log("Gem bag empty, resetting...");
-        Gems.resetGemBag(true);
+        console.log("Gem bag empty or invalid, initializing new gem bag...");
+        
+        // Import the gem initialization function if it exists
+        if (typeof initializeGemBag === 'function') {
+            initializeGemBag(playerClass);
+        } else {
+            // Fallback - create a basic gem bag
+            createBasicGemBag(playerClass);
+        }
     }
     
-    // Draw initial hand - make sure it's doing something
-    console.log("Drawing initial hand...");
-    Gems.drawCards(MAX_HAND_SIZE);
+    // Clear the hand to prevent duplicate cards
+    GameState.set('hand', []);
     
-    // Log hand state for debugging
-    console.log("Initial hand:", GameState.get('hand'));
+    // Draw initial hand with a delay to ensure gem bag is ready
+    setTimeout(() => {
+        // Double-check gem bag one more time
+        const updatedGemBag = GameState.get('gemBag');
+        if (!updatedGemBag || updatedGemBag.length === 0) {
+            console.warn("Gem bag still empty after initialization, creating emergency cards");
+            createEmergencyGems(playerClass);
+        }
+        
+        // Draw cards
+        try {
+            if (typeof drawCards === 'function') {
+                drawCards(3, true); // Use the enhanced draw cards function if available
+            } else if (typeof Gems !== 'undefined' && typeof Gems.drawCards === 'function') {
+                Gems.drawCards(3); // Use Gems module
+            } else {
+                // Fallback - manually draw cards
+                drawCardsManually(3);
+            }
+        } catch (error) {
+            console.error("Error drawing cards:", error);
+            // Emergency fallback - create some cards directly in hand
+            createEmergencyHand(playerClass);
+        }
+        
+        // Log the current state for debugging
+        logGameState();
+        
+        // Force UI update
+        EventBus.emit('BATTLE_UI_UPDATE', {
+            player: GameState.get('player'),
+            enemy: enemy,
+            battle: {
+                day: GameState.get('currentDay'),
+                phase: GameState.get('currentPhaseIndex'),
+                isEnemyTurn: false,
+                battleOver: false,
+                selectedGems: new Set()
+            },
+            gems: {
+                hand: GameState.get('hand'),
+                gemBag: GameState.get('gemBag'),
+                discard: GameState.get('discard')
+            }
+        });
+        
+        // Emit hand updated event to ensure rendering
+        EventBus.emit('HAND_UPDATED');
+    }, 100);
     
-    // Update UI with force=true to ensure rendering
-    updateBattleUI(null, true);
-    
-    // Emit event for UI updates
+    // Emit battle init event
     EventBus.emit('BATTLE_INIT', { enemy });
-    EventBus.emit('HAND_UPDATED');
 }
 /**
  * Generate an enemy for the current battle
@@ -96,6 +152,60 @@ function generateEnemy() {
  * @param {Number} currentDay - Current day
  * @returns {Object} Scaled boss data
  */
+/**
+ * Create a basic gem bag for a class
+ * @param {String} playerClass - Player class
+ */
+function createBasicGemBag(playerClass) {
+    console.log(`Creating basic gem bag for ${playerClass}`);
+    
+    // Base gem templates
+    const gemTemplates = {
+        redAttack: { name: "Attack", color: "red", cost: 2, damage: 5 },
+        blueMagicAttack: { name: "Magic Attack", color: "blue", cost: 2, damage: 7 },
+        greenAttack: { name: "Attack", color: "green", cost: 1, damage: 5 },
+        greyHeal: { name: "Heal", color: "grey", cost: 1, heal: 5 },
+        redStrongAttack: { name: "Strong Attack", color: "red", cost: 3, damage: 8 },
+        blueStrongHeal: { name: "Strong Heal", color: "blue", cost: 3, heal: 8 },
+        greenQuickAttack: { name: "Quick Attack", color: "green", cost: 1, damage: 3 }
+    };
+    
+    // Define class-specific gem combinations
+    const classGems = {
+        Knight: ["redAttack", "redAttack", "redAttack", "blueMagicAttack", "blueMagicAttack", 
+                "greenAttack", "greenAttack", "greyHeal", "greyHeal", "redStrongAttack", 
+                "redStrongAttack", "redStrongAttack"],
+        Mage: ["redAttack", "redAttack", "blueMagicAttack", "blueMagicAttack", "blueMagicAttack", 
+              "greenAttack", "greenAttack", "greyHeal", "greyHeal", "blueStrongHeal", 
+              "blueStrongHeal", "blueStrongHeal"],
+        Rogue: ["redAttack", "redAttack", "blueMagicAttack", "blueMagicAttack", 
+               "greenAttack", "greenAttack", "greenAttack", "greyHeal", "greyHeal", 
+               "greenQuickAttack", "greenQuickAttack", "greenQuickAttack"]
+    };
+    
+    // Create gems for the player's class
+    const gemKeys = classGems[playerClass] || classGems.Knight;
+    const gemBag = gemKeys.map((key, index) => {
+        const template = gemTemplates[key];
+        return {
+            ...template,
+            id: `${key}-${index}-${Date.now()}`,
+            upgradeCount: 0,
+            freshlySwapped: false,
+            rarity: key.includes("Strong") ? "Uncommon" : "Common"
+        };
+    });
+    
+    // Shuffle the gem bag
+    const shuffledBag = shuffleArray(gemBag);
+    
+    // Set the gem bag in game state
+    GameState.set('gemBag', shuffledBag);
+    
+    console.log(`Created gem bag with ${shuffledBag.length} gems`);
+    return shuffledBag;
+}
+
 function getScaledBoss(currentDay) {
     const boss = { 
         name: "Dark Guardian", 

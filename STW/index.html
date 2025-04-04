@@ -89,10 +89,38 @@
             <!-- Enemy Section -->
             <div id="enemy-section">
                 <div id="enemy-stats">
-                    <span id="enemy-name">Enemy</span>
-                    <div class="health-bar">
-                        <div id="enemy-health-bar"></div>
-                        <span id="enemy-health">20</span>/<span id="enemy-max-health">20</span>
+                    <div class="enemy-header">
+                        <span id="enemy-name">Enemy</span>
+                        <div id="enemy-buffs"></div>
+                    </div>
+                    
+                    <div class="enemy-health-container">
+                        <div class="health-bar">
+                            <div id="enemy-health-bar"></div>
+                            <span class="health-text">
+                                <span id="enemy-health">20</span>/<span id="enemy-max-health">20</span>
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="enemy-actions">
+                        <div class="current-action">
+                            <span class="action-label">Current:</span> 
+                            <span id="enemy-current-action">Waiting...</span>
+                            <span id="enemy-attack" class="hidden">0</span>
+                        </div>
+                        <div class="action-queue">
+                            <span class="action-label">Next:</span> 
+                            <span id="enemy-action-queue">Preparing...</span>
+                        </div>
+                        <div id="enemy-condition" class="enemy-condition"></div>
+                    </div>
+                </div>
+                
+                <!-- Enemy appearance area - simple visual representation -->
+                <div id="enemy-appearance">
+                    <div class="enemy-avatar">
+                        <div class="enemy-image" id="enemy-image">👹</div>
                     </div>
                 </div>
             </div>
