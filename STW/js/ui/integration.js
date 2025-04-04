@@ -80,23 +80,19 @@ export class Integration {
      */
     handleClassSelection(className) {
         console.log(`Integration: Class selected - ${className}`);
-
-        // Create character
+        
         if (window.Character && typeof Character.createCharacter === 'function') {
             Character.createCharacter(className);
         } else {
-            // Fallback if Character module not available
-            console.warn("Character module not available, using fallback character creation");
             this.createCharacterFallback(className);
         }
-
-        // Initialize gem bag
+        
         if (window.Gems && typeof Gems.resetGemBag === 'function') {
             Gems.resetGemBag(true);
         }
-
-        // Switch to gem catalog screen
+        
         EventBus.emit('SCREEN_CHANGE', 'gemCatalog');
+        EventBus.emit('UI_UPDATE', { target: 'gemCatalog' }); // Ensure renderer.js updates
     }
 
     /**
@@ -183,26 +179,52 @@ export class Integration {
     startJourney() {
         console.log("Integration: Starting journey");
         
-        // Load saved game state if available
         Storage.loadGameState();
         
-        // Reset for a new run if needed
         if (!GameState.get('battleCount')) {
             GameState.set('currentDay', 1);
             GameState.set('currentPhaseIndex', 0);
             GameState.set('battleCount', 0);
         }
         
-        // Reset battle-related state
         GameState.set('battleOver', false);
         GameState.set('selectedGems', new Set());
         GameState.set('player.buffs', []);
         
-        // Ensure player has full stamina
         const player = GameState.get('player');
         GameState.set('player.stamina', player.baseStamina);
         
-        // Switch to battle screen (will be handled by event listener)
+        // Simulate BasicUI.startJourney logic
+        window.AssetManager.downloadAll((success, loadedAssets) => {
+            if (success) {
+                console.log("All gems loaded:", loadedAssets);
+                EventBus.emit('UI_MESSAGE', { message: "Gems ready, starting battle!" });
+                
+                const gemBag = Object.values(loadedAssets).map(gem => ({
+                    ...gem,
+                    id: `${gem.name}-${Utils.generateId()}`
+                }));
+                GameState.set('gemBag', Utils.shuffle(gemBag));
+                GameState.set('hand', []);
+                GameState.set('discard', []);
+                
+                const initialHand = gemBag.slice(0, Config.MAX_HAND_SIZE);
+                GameState.set('hand', initialHand);
+                GameState.set('gemBag', gemBag.slice(Config.MAX_HAND_SIZE));
+                
+                console.log("Initial hand:", GameState.get('hand'));
+                console.log("Remaining gemBag:", GameState.get('gemBag'));
+                
+                setTimeout(() => {
+                    EventBus.emit('SCREEN_CHANGE', 'battle');
+                    EventBus.emit('BATTLE_INIT');
+                    EventBus.emit('HAND_UPDATED');
+                }, 100);
+            } else {
+                console.error("Failed to load gems:", loadedAssets);
+                EventBus.emit('UI_MESSAGE', { message: "Failed to prepare gems.", type: 'error', duration: 5000 });
+            }
+        });
     }
 
     /**

@@ -3,100 +3,52 @@ import { EventBus } from '../core/eventbus.js';
 import { Utils } from '../core/utils.js';
 import { Config } from '../core/config.js';
 
-/**
- * Initialize the UI renderer
- */
 export function initialize() {
-  console.log("Initializing UI Renderer");
-  
-  // Register event listeners for UI updates
-  setupEventListeners();
-  
-  // Initial UI setup
-  updateActiveScreen(GameState.get('currentScreen') || 'character-select');
-  
-  // Force one-time binding to ensure buttons work
-  setTimeout(attachButtonHandlers, 500);
-  
-  return true;
+    console.log("Initializing UI Renderer");
+    setupEventListeners();
+    updateActiveScreen(GameState.get('currentScreen') || 'characterSelect');
+    setTimeout(attachButtonHandlers, 500);
+    return true;
 }
 
-/**
- * Set up event listeners for UI updates
- */
 function setupEventListeners() {
-  // Screen changes
-  EventBus.on('SCREEN_CHANGE', (screen) => {
-    console.log("Screen change event received:", screen);
-    updateActiveScreen(screen);
-  });
-  
-  // UI messages
-  EventBus.on('UI_MESSAGE', ({ message, type = 'success', duration = 2000 }) => {
-    showMessage(message, type, duration);
-  });
-  
-  // Battle UI updates
-  EventBus.on('BATTLE_UI_UPDATE', (data) => {
-    console.log("Updating battle UI with data");
-    updateBattleUI(data);
-  });
-  
-  // Hand updates
-  EventBus.on('HAND_UPDATED', () => {
-    console.log("Hand updated event received");
-    renderHand();
-  });
-  
-  // Shop UI updates
-  EventBus.on('SHOP_PREPARED', () => {
-    updateShopUI();
-  });
-  
-  // Generic UI updates
-  EventBus.on('UI_UPDATE', ({ target }) => {
-    switch (target) {
-      case 'battle':
-        updateBattleUI();
-        break;
-      case 'shop':
-        updateShopUI();
-        break;
-      case 'gemCatalog':
-        updateGemCatalogUI();
-        break;
-      case 'camp':
-        updateCampUI();
-        break;
-    }
-  });
-  
-  // Visual effects
-  EventBus.on('SHOW_DAMAGE', ({ target, amount, isPoison }) => {
-    showDamageAnimation(target, amount, isPoison);
-  });
-  
-  EventBus.on('SHOW_VICTORY', () => {
-    showVictoryEffect();
-  });
-  
-  EventBus.on('SHOW_DEFEAT', () => {
-    showDefeatEffect();
-  });
-  
-  // Gem selection events
-  EventBus.on('GEM_SELECTION_CHANGED', ({ selectedIndices }) => {
-    updateGemSelection(selectedIndices);
-  });
-  
-  // Battle initialization
-  EventBus.on('BATTLE_INIT', () => {
-    console.log("Battle initialized, updating UI");
-    setTimeout(() => {
-      updateBattleUI();
-      renderHand();
-    }, 100); // Small delay to ensure game state is settled
-  });
+    EventBus.on('SCREEN_CHANGE', (screen) => {
+        console.log("Screen change event received:", screen);
+        updateActiveScreen(screen);
+    });
+    
+    EventBus.on('UI_MESSAGE', ({ message, type = 'success', duration = 2000 }) => {
+        showMessage(message, type, duration);
+    });
+    
+    EventBus.on('BATTLE_UI_UPDATE', updateBattleUI);
+    EventBus.on('HAND_UPDATED', () => {
+        console.log("Hand updated event received");
+        renderHand();
+    });
+    
+    EventBus.on('SHOP_PREPARED', updateShopUI);
+    EventBus.on('UI_UPDATE', ({ target }) => {
+        console.log(`UI update for target: ${target}`);
+        switch (target) {
+            case 'battle': updateBattleUI(); break;
+            case 'shop': updateShopUI(); break;
+            case 'gemCatalog': updateGemCatalogUI(); break;
+            case 'camp': updateCampUI(); break;
+        }
+    });
+    
+    EventBus.on('SHOW_DAMAGE', ({ target, amount, isPoison }) => showDamageAnimation(target, amount, isPoison));
+    EventBus.on('SHOW_VICTORY', showVictoryEffect);
+    EventBus.on('SHOW_DEFEAT', showDefeatEffect);
+    EventBus.on('GEM_SELECTION_CHANGED', ({ selectedIndices }) => updateGemSelection(selectedIndices));
+    EventBus.on('BATTLE_INIT', () => {
+        console.log("Battle initialized, updating UI");
+        setTimeout(() => {
+            updateBattleUI();
+            renderHand();
+        }, 100);
+    });
 }
 
 /**
@@ -105,45 +57,22 @@ function setupEventListeners() {
  */
 function updateActiveScreen(screenName) {
   console.log(`Switching to screen: ${screenName}`);
-  
-  // Update state
   GameState.set('currentScreen', screenName);
   
-  // Hide all screens
-  document.querySelectorAll('.screen').forEach(screen => {
-    screen.classList.remove('active');
-  });
+  document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
   
-  // Show the target screen
   const targetScreen = document.getElementById(`${screenName}-screen`);
   if (targetScreen) {
-    targetScreen.classList.add('active');
-    
-    // Update screen-specific UI
-    switch (screenName) {
-      case 'characterSelect':
-        updateCharacterSelectUI();
-        break;
-      case 'battle':
-        updateBattleUI();
-        // Force attach button handlers for battle screen
-        setTimeout(attachButtonHandlers, 100);
-        break;
-      case 'shop':
-        updateShopUI();
-        break;
-      case 'gemCatalog':
-        updateGemCatalogUI();
-        break;
-      case 'camp':
-        updateCampUI();
-        break;
-    }
-    
-    // Attach button handlers again to be sure
-    setTimeout(attachButtonHandlers, 200);
+      targetScreen.classList.add('active');
+      switch (screenName) {
+          case 'characterSelect': updateCharacterSelectUI(); break;
+          case 'battle': updateBattleUI(); renderHand(); setTimeout(attachButtonHandlers, 100); break;
+          case 'shop': updateShopUI(); break;
+          case 'gemCatalog': updateGemCatalogUI(); break;
+          case 'camp': updateCampUI(); break;
+      }
   } else {
-    console.error(`Target screen "${screenName}" not found`);
+      console.error(`Target screen "${screenName}-screen" not found`);
   }
 }
 
@@ -230,50 +159,75 @@ function updateCharacterSelectUI() {
  * Update the gem catalog UI
  */
 function updateGemCatalogUI() {
-  const metaZenny = GameState.get('metaZenny');
+  const metaZenny = GameState.get('metaZenny') || 0;
+  const gemCatalog = GameState.get('gemCatalog') || { unlocked: [], available: [] };
   
-  // Update meta zenny display
   const metaZennyDisplay = document.getElementById('meta-zenny-display');
-  if (metaZennyDisplay) {
-    metaZennyDisplay.textContent = metaZenny;
-  }
+  if (metaZennyDisplay) metaZennyDisplay.textContent = metaZenny;
   
-  // Update unlocked gems
-  renderUnlockedGems();
-  
-  // Update available gems
-  renderAvailableGems();
+  console.log("Updating gem catalog UI with:", gemCatalog);
+  renderUnlockedGems(gemCatalog.unlocked);
+  renderAvailableGems(gemCatalog.available);
 }
 
 /**
  * Render unlocked gems in the gem catalog
  */
-function renderUnlockedGems() {
-  const gemCatalog = GameState.get('gemCatalog');
-  const playerClass = GameState.get('player.class');
-  const unlockedGemsContainer = document.getElementById('unlocked-gems');
-  
-  if (!unlockedGemsContainer) return;
-  
-  unlockedGemsContainer.innerHTML = '';
-  
-  // Filter gems by class color appropriateness
-  if (gemCatalog && gemCatalog.unlocked) {
-    gemCatalog.unlocked.filter(gemKey => {
-      // Filter logic here
-      return true; // Simplified for now
-    }).forEach(gemKey => {
-      // Create gem element
-      // Simplified for brevity
-    });
+function renderUnlockedGems(unlockedGems) {
+  const container = document.getElementById('unlocked-gems');
+  if (!container) {
+      console.error("Unlocked gems container '#unlocked-gems' not found");
+      return;
   }
+  
+  container.innerHTML = '';
+  console.log("Rendering unlocked gems:", unlockedGems);
+  
+  if (!unlockedGems || unlockedGems.length === 0) {
+      container.innerHTML = '<p>No unlocked gems</p>';
+      return;
+  }
+  
+  unlockedGems.forEach((gemKey, index) => {
+      const gem = Config.BASE_GEMS[gemKey];
+      if (!gem) {
+          console.warn(`Gem key "${gemKey}" not found in BASE_GEMS`);
+          return;
+      }
+      
+      const gemElement = createGemElement(gem, index, false);
+      container.appendChild(gemElement);
+  });
 }
 
 /**
  * Render available gems to unlock in the gem catalog
  */
-function renderAvailableGems() {
-  // Simplified for brevity
+function renderAvailableGems(availableGems) {
+  const container = document.getElementById('available-gems');
+  if (!container) {
+      console.error("Available gems container '#available-gems' not found");
+      return;
+  }
+  
+  container.innerHTML = '';
+  console.log("Rendering available gems:", availableGems);
+  
+  if (!availableGems || availableGems.length === 0) {
+      container.innerHTML = '<p>No available gems</p>';
+      return;
+  }
+  
+  availableGems.forEach((gemKey, index) => {
+      const gem = Config.BASE_GEMS[gemKey];
+      if (!gem) {
+          console.warn(`Gem key "${gemKey}" not found in BASE_GEMS`);
+          return;
+      }
+      
+      const gemElement = createGemElement(gem, index, false);
+      container.appendChild(gemElement);
+  });
 }
 
 /**
@@ -609,38 +563,32 @@ function updateGemDisplay(gems, selectedGems) {
  * @param {Set} selectedGems - Set of selected gem indices (optional)
  */
 function renderHand(hand, selectedGems) {
-  // Get data if not provided
-  if (!hand) hand = GameState.get('hand');
-  if (!selectedGems) selectedGems = GameState.get('selectedGems');
+  if (!hand) hand = GameState.get('hand') || [];
+  if (!selectedGems) selectedGems = GameState.get('selectedGems') || new Set();
   
   const handContainer = document.getElementById('hand');
   if (!handContainer) {
-    console.error("Hand container not found");
-    return;
-  }
-  
-  // Ensure hand exists
-  if (!hand || !Array.isArray(hand)) {
-    console.warn("Hand is not available or not an array:", hand);
-    handContainer.innerHTML = '';
-    return;
-  }
-  
-  // Clear current hand
-  handContainer.innerHTML = '';
-  
-  console.log("Rendering hand with", hand.length, "gems");
-  
-  // Add each gem
-  hand.forEach((gem, index) => {
-    if (!gem) {
-      console.warn(`Invalid gem at index ${index}`);
+      console.error("Hand container '#hand' not found");
       return;
-    }
-    
-    const isSelected = selectedGems.has(index);
-    const gemElement = createGemElement(gem, index, isSelected);
-    handContainer.appendChild(gemElement);
+  }
+  
+  handContainer.innerHTML = '';
+  console.log("Rendering hand with", hand.length, "gems:", hand);
+  
+  if (hand.length === 0) {
+      handContainer.innerHTML = '<p>No gems in hand</p>';
+      return;
+  }
+  
+  hand.forEach((gem, index) => {
+      if (!gem || !gem.name) {
+          console.warn(`Invalid gem at index ${index}:`, gem);
+          return;
+      }
+      
+      const isSelected = selectedGems.has(index);
+      const gemElement = createGemElement(gem, index, isSelected);
+      handContainer.appendChild(gemElement);
   });
 }
 
