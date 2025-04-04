@@ -1,91 +1,25 @@
-// Updated Module Loader with Enhanced EventBus Support
+// Updated MODULE LOADER with improved EventBus support
 import { EventBus } from './events.js';
 
 export const ModuleLoader = (() => {
-    // Module configuration tracking
+    // Track module status
     const modules = {
-        EventBus: { 
-            required: true, 
-            loaded: false, 
-            initialized: false, 
-            dependencies: [],
-            module: EventBus 
-        },
-        Config: { 
-            required: true, 
-            loaded: false, 
-            initialized: false, 
-            dependencies: ['EventBus'] 
-        },
-        Utils: { 
-            required: true, 
-            loaded: false, 
-            initialized: false, 
-            dependencies: ['Config', 'EventBus'] 
-        },
-        State: { 
-            required: true, 
-            loaded: false, 
-            initialized: false, 
-            dependencies: ['Config', 'Utils', 'EventBus'] 
-        },
-        Storage: { 
-            required: true, 
-            loaded: false, 
-            initialized: false, 
-            dependencies: ['Config', 'State', 'Utils', 'EventBus'] 
-        },
-        UI: { 
-            required: true, 
-            loaded: false, 
-            initialized: false, 
-            dependencies: ['Config', 'State', 'Utils', 'EventBus'] 
-        },
-        AudioManager: { 
-            required: false, 
-            loaded: false, 
-            initialized: false, 
-            dependencies: ['Config', 'EventBus'] 
-        },
-        Gems: { 
-            required: true, 
-            loaded: false, 
-            initialized: false, 
-            dependencies: ['Config', 'State', 'Utils', 'EventBus'] 
-        },
-        Battle: { 
-            required: true, 
-            loaded: false, 
-            initialized: false, 
-            dependencies: ['Config', 'State', 'Gems', 'UI', 'Utils', 'EventBus'] 
-        },
-        Shop: { 
-            required: true, 
-            loaded: false, 
-            initialized: false, 
-            dependencies: ['Config', 'State', 'Gems', 'UI', 'Utils', 'EventBus'] 
-        },
-        ScreenTransitions: { 
-            required: false, 
-            loaded: false, 
-            initialized: false, 
-            dependencies: ['UI', 'State', 'Storage', 'EventBus'] 
-        },
-        GameDiagnostics: { 
-            required: false, 
-            loaded: false, 
-            initialized: false, 
-            dependencies: ['EventBus'] 
-        },
-        Game: { 
-            required: true, 
-            loaded: false, 
-            initialized: false, 
-            dependencies: ['Config', 'State', 'UI', 'AudioManager', 'Gems', 'Battle', 'Shop', 'Storage', 'EventBus'] 
-        }
+        EventBus: { required: true, loaded: false, initialized: false, dependencies: [] },
+        Config: { required: true, loaded: false, initialized: false, dependencies: [] },
+        Utils: { required: true, loaded: false, initialized: false, dependencies: ['Config'] },
+        State: { required: true, loaded: false, initialized: false, dependencies: ['Config', 'Utils'] },
+        Storage: { required: true, loaded: false, initialized: false, dependencies: ['Config', 'State', 'Utils'] },
+        UI: { required: true, loaded: false, initialized: false, dependencies: ['Config', 'State', 'Utils', 'EventBus'] },
+        AudioManager: { required: false, loaded: false, initialized: false, dependencies: ['Config', 'EventBus'] },
+        Gems: { required: true, loaded: false, initialized: false, dependencies: ['Config', 'State', 'Utils', 'EventBus'] },
+        Battle: { required: true, loaded: false, initialized: false, dependencies: ['Config', 'State', 'Gems', 'UI', 'Utils', 'EventBus'] },
+        Shop: { required: true, loaded: false, initialized: false, dependencies: ['Config', 'State', 'Gems', 'UI', 'Utils', 'EventBus'] },
+        ScreenTransitions: { required: false, loaded: false, initialized: false, dependencies: ['UI', 'State', 'Storage', 'EventBus'] },
+        GameDiagnostics: { required: false, loaded: false, initialized: false, dependencies: ['EventBus'] },
+        Game: { required: true, loaded: false, initialized: false, dependencies: ['Config', 'State', 'UI', 'AudioManager', 'Gems', 'Battle', 'Shop', 'Storage', 'EventBus'] }
     };
     
-    // Tracking initialization errors
+    // Track initialization errors
     const errors = [];
     
     /**
@@ -96,10 +30,10 @@ export const ModuleLoader = (() => {
     function isModuleLoaded(moduleName) {
         if (!modules[moduleName]) return false;
         
-        // Special handling for EventBus
-        if (moduleName === 'EventBus') return typeof EventBus !== 'undefined';
+        const moduleExists = typeof window[moduleName] !== 'undefined' || 
+                           (moduleName === 'EventBus' && typeof EventBus !== 'undefined');
         
-        return typeof window[moduleName] !== 'undefined';
+        return moduleExists;
     }
     
     /**
@@ -109,14 +43,7 @@ export const ModuleLoader = (() => {
     function markModuleLoaded(moduleName) {
         if (!modules[moduleName]) return;
         
-        // Special handling for EventBus
-        if (moduleName === 'EventBus') {
-            modules[moduleName].loaded = typeof EventBus !== 'undefined';
-            return;
-        }
-        
         modules[moduleName].loaded = true;
-        EventBus.publish('MODULE_LOADED', { moduleName });
         console.log(`Module loaded: ${moduleName}`);
     }
     
@@ -141,12 +68,6 @@ export const ModuleLoader = (() => {
      */
     function initializeModule(moduleName) {
         try {
-            // Special handling for EventBus
-            if (moduleName === 'EventBus') {
-                modules[moduleName].initialized = true;
-                return true;
-            }
-            
             // Check if module exists
             if (!modules[moduleName]) {
                 console.warn(`Unknown module: ${moduleName}`);
@@ -155,6 +76,15 @@ export const ModuleLoader = (() => {
             
             // Check if already initialized
             if (modules[moduleName].initialized) {
+                return true;
+            }
+            
+            // Special handling for EventBus
+            if (moduleName === 'EventBus') {
+                // EventBus is imported directly, so we just mark it as initialized
+                modules.EventBus.loaded = true;
+                modules.EventBus.initialized = true;
+                console.log("EventBus initialized successfully");
                 return true;
             }
             
@@ -186,23 +116,23 @@ export const ModuleLoader = (() => {
                 }
                 
                 modules[moduleName].initialized = true;
-                EventBus.publish('MODULE_INITIALIZED', { moduleName });
                 console.log(`Module initialized: ${moduleName}`);
+                
+                // Announce module initialization
+                if (EventBus) {
+                    EventBus.emit('MODULE_INITIALIZED', { moduleName });
+                }
+                
                 return true;
             } else {
                 // No initialize method, just mark as initialized
                 modules[moduleName].initialized = true;
-                EventBus.publish('MODULE_INITIALIZED', { moduleName });
                 console.log(`Module marked as initialized (no initialize method): ${moduleName}`);
                 return true;
             }
         } catch (error) {
             console.error(`Error initializing module ${moduleName}:`, error);
             errors.push({ module: moduleName, error: error.message });
-            EventBus.publish('MODULE_INITIALIZATION_ERROR', { 
-                moduleName, 
-                error: error.message 
-            });
             return false;
         }
     }
@@ -213,18 +143,12 @@ export const ModuleLoader = (() => {
     function initializeAllModules() {
         console.log("Initializing all modules in dependency order");
         
-        // First, ensure EventBus is loaded and initialized
-        if (!modules.EventBus.loaded || !modules.EventBus.initialized) {
-            modules.EventBus.loaded = true;
-            modules.EventBus.initialized = true;
-        }
-        
         // First check if all required modules are loaded
         const missingModules = [];
         Object.entries(modules).forEach(([name, info]) => {
             if (info.required && !isModuleLoaded(name)) {
                 missingModules.push(name);
-                markModuleLoaded(name); // Mark as loaded as a fallback
+                markModuleLoaded(name); // Mark as loaded as a fallback (it will still show in errors)
             } else if (isModuleLoaded(name)) {
                 markModuleLoaded(name);
             }
@@ -238,39 +162,42 @@ export const ModuleLoader = (() => {
                 errors.push({ module, error: 'Module missing' });
             });
             
-            // Publish error event via EventBus
-            EventBus.publish('MODULES_MISSING', { 
-                missingModules,
-                errorDetails: errors 
-            });
+            // Show error if UI is available
+            if (typeof UI !== 'undefined' && UI.showError) {
+                UI.showError(`Required modules missing: ${missingModules.join(', ')}`, true);
+            } else {
+                // Fallback to alert
+                alert(`Error: Required modules missing (${missingModules.join(', ')}). Please refresh the page.`);
+            }
             
             return false;
         }
         
+        // Initialize EventBus first
+        initializeModule('EventBus');
+        
         // Sort modules by dependency order
         const initOrder = calculateInitializationOrder();
         
-        // Initialize modules in order
+        // Initialize modules in order, skipping EventBus which is already initialized
         let success = true;
         initOrder.forEach(moduleName => {
-            if (!initializeModule(moduleName)) {
-                success = false;
+            if (moduleName !== 'EventBus') { // Skip EventBus as it's already initialized
+                if (!initializeModule(moduleName)) {
+                    success = false;
+                }
             }
         });
         
         if (!success) {
             console.error("Some modules failed to initialize:", errors);
             
-            // Publish detailed error event
-            EventBus.publish('MODULE_INITIALIZATION_FAILED', { 
-                errors,
-                initializationSuccess: success 
-            });
+            // Show error if UI is available
+            if (typeof UI !== 'undefined' && UI.showError) {
+                UI.showError("Some modules failed to initialize. Check the console for details.", true);
+            }
         } else {
-            // Publish successful initialization event
-            EventBus.publish('ALL_MODULES_INITIALIZED', { 
-                initializedModules: initOrder 
-            });
+            EventBus.emit('ALL_MODULES_INITIALIZED');
         }
         
         return success;
@@ -298,15 +225,8 @@ export const ModuleLoader = (() => {
             result.push(moduleName);
         }
         
-        // Prioritize EventBus first
-        visit('EventBus');
-        
         // Visit all modules
-        Object.keys(modules).forEach(moduleName => {
-            if (moduleName !== 'EventBus') {
-                visit(moduleName);
-            }
-        });
+        Object.keys(modules).forEach(moduleName => visit(moduleName));
         
         return result;
     }
@@ -343,7 +263,7 @@ export const ModuleLoader = (() => {
      * @returns {Boolean} Whether critical modules are initialized
      */
     function areCriticalModulesInitialized() {
-        const criticalModules = ['EventBus', 'Config', 'State', 'UI', 'Game'];
+        const criticalModules = ['Config', 'State', 'UI', 'EventBus', 'Game'];
         
         return criticalModules.every(module => {
             return modules[module] && modules[module].initialized;
