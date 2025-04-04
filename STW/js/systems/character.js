@@ -2,6 +2,7 @@ import { GameState } from '../core/state.js';
 import { EventBus } from '../core/eventbus.js';
 import { Config } from '../core/config.js';
 import { Utils } from '../core/utils.js';
+import { Gems } from './gem.js';
 
 /**
  * Character module - Handles player character creation and management
@@ -40,6 +41,9 @@ export const Character = (() => {
         GameState.set('battleCount', 0);
         GameState.set('battleOver', false);
         GameState.set('selectedGems', new Set());
+        
+        // CRITICAL: Reset gem bag and draw initial hand
+        Gems.resetGemBag(true);
         
         // Set up gem catalog for this class
         setupGemCatalog(className);

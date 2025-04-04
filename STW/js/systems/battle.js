@@ -9,16 +9,9 @@ const BATTLES_PER_DAY = 3;
 
 // Enhanced battle initialization function to ensure hand is properly drawn
 export function initBattle() {
-    console.log("Initializing battle with enhanced gem handling...");
+    console.log("Initializing battle...");
     
-    // Ensure we have a proper player class
-    const playerClass = GameState.get('player.class');
-    if (!playerClass) {
-        console.error("No player class found during battle initialization!");
-        return;
-    }
-    
-    // Generate enemy if not present
+    // Generate enemy
     const enemy = generateEnemy();
     GameState.set('battle.enemy', enemy);
     
@@ -32,81 +25,43 @@ export function initBattle() {
     });
     
     // Clear player buffs
-    const player = GameState.get('player');
     GameState.set('player.buffs', []);
+    
+    // Reset hand and ensure gem bag is populated
+    Gems.resetGemBag(false);  // Soft reset, preserving existing gems
+    
+    // Reset stamina to base value
+    const player = GameState.get('player');
     GameState.set('player.stamina', player.baseStamina);
     
-    // Setup the visual representation of the enemy
-    setupEnemyVisual(enemy);
+    // Always draw a fresh hand
+    const savedHandStr = localStorage.getItem(Config.STORAGE_KEYS.TEMP_HAND);
     
-    // Check if gem bag exists and has items - if not, initialize it
-    const gemBag = GameState.get('gemBag');
-    if (!gemBag || !Array.isArray(gemBag) || gemBag.length === 0) {
-        console.log("Gem bag empty or invalid, initializing new gem bag...");
-        
-        // Import the gem initialization function if it exists
-        if (typeof initializeGemBag === 'function') {
-            initializeGemBag(playerClass);
-        } else {
-            // Fallback - create a basic gem bag
-            createBasicGemBag(playerClass);
+    if (savedHandStr) {
+        try {
+            const savedHand = JSON.parse(savedHandStr);
+            console.log('Restoring saved hand:', savedHand);
+            
+            if (Array.isArray(savedHand) && savedHand.length > 0) {
+                GameState.set('hand', savedHand);
+                localStorage.removeItem(Config.STORAGE_KEYS.TEMP_HAND);
+            } else {
+                // If saved hand is invalid, draw new hand
+                Gems.drawCards(MAX_HAND_SIZE);
+            }
+        } catch (e) {
+            console.error('Error parsing saved hand:', e);
+            Gems.drawCards(MAX_HAND_SIZE);
         }
+    } else {
+        // No saved hand, draw a fresh hand
+        Gems.drawCards(MAX_HAND_SIZE);
     }
     
-    // Clear the hand to prevent duplicate cards
-    GameState.set('hand', []);
+    // Update UI
+    updateBattleUI();
     
-    // Draw initial hand with a delay to ensure gem bag is ready
-    setTimeout(() => {
-        // Double-check gem bag one more time
-        const updatedGemBag = GameState.get('gemBag');
-        if (!updatedGemBag || updatedGemBag.length === 0) {
-            console.warn("Gem bag still empty after initialization, creating emergency cards");
-            createEmergencyGems(playerClass);
-        }
-        
-        // Draw cards
-        try {
-            if (typeof drawCards === 'function') {
-                drawCards(3, true); // Use the enhanced draw cards function if available
-            } else if (typeof Gems !== 'undefined' && typeof Gems.drawCards === 'function') {
-                Gems.drawCards(3); // Use Gems module
-            } else {
-                // Fallback - manually draw cards
-                drawCardsManually(3);
-            }
-        } catch (error) {
-            console.error("Error drawing cards:", error);
-            // Emergency fallback - create some cards directly in hand
-            createEmergencyHand(playerClass);
-        }
-        
-        // Log the current state for debugging
-        logGameState();
-        
-        // Force UI update
-        EventBus.emit('BATTLE_UI_UPDATE', {
-            player: GameState.get('player'),
-            enemy: enemy,
-            battle: {
-                day: GameState.get('currentDay'),
-                phase: GameState.get('currentPhaseIndex'),
-                isEnemyTurn: false,
-                battleOver: false,
-                selectedGems: new Set()
-            },
-            gems: {
-                hand: GameState.get('hand'),
-                gemBag: GameState.get('gemBag'),
-                discard: GameState.get('discard')
-            }
-        });
-        
-        // Emit hand updated event to ensure rendering
-        EventBus.emit('HAND_UPDATED');
-    }, 100);
-    
-    // Emit battle init event
+    // Emit event for UI updates
     EventBus.emit('BATTLE_INIT', { enemy });
 }
 /**
