@@ -1,177 +1,361 @@
-// STW/js/ui/integration.js
-import { uiManager } from './UIManager.js';
 import { EventBus } from '../core/eventbus.js';
 import { GameState } from '../core/state.js';
-
-// Import screen components
-import { CharacterSelectScreen } from './components/screens/CharacterSelectScreen.js';
-import { BattleScreen } from './components/screens/BattleScreen.js';
-import { ShopScreen } from './components/screens/ShopScreen.js';
-import { GemCatalogScreen } from './components/screens/GemCatalogscreen.js';
-import { CampScreen } from './components/screens/CampScreen.js';
+import { Utils } from '../core/utils.js';
+import { Config } from '../core/config.js';  // Add Config import
+import { Storage } from '../core/storage.js';
 
 /**
- * Initialize the new UI component architecture and connect it to the existing game
+ * Integration module - Handles interactions between different game systems
  */
-export function initializeComponentUI() {
-  console.log("Initializing component-based UI architecture");
-  
-  // Initialize UI Manager
-  uiManager.initialize();
-  
-  // Register all screen components
-  registerAllScreens();
-  
-  // Setup bridge between old and new UI systems
-  setupLegacyBridge();
-  
-  console.log("Component UI architecture initialized");
+export class Integration {
+    constructor() {
+        this.initialized = false;
+    }
+
+    /**
+     * Initialize the integration system
+     */
+    initialize() {
+        if (this.initialized) return true;
+
+        console.log("Initializing Integration module");
+
+        // Set up event handlers
+        this.setupEventHandlers();
+
+        this.initialized = true;
+        return true;
+    }
+
+    /**
+     * Set up event handlers for system integration
+     */
+    setupEventHandlers() {
+        // Character selection
+        EventBus.on('CLASS_SELECTED', ({ className }) => {
+            this.handleClassSelection(className);
+        });
+
+        // Journey start
+        EventBus.on('JOURNEY_START', () => {
+            this.startJourney();
+        });
+
+        // Gem unlocking
+        EventBus.on('UNLOCK_GEM', ({ gemKey }) => {
+            this.unlockGem(gemKey);
+        });
+
+        // Progression
+        EventBus.on('META_PROGRESSION_RESET', () => {
+            this.resetMetaProgression();
+        });
+
+        // Saving/loading
+        EventBus.on('SAVE_GAME_STATE', () => {
+            Storage.saveGameState();
+        });
+
+        EventBus.on('LOAD_GAME_STATE', () => {
+            Storage.loadGameState();
+        });
+
+        // Battle transitions
+        EventBus.on('BATTLE_WIN', () => {
+            this.handleBattleWin();
+        });
+
+        EventBus.on('CONTINUE_FROM_SHOP', () => {
+            this.continueFromShop();
+        });
+
+        EventBus.on('START_NEXT_DAY', () => {
+            this.startNextDay();
+        });
+    }
+
+    /**
+     * Handle class selection
+     * @param {String} className - Selected class name
+     */
+    handleClassSelection(className) {
+        console.log(`Integration: Class selected - ${className}`);
+
+        // Create character
+        if (window.Character && typeof Character.createCharacter === 'function') {
+            Character.createCharacter(className);
+        } else {
+            // Fallback if Character module not available
+            console.warn("Character module not available, using fallback character creation");
+            this.createCharacterFallback(className);
+        }
+
+        // Initialize gem bag
+        if (window.Gems && typeof Gems.resetGemBag === 'function') {
+            Gems.resetGemBag(true);
+        }
+
+        // Switch to gem catalog screen
+        EventBus.emit('SCREEN_CHANGE', 'gemCatalog');
+    }
+
+    /**
+     * Fallback character creation if Character module not available
+     * @param {String} className - Selected class name
+     */
+    createCharacterFallback(className) {
+        const classConfig = Config.CLASSES[className];
+        
+        if (!classConfig) {
+            console.error(`Invalid class name: ${className}`);
+            return null;
+        }
+        
+        // Create base character
+        const character = {
+            class: className,
+            maxHealth: classConfig.maxHealth,
+            health: classConfig.maxHealth,
+            stamina: classConfig.baseStamina,
+            baseStamina: classConfig.baseStamina,
+            zenny: classConfig.startingZenny || 0,
+            buffs: []
+        };
+        
+        // Set game state with the new character
+        GameState.set('player', character);
+        
+        // Reset game progress
+        GameState.set('currentDay', 1);
+        GameState.set('currentPhaseIndex', 0);
+        GameState.set('battleCount', 0);
+        GameState.set('battleOver', false);
+        GameState.set('selectedGems', new Set());
+        
+        // Ensure gem catalog exists
+        this.setupGemCatalog(className);
+        
+        console.log("Character created via fallback:", character);
+        
+        return character;
+    }
+
+    /**
+     * Set up gem catalog for a character
+     * @param {String} className - Class name
+     */
+    setupGemCatalog(className) {
+        // Initialize from default configuration
+        const initialUnlocks = Config.INITIAL_GEM_UNLOCKS[className].unlocked || [];
+        const initialAvailable = Config.INITIAL_GEM_UNLOCKS[className].available || [];
+        
+        const newCatalog = {
+            unlocked: [...initialUnlocks],
+            available: [...initialAvailable],
+            maxCapacity: 15,
+            gemPool: [],
+            upgradedThisShop: new Set()
+        };
+        
+        // Set up both the current catalog and class-specific catalog
+        GameState.set('gemCatalog', newCatalog);
+        GameState.set(`classGemCatalogs.${className}`, Utils.deepClone(newCatalog));
+        
+        // Set up gem proficiency
+        this.setupGemProficiency(className);
+    }
+
+    /**
+     * Set up gem proficiency for a character
+     * @param {String} className - Class name
+     */
+    setupGemProficiency(className) {
+        const initialProficiency = Config.INITIAL_GEM_PROFICIENCY[className] || {};
+        
+        // Set up both the current proficiency and class-specific proficiency
+        GameState.set('gemProficiency', Utils.deepClone(initialProficiency));
+        GameState.set(`classGemProficiency.${className}`, Utils.deepClone(initialProficiency));
+    }
+
+    /**
+     * Start the journey
+     */
+    startJourney() {
+        console.log("Integration: Starting journey");
+        
+        // Load saved game state if available
+        Storage.loadGameState();
+        
+        // Reset for a new run if needed
+        if (!GameState.get('battleCount')) {
+            GameState.set('currentDay', 1);
+            GameState.set('currentPhaseIndex', 0);
+            GameState.set('battleCount', 0);
+        }
+        
+        // Reset battle-related state
+        GameState.set('battleOver', false);
+        GameState.set('selectedGems', new Set());
+        GameState.set('player.buffs', []);
+        
+        // Ensure player has full stamina
+        const player = GameState.get('player');
+        GameState.set('player.stamina', player.baseStamina);
+        
+        // Switch to battle screen (will be handled by event listener)
+    }
+
+    /**
+     * Unlock a gem
+     * @param {String} gemKey - Key of the gem to unlock
+     */
+    unlockGem(gemKey) {
+        const metaZenny = GameState.get('metaZenny');
+        const gemCatalog = GameState.get('gemCatalog');
+        const playerClass = GameState.get('player.class');
+        
+        // Check if player can afford it
+        if (metaZenny < 50) {
+            EventBus.emit('UI_MESSAGE', {
+                message: "Not enough Meta $ZENNY!",
+                type: 'error'
+            });
+            return;
+        }
+        
+        // Check if gem is valid
+        const gem = Config.BASE_GEMS[gemKey];
+        if (!gem) {
+            EventBus.emit('UI_MESSAGE', {
+                message: "Invalid gem!",
+                type: 'error'
+            });
+            return;
+        }
+        
+        // Deduct zenny
+        GameState.set('metaZenny', metaZenny - 50);
+        
+        // Add to unlocked gems and remove from available
+        const unlocked = [...gemCatalog.unlocked, gemKey];
+        const available = gemCatalog.available.filter(key => key !== gemKey);
+        
+        // Update gem catalog
+        GameState.set('gemCatalog.unlocked', unlocked);
+        GameState.set('gemCatalog.available', available);
+        
+        // Update class-specific catalog
+        GameState.set(`classGemCatalogs.${playerClass}.unlocked`, unlocked);
+        GameState.set(`classGemCatalogs.${playerClass}.available`, available);
+        
+        // Save meta state
+        Storage.saveMetaZenny();
+        
+        // Show success message
+        EventBus.emit('UI_MESSAGE', {
+            message: `Unlocked ${gem.name}! Available as upgrade in shop.`
+        });
+        
+        // Emit gem unlocked event for UI updates
+        EventBus.emit('GEM_UNLOCKED', { gemKey, gem });
+    }
+
+    /**
+     * Reset meta progression
+     */
+    resetMetaProgression() {
+        if (Storage.resetMetaProgression()) {
+            EventBus.emit('UI_MESSAGE', {
+                message: "Meta progression reset successfully"
+            });
+            
+            // Update UI
+            EventBus.emit('META_PROGRESSION_RESET_COMPLETE');
+            
+            // Return to character select
+            EventBus.emit('SCREEN_CHANGE', 'characterSelect');
+        } else {
+            EventBus.emit('UI_MESSAGE', {
+                message: "Failed to reset meta progression",
+                type: 'error'
+            });
+        }
+    }
+
+    /**
+     * Handle battle win
+     */
+    handleBattleWin() {
+        // Logic for progressing after battle win
+        console.log("Integration: Handling battle win");
+        
+        // Save current game state
+        Storage.saveGameState();
+    }
+
+    /**
+     * Continue from shop to next battle
+     */
+    continueFromShop() {
+        // Save hand state to localStorage
+        const hand = GameState.get('hand');
+        
+        try {
+            localStorage.setItem(Config.STORAGE_KEYS.TEMP_HAND, JSON.stringify(hand));
+            console.log("Saved hand state for next battle:", hand);
+        } catch (e) {
+            console.error("Error saving hand state:", e);
+        }
+        
+        // Transition to next battle
+        EventBus.emit('SCREEN_CHANGE', 'battle');
+    }
+
+    /**
+     * Start the next day
+     */
+    startNextDay() {
+        console.log("Integration: Starting next day");
+        
+        // Reset player buffs and stamina
+        GameState.set('player.buffs', []);
+        
+        const player = GameState.get('player');
+        GameState.set('player.stamina', player.baseStamina);
+        GameState.set('player.health', player.maxHealth);
+        
+        // Combine all gems
+        const currentGemBag = GameState.get('gemBag') || [];
+        const currentHand = GameState.get('hand') || [];
+        const currentDiscard = GameState.get('discard') || [];
+        const allGems = [...currentHand, ...currentDiscard, ...currentGemBag];
+        
+        // Reset collections
+        GameState.set('hand', []);
+        GameState.set('discard', []);
+        GameState.set('gemBag', Utils.shuffle(allGems));
+        
+        // Switch to battle screen
+        EventBus.emit('SCREEN_CHANGE', 'battle');
+    }
 }
 
-/**
- * Register all screen components
- */
-function registerAllScreens() {
-  // Register all screen components at startup for immediate availability
-  uiManager.registerScreen('characterSelect', new CharacterSelectScreen());
-  uiManager.registerScreen('battle', new BattleScreen());
-  uiManager.registerScreen('shop', new ShopScreen());
-  uiManager.registerScreen('gemCatalog', new GemCatalogScreen());
-  uiManager.registerScreen('camp', new CampScreen());
-}
-
-/**
- * Setup a bridge between legacy UI code and new component architecture
- */
-function setupLegacyBridge() {
-  // Listen for events from old renderer/UI system and forward to component UI
-  
-  // Listen for screen change events from old system
-  EventBus.on('SCREEN_CHANGE', (screenName) => {
-    // Update GameState to match
-    if (typeof screenName === 'string') {
-      GameState.set('currentScreen', screenName);
-      
-      // Let the UI Manager handle the screen transition
-      uiManager.switchScreen(screenName);
-    } else if (screenName && screenName.screen) {
-      // Handle object format { screen: 'screenName' }
-      GameState.set('currentScreen', screenName.screen);
-      
-      // Let the UI Manager handle the screen transition
-      uiManager.switchScreen(screenName.screen);
-    }
-  });
-  
-  // Listen for UI updates from game logic
-  EventBus.on('UI_UPDATE', (data) => {
-    // Forward to UI Manager
-    uiManager.handleUIUpdate(data);
-  });
-  
-  // Listen for battle updates
-  EventBus.on('BATTLE_UI_UPDATE', (data) => {
-    uiManager.handleUIUpdate({
-      target: 'battle',
-      ...data
-    });
-  });
-  
-  // Listen for hand updates
-  EventBus.on('HAND_UPDATED', () => {
-    // Get hand data from GameState
-    const hand = GameState.get('hand');
-    
-    // Forward to UI Manager
-    uiManager.handleUIUpdate({ 
-      target: 'battle',
-      hand: hand
-    });
-  });
-  
-  // Listen for shop updates
-  EventBus.on('SHOP_PREPARED', () => {
-    uiManager.handleUIUpdate({
-      target: 'shop'
-    });
-  });
-  
-  // Listen for gem selection
-  EventBus.on('GEM_SELECTION_CHANGED', (data) => {
-    // Forward to UI Manager for battle and shop screens
-    uiManager.handleUIUpdate({
-      target: GameState.get('currentScreen'),
-      selectedIndices: data.selectedIndices
-    });
-  });
-  
-  // Handle legacy renderer messages
-  EventBus.on('UI_MESSAGE', (data) => {
-    // Let the UI Manager handle the message
-    uiManager.showMessage(data);
-  });
-  
-  // Handle special effects
-  EventBus.on('SHOW_DAMAGE', (data) => {
-    uiManager.handleUIUpdate({
-      target: 'battle',
-      effect: 'damage',
-      data: data
-    });
-  });
-  
-  EventBus.on('SHOW_VICTORY', () => {
-    uiManager.handleUIUpdate({
-      target: 'battle',
-      effect: 'victory'
-    });
-  });
-  
-  EventBus.on('SHOW_DEFEAT', () => {
-    uiManager.handleUIUpdate({
-      target: 'battle',
-      effect: 'defeat'
-    });
-  });
-  
-  // Listen for state changes that should update UI
-  GameState.addListener('player', (property, newValue) => {
-    uiManager.handleUIUpdate({
-      target: GameState.get('currentScreen'),
-      player: newValue
-    });
-  });
-  
-  GameState.addListener('battle.enemy', (property, newValue) => {
-    if (GameState.get('currentScreen') === 'battle') {
-      uiManager.handleUIUpdate({
-        target: 'battle',
-        enemy: newValue
-      });
-    }
-  });
-  
-  GameState.addListener('metaZenny', (property, newValue) => {
-    uiManager.handleUIUpdate({
-      target: GameState.get('currentScreen'),
-      metaZenny: newValue
-    });
-  });
-  
-  GameState.addListener('inUpgradeMode', (property, newValue) => {
-    if (GameState.get('currentScreen') === 'shop') {
-      uiManager.handleUIUpdate({
-        target: 'shop',
-        inUpgradeMode: newValue
-      });
-    }
-  });
-}
-
-/**
- * Clean up UI component resources
- */
 export function cleanupComponentUI() {
-  // Clean up UI Manager
-  uiManager.cleanup();
+    console.log("Cleaning up component UI");
+    
+    // Save game state if applicable
+    if (GameState.get('player.class')) {
+        EventBus.emit('SAVE_GAME_STATE');
+        
+        // Optionally perform other cleanup operations
+        try {
+            // Clear any temporary storage
+            localStorage.removeItem(Config.STORAGE_KEYS.TEMP_HAND);
+        } catch (e) {
+            console.error("Error during cleanup:", e);
+        }
+    }
+    
+    return true;
 }
+export default Integration;

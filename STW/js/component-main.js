@@ -1,194 +1,355 @@
-// STW/js/component-main.js
-// New main entry point for component-based UI architecture
-
-// Core systems
+// Import core modules only
 import { EventBus } from './core/eventbus.js';
 import { GameState } from './core/state.js';
+import { Config } from './core/config.js';
 import { Storage } from './core/storage.js';
 import { Utils } from './core/utils.js';
-import { Config } from './core/config.js';
 
-// Game systems
-import { Character } from './systems/character.js';
-import { Gems } from './systems/gem.js';
-import { Battle } from './systems/battle.js';
-import { Shop } from './systems/shop.js';
-import { EventHandler } from './systems/eventHandler.js';
-
-// Component UI
-import { initializeComponentUI, cleanupComponentUI } from './ui/integration.js';
-
-/**
- * Game - Main application controller with component-based UI
- */
-const Game = (() => {
-    // Track initialization status
-    let initialized = false;
+// Basic UI management without importing missing files
+const BasicUI = {
+    initialize() {
+        console.log("Initializing Basic UI");
+        this.setupEventListeners();
+        this.initializeScreens();
+        return true;
+    },
     
-    /**
-     * Initialize the game
-     */
-    function initialize() {
-        if (initialized) {
-            console.warn("Game already initialized, skipping");
-            return;
-        }
+    setupEventListeners() {
+        // Set up button event listeners
+        this.setupButtons();
         
-        console.log("Initializing Super Tiny World with component-based UI...");
+        // Listen for screen changes
+        EventBus.on('SCREEN_CHANGE', (screenName) => {
+            this.switchScreen(screenName);
+        });
         
-        try {
-            // Setup core EventBus listeners
-            setupEventBusListeners();
-            
-            // Initialize component UI architecture
-            initializeComponentUI();
-            
-            // Initialize all game systems
-            initializeSystems();
-            
-            // Load saved game data
-            Storage.loadAllSavedData();
-            
-            // Mark initialization as complete
-            initialized = true;
-            console.log("Game initialized successfully");
-            
-            // Start at character selection screen
-            EventBus.emit('SCREEN_CHANGE', 'characterSelect');
-            
-            return true;
-        } catch (error) {
-            console.error("Error during game initialization:", error);
-            alert("Failed to initialize game. Please refresh the page.");
-            return false;
-        }
-    }
-    
-    /**
-     * Set up core EventBus listeners
-     */
-    function setupEventBusListeners() {
-        // Core system events
-        EventBus.on('SAVE_GAME_STATE', () => Storage.saveGameState());
-        EventBus.on('LOAD_GAME_STATE', () => Storage.loadGameState());
-        EventBus.on('SAVE_META_ZENNY', () => Storage.saveMetaZenny());
+        // Listen for messages
+        EventBus.on('UI_MESSAGE', ({ message, type = 'success', duration = 2000 }) => {
+            this.showMessage(message, type, duration);
+        });
         
-        // Debug events
-        EventBus.on('DEBUG_LOG', (data) => console.log('[DEBUG]', data));
-        
-        // Journey events
+        // Listen for journey start
         EventBus.on('JOURNEY_START', () => {
-            // Prepare for journey to battle
-            console.log("Journey starting");
-            
-            // Ensure setup is complete
-            const playerClass = GameState.get('player.class');
-            if (!playerClass) {
-                console.warn("No player class set, can't start journey");
-                EventBus.emit('UI_MESSAGE', {
-                    message: "Please select a class first",
-                    type: 'error'
-                });
-                return;
-            }
-            
-            // Reset gem bag if needed
-            Gems.resetGemBag(true);
+            this.startJourney();
         });
-        
-        // Restart game
-        EventBus.on('RESTART_GAME', () => {
-            reset();
-        });
-    }
+    },
     
-    /**
-     * Initialize game systems
-     */
-    function initializeSystems() {
-        const systems = [
-            { name: 'Character', init: Character.initialize },
-            { name: 'Gems', init: Gems.initialize },
-            { name: 'Battle', init: Battle.initialize },
-            { name: 'Shop', init: Shop.initialize },
-            { name: 'EventHandler', init: EventHandler.initialize }
-        ];
+    setupButtons() {
+        // Character selection buttons
+        const knightBtn = document.getElementById('knight-btn');
+        const mageBtn = document.getElementById('mage-btn');
+        const rogueBtn = document.getElementById('rogue-btn');
         
-        // Initialize each system
-        systems.forEach(system => {
-            try {
-                console.log(`Initializing ${system.name}...`);
-                const result = system.init();
-                
-                if (result === false) {
-                    console.error(`Failed to initialize ${system.name}`);
-                }
-            } catch (err) {
-                console.error(`Error initializing ${system.name}:`, err);
-            }
-        });
-    }
-    
-    /**
-     * Reset the game state (for testing or restart)
-     */
-    function reset() {
-        if (!initialized) {
-            console.warn("Game not yet initialized, cannot reset");
-            return;
+        if (knightBtn) {
+            knightBtn.addEventListener('click', () => this.selectClass('Knight'));
+            console.log("Knight button bound");
+        } else {
+            console.warn("Knight button not found");
         }
         
-        // Reset state
-        GameState.set('currentScreen', 'characterSelect');
+        if (mageBtn) {
+            mageBtn.addEventListener('click', () => this.selectClass('Mage'));
+            console.log("Mage button bound");
+        } else {
+            console.warn("Mage button not found");
+        }
+        
+        if (rogueBtn) {
+            rogueBtn.addEventListener('click', () => this.selectClass('Rogue'));
+            console.log("Rogue button bound");
+        } else {
+            console.warn("Rogue button not found");
+        }
+        
+        // Continue button in gem catalog
+        const continueBtn = document.getElementById('continue-journey-btn');
+        if (continueBtn) {
+            continueBtn.addEventListener('click', () => {
+                console.log("Continue journey clicked");
+                // Call startJourney directly rather than emitting an event
+                this.startJourney();
+            });
+            console.log("Continue journey button bound");
+        } else {
+            console.warn("Continue journey button not found");
+        }
+    },
+    
+    /**
+     * Start the journey
+     */
+    startJourney() {
+        console.log("Starting journey");
+        
+        this.showMessage("Starting your adventure...");
+        
+        // Load saved game state if available
+        if (typeof Storage !== 'undefined' && Storage.loadGameState) {
+            Storage.loadGameState();
+        }
+        
+        // Reset for a new run if needed
+        if (!GameState.get('battleCount')) {
+            GameState.set('currentDay', 1);
+            GameState.set('currentPhaseIndex', 0);
+            GameState.set('battleCount', 0);
+        }
+        
+        // Reset battle-related state
         GameState.set('battleOver', false);
         GameState.set('selectedGems', new Set());
         
-        // Reset UI
-        EventBus.emit('SCREEN_CHANGE', 'characterSelect');
+        // Reset player buffs
+        const player = GameState.get('player');
+        if (player) {
+            player.buffs = [];
+            GameState.set('player.buffs', []);
+            
+            // Ensure player has full stamina
+            GameState.set('player.stamina', player.baseStamina);
+        }
         
-        console.log("Game reset complete");
-    }
+        // Switch to battle screen after a short delay
+        setTimeout(() => {
+            this.switchScreen('battle');
+        }, 100);
+    },
     
-    /**
-     * Clean up resources before unload
-     */
-    function cleanup() {
-        // Save game state
-        Storage.saveGameState();
+    initializeScreens() {
+        // Verify screens exist and log their presence
+        const screens = [
+            'character-select-screen',
+            'gemCatalog-screen',
+            'battle-screen',
+            'shop-screen',
+            'camp-screen'
+        ];
         
-        // Clean up component UI
-        cleanupComponentUI();
+        screens.forEach(id => {
+            const screen = document.getElementById(id);
+            if (screen) {
+                console.log(`Screen found: ${id}`);
+            } else {
+                console.warn(`Screen not found: ${id}`);
+            }
+        });
         
-        // Mark as uninitialized
-        initialized = false;
+        // Hide all screens initially
+        document.querySelectorAll('.screen').forEach(screen => {
+            screen.classList.remove('active');
+        });
         
-        console.log("Game cleanup complete");
-    }
+        // Show character select screen by default
+        const characterSelectScreen = document.getElementById('character-select-screen');
+        if (characterSelectScreen) {
+            characterSelectScreen.classList.add('active');
+            console.log("Character select screen activated");
+        } else {
+            console.error("Character select screen not found!");
+        }
+    },
     
-    // Public interface
-    return {
-        initialize,
-        reset,
-        cleanup
-    };
-})();
+    switchScreen(screenName) {
+        console.log(`Switching to screen: ${screenName}`);
+        
+        // Map screen names to IDs
+        const screenIdMap = {
+            'characterSelect': 'character-select-screen',
+            'gemCatalog': 'gemCatalog-screen',
+            'battle': 'battle-screen',
+            'shop': 'shop-screen',
+            'camp': 'camp-screen'
+        };
+        
+        const screenId = screenIdMap[screenName];
+        
+        if (!screenId) {
+            console.error(`Invalid screen name: ${screenName}`);
+            return;
+        }
+        
+        // Update state
+        GameState.set('currentScreen', screenName);
+        
+        // Hide all screens
+        document.querySelectorAll('.screen').forEach(screen => {
+            screen.classList.remove('active');
+        });
+        
+        // Show the target screen
+        const targetScreen = document.getElementById(screenId);
+        if (targetScreen) {
+            targetScreen.classList.add('active');
+            console.log(`Screen ${screenId} activated`);
+        } else {
+            console.error(`Screen element '${screenId}' not found`);
+        }
+        
+        // Update specific screen content based on screen type
+        if (screenName === 'gemCatalog') {
+            this.updateGemCatalog();
+        }
+    },
+    
+    selectClass(className) {
+        console.log(`Class selected: ${className}`);
+        
+        // Validate class
+        if (!Config.CLASSES[className]) {
+            this.showMessage(`Invalid class: ${className}`, 'error');
+            return;
+        }
+        
+        // Create base character
+        const classConfig = Config.CLASSES[className];
+        const character = {
+            class: className,
+            maxHealth: classConfig.maxHealth,
+            health: classConfig.maxHealth,
+            stamina: classConfig.baseStamina,
+            baseStamina: classConfig.baseStamina,
+            zenny: classConfig.startingZenny || 0,
+            buffs: []
+        };
+        
+        // Set game state with the new character
+        GameState.set('player', character);
+        
+        // Reset game progress
+        GameState.set('currentDay', 1);
+        GameState.set('currentPhaseIndex', 0);
+        GameState.set('battleCount', 0);
+        GameState.set('battleOver', false);
+        GameState.set('selectedGems', new Set());
+        
+        // Initialize gem catalog
+        this.setupGemCatalog(className);
+        
+        // Move to gem catalog screen
+        this.switchScreen('gemCatalog');
+    },
+    
+    setupGemCatalog(className) {
+        // Initialize gem catalog from default configuration
+        const initialUnlocks = Config.INITIAL_GEM_UNLOCKS[className].unlocked || [];
+        const initialAvailable = Config.INITIAL_GEM_UNLOCKS[className].available || [];
+        
+        const newCatalog = {
+            unlocked: [...initialUnlocks],
+            available: [...initialAvailable],
+            maxCapacity: 15,
+            gemPool: [],
+            upgradedThisShop: new Set()
+        };
+        
+        // Set up both the current catalog and class-specific catalog
+        GameState.set('gemCatalog', newCatalog);
+        GameState.set(`classGemCatalogs.${className}`, Utils.deepClone(newCatalog));
+        
+        // Initialize gem proficiency
+        const initialProficiency = Config.INITIAL_GEM_PROFICIENCY[className] || {};
+        GameState.set('gemProficiency', Utils.deepClone(initialProficiency));
+        GameState.set(`classGemProficiency.${className}`, Utils.deepClone(initialProficiency));
+    },
+    
+    updateGemCatalog() {
+        const gemCatalog = GameState.get('gemCatalog');
+        const metaZenny = GameState.get('metaZenny');
+        
+        // Update meta zenny display
+        const metaZennyDisplay = document.getElementById('meta-zenny-display');
+        if (metaZennyDisplay) {
+            metaZennyDisplay.textContent = metaZenny || 0;
+        }
+        
+        console.log("Gem catalog updated");
+    },
+    
+    showMessage(message, type = 'success', duration = 2000) {
+        console.log(`Message (${type}): ${message}`);
+        
+        const messageEl = document.getElementById('message');
+        if (!messageEl) {
+            // Create message element if it doesn't exist
+            const newMessageEl = document.createElement('div');
+            newMessageEl.id = 'message';
+            newMessageEl.style.position = 'fixed';
+            newMessageEl.style.bottom = '20px';
+            newMessageEl.style.left = '50%';
+            newMessageEl.style.transform = 'translateX(-50%)';
+            newMessageEl.style.padding = '10px 20px';
+            newMessageEl.style.borderRadius = '5px';
+            newMessageEl.style.zIndex = '9999';
+            newMessageEl.style.opacity = '0';
+            newMessageEl.style.transition = 'opacity 0.3s ease';
+            document.body.appendChild(newMessageEl);
+            
+            setTimeout(() => this.showMessage(message, type, duration), 100);
+            return;
+        }
+        
+        // Set message content and type
+        messageEl.textContent = message;
+        messageEl.className = '';
+        messageEl.classList.add(type);
+        
+        // Set colors based on type
+        if (type === 'success') {
+            messageEl.style.backgroundColor = '#55cc55';
+            messageEl.style.color = 'white';
+        } else if (type === 'error') {
+            messageEl.style.backgroundColor = '#ff5555';
+            messageEl.style.color = 'white';
+        }
+        
+        // Show message
+        messageEl.style.opacity = '1';
+        messageEl.classList.add('visible');
+        
+        // Clear after duration
+        setTimeout(() => {
+            messageEl.style.opacity = '0';
+            messageEl.classList.remove('visible');
+        }, duration);
+    }
+};
 
-// Set up initialization to happen after DOM is loaded
+// Component initialization 
 document.addEventListener('DOMContentLoaded', function() {
-    console.log("DOM content loaded, initializing game");
-    Game.initialize();
+    console.log("DOM content loaded, initializing component UI");
+    try {
+        BasicUI.initialize();
+        console.log("Basic UI initialized");
+        
+        // Start at character selection screen
+        setTimeout(() => {
+            EventBus.emit('SCREEN_CHANGE', 'characterSelect');
+        }, 100);
+    } catch (error) {
+        console.error("Failed to initialize:", error);
+        alert("Failed to initialize game components. Check console for details.");
+    }
 });
 
-// Set up cleanup on page unload
-window.addEventListener('beforeunload', function() {
-    console.log("Page unloading, cleaning up");
-    Game.cleanup();
-});
-
-// Backup initialization for older browsers or if DOMContentLoaded already fired
-if (document.readyState === 'interactive' || document.readyState === 'complete') {
-    console.log("Document already interactive/complete, initializing game");
-    setTimeout(Game.initialize, 100);
+// Cleanup function
+function cleanup() {
+    console.log("Cleaning up");
+    
+    try {
+        // Save game state if applicable
+        if (GameState.get('player.class')) {
+            Storage.saveGameState();
+        }
+    } catch (e) {
+        console.error("Error during cleanup:", e);
+    }
 }
 
-export default Game;
+// Export cleanup function for external use
+export function cleanupComponentUI() {
+    cleanup();
+    return true;
+}
+
+// Set up cleanup on unload
+window.addEventListener('beforeunload', cleanup);

@@ -1,317 +1,282 @@
-// ui/UIManager.js
 import { EventBus } from '../core/eventbus.js';
 import { GameState } from '../core/state.js';
+import { Config } from '../core/config.js';  // Add Config import
 
-// Import screen components
-import { BattleScreen } from './components/screens/BattleScreen.js';
-import { ShopScreen } from './components/screens/ShopScreen.js';
-import { CharacterSelectScreen } from './components/screens/CharacterSelectScreen.js';
-import { GemCatalogScreen } from './components/screens/GemCatalogScreen.js';
-import { CampScreen } from './components/screens/CampScreen.js';
+// Import screens
+import CharacterSelectScreen from './screens/CharacterSelectScreen.js';
+import BattleScreen from './screens/BattleScreen.js';
+import ShopScreen from './screens/ShopScreen.js';
+import GemCatalogScreen from './screens/GemCatalogScreen.js';
+import CampScreen from './screens/CampScreen.js';
 
 /**
- * Central UI Manager for handling screen transitions and global UI elements
+ * UIManager - Central manager for UI screens and transitions
  */
 export class UIManager {
-  constructor() {
-    // Initialize screen components
-    this.screens = {
-      'battle': new BattleScreen(),
-      'shop': new ShopScreen(),
-      'characterSelect': new CharacterSelectScreen(),
-      'gemCatalog': new GemCatalogScreen(),
-      'camp': new CampScreen()
-    };
-    
-    this.currentScreen = null;
-    this.messageElement = null;
-    this.loadingOverlay = null;
-    this.errorOverlay = null;
-    
-    // Track if we've been initialized
-    this.initialized = false;
-  }
-  
-  /**
-   * Initialize the UI Manager
-   * @returns {Boolean} Whether initialization was successful
-   */
-  initialize() {
-    if (this.initialized) {
-      console.warn("UI Manager already initialized");
-      return true;
+    constructor() {
+        this.screens = {};
+        this.activeScreen = null;
+        this.elements = {};
+        this.initialized = false;
     }
-    
-    try {
-      console.log("Initializing UI Manager");
-      
-      // Create message container for notifications
-      this.createMessageElement();
-      
-      // Create loading overlay
-      this.createLoadingOverlay();
-      
-      // Create error overlay
-      this.createErrorOverlay();
-      
-      // Set up event listeners
-      this.setupEventListeners();
-      
-      // Initialize with default screen (usually character select)
-      const initialScreen = GameState.get('currentScreen') || 'characterSelect';
-      this.switchScreen(initialScreen);
-      
-      this.initialized = true;
-      console.log("UI Manager initialized successfully");
-      
-      return true;
-    } catch (error) {
-      console.error("Error initializing UI Manager:", error);
-      return false;
+
+    /**
+     * Initialize the UI Manager
+     */
+    initialize() {
+        if (this.initialized) return true;
+
+        console.log("Initializing UI Manager");
+
+        // Cache system elements
+        this.cacheSystemElements();
+
+        // Initialize screens
+        this.initializeScreens();
+
+        // Set up event listeners
+        this.setupEventListeners();
+
+        this.initialized = true;
+        console.log("UI Manager initialized");
+        return true;
     }
-  }
-  
-  /**
-   * Create the message element for notifications
-   */
-  createMessageElement() {
-    this.messageElement = document.createElement('div');
-    this.messageElement.id = 'message';
-    document.body.appendChild(this.messageElement);
-  }
-  
-  /**
-   * Create loading overlay element
-   */
-  createLoadingOverlay() {
-    this.loadingOverlay = document.createElement('div');
-    this.loadingOverlay.id = 'loading-overlay';
-    this.loadingOverlay.innerHTML = `
-      <div class="loading-spinner"></div>
-      <div class="loading-message">Loading...</div>
-    `;
-    this.loadingOverlay.style.display = 'none';
-    document.body.appendChild(this.loadingOverlay);
-  }
-  
-  /**
-   * Create error overlay element
-   */
-  createErrorOverlay() {
-    this.errorOverlay = document.createElement('div');
-    this.errorOverlay.id = 'error-overlay';
-    this.errorOverlay.innerHTML = `
-      <div class="error-container">
-        <h2>An Error Occurred</h2>
-        <div class="error-message">Something went wrong.</div>
-        <button class="error-close">Continue</button>
-      </div>
-    `;
-    this.errorOverlay.style.display = 'none';
-    
-    // Add close button handler
-    const closeButton = this.errorOverlay.querySelector('.error-close');
-    if (closeButton) {
-      closeButton.addEventListener('click', () => this.hideError());
+
+    /**
+     * Cache system UI elements
+     */
+    cacheSystemElements() {
+        const safeGetElement = (id) => {
+            const element = document.getElementById(id);
+            if (!element) console.warn(`Element with ID '${id}' not found`);
+            return element;
+        };
+
+        this.elements = {
+            message: safeGetElement('message'),
+            loadingOverlay: safeGetElement('loading-overlay'),
+            errorOverlay: safeGetElement('error-overlay'),
+            errorMessage: document.querySelector('#error-overlay .error-message'),
+            errorClose: document.querySelector('#error-overlay .error-close'),
+            audioButton: safeGetElement('audio-button')
+        };
     }
-    
-    document.body.appendChild(this.errorOverlay);
-  }
-  
-  /**
-   * Set up event listeners
-   */
-  setupEventListeners() {
-    // Listen for screen change events
-    EventBus.on('SCREEN_CHANGE', (screenName) => this.switchScreen(screenName));
-    
-    // Listen for message events
-    EventBus.on('UI_MESSAGE', (data) => this.showMessage(data));
-    
-    // Listen for loading events
-    EventBus.on('LOADING_START', (data) => this.showLoading(data.message));
-    EventBus.on('LOADING_END', () => this.hideLoading());
-    
-    // Listen for error events
-    EventBus.on('ERROR_SHOW', (data) => this.showError(data.message, data.isFatal));
-    EventBus.on('ERROR_HIDE', () => this.hideError());
-  }
-  
-  /**
-   * Switch to a different screen
-   * @param {String} screenName - Name of the screen to switch to
-   */
-  switchScreen(screenName) {
-    console.log(`Switching to screen: ${screenName}`);
-    
-    if (!this.screens[screenName]) {
-      console.error(`Screen ${screenName} not found`);
-      return;
+
+    /**
+     * Initialize all screen modules
+     */
+    initializeScreens() {
+        // Create screen instances
+        this.screens = {
+            characterSelect: new CharacterSelectScreen(),
+            battle: new BattleScreen(),
+            shop: new ShopScreen(),
+            gemCatalog: new GemCatalogScreen(),
+            camp: new CampScreen()
+        };
+
+        // Initialize each screen
+        Object.values(this.screens).forEach(screen => {
+            if (typeof screen.initialize === 'function') {
+                screen.initialize();
+            }
+        });
     }
-    
-    // Update game state
-    GameState.set('currentScreen', screenName);
-    
-    // Hide current screen if exists
-    if (this.currentScreen) {
-      const currentElement = document.getElementById(this.currentScreen.id);
-      if (currentElement) {
-        currentElement.classList.remove('active');
-      }
+
+    /**
+     * Set up event listeners
+     */
+    setupEventListeners() {
+        // Screen changes
+        EventBus.on('SCREEN_CHANGE', (screenName) => {
+            // If screenName is an object with a screen property, extract it
+            if (typeof screenName === 'object' && screenName.screen) {
+                screenName = screenName.screen;
+            }
+            this.switchScreen(screenName);
+        });
+
+        // Messages
+        EventBus.on('UI_MESSAGE', ({ message, type = 'success', duration = 2000 }) => {
+            this.showMessage(message, type, duration);
+        });
+
+        // Loading indicator
+        EventBus.on('LOADING_START', ({ message = 'Loading...' }) => {
+            this.showLoading(message);
+        });
+
+        EventBus.on('LOADING_END', () => {
+            this.hideLoading();
+        });
+
+        // Errors
+        EventBus.on('ERROR_SHOW', ({ message, isFatal = false }) => {
+            this.showError(message, isFatal);
+        });
+
+        EventBus.on('ERROR_HIDE', () => {
+            this.hideError();
+        });
     }
-    
-    // Get the new screen
-    const screen = this.screens[screenName];
-    let screenElement = document.getElementById(screen.id);
-    
-    if (!screenElement) {
-      // First time rendering this screen
-      console.log(`Rendering ${screenName} screen for the first time`);
-      screenElement = screen.render();
-      document.body.appendChild(screenElement);
-    } else {
-      console.log(`Using existing ${screenName} screen element`);
-    }
-    
-    // Show the screen
-    screenElement.classList.add('active');
-    this.currentScreen = screen;
-    
-    // Emit event that screen has changed
-    EventBus.emit('SCREEN_CHANGED', screenName);
-  }
-  
-  /**
-   * Show a notification message
-   * @param {Object} options - Message options
-   * @param {String} options.message - Message text to display
-   * @param {String} options.type - Message type (success/error/warning)
-   * @param {Number} options.duration - Duration to show message in ms
-   */
-  showMessage({message, type = 'success', duration = 2000}) {
-    if (!this.messageElement) return;
-    
-    this.messageElement.textContent = message;
-    this.messageElement.className = '';
-    this.messageElement.classList.add(type);
-    this.messageElement.classList.add('visible');
-    
-    // Clear after duration
-    setTimeout(() => {
-      this.messageElement.classList.remove('visible');
-    }, duration);
-  }
-  
-  /**
-   * Show loading overlay
-   * @param {String} message - Loading message to display
-   */
-  showLoading(message = 'Loading...') {
-    if (!this.loadingOverlay) return;
-    
-    const messageElement = this.loadingOverlay.querySelector('.loading-message');
-    if (messageElement) {
-      messageElement.textContent = message;
-    }
-    
-    this.loadingOverlay.style.display = 'flex';
-  }
-  
-  /**
-   * Hide loading overlay
-   */
-  hideLoading() {
-    if (this.loadingOverlay) {
-      this.loadingOverlay.style.display = 'none';
-    }
-  }
-  
-  /**
-   * Show error overlay
-   * @param {String} message - Error message
-   * @param {Boolean} isFatal - Whether this is a fatal error
-   */
-  showError(message, isFatal = false) {
-    if (!this.errorOverlay) return;
-    
-    const messageElement = this.errorOverlay.querySelector('.error-message');
-    if (messageElement) {
-      messageElement.textContent = message;
-    }
-    
-    const closeButton = this.errorOverlay.querySelector('.error-close');
-    if (closeButton) {
-      closeButton.textContent = isFatal ? 'Restart Game' : 'Continue';
-      
-      // Update click handler for fatal errors
-      closeButton.onclick = () => {
-        this.hideError();
-        if (isFatal) {
-          window.location.reload();
+
+    /**
+     * Show a notification message
+     * @param {String} message - Message to display
+     * @param {String} type - Message type ('success' or 'error')
+     * @param {Number} duration - Time to display message in ms
+     */
+    showMessage(message, type = 'success', duration = 2000) {
+        const messageEl = this.elements.message;
+
+        if (!messageEl) {
+            console.warn("Message element not found");
+            return;
         }
-      };
+
+        // Set message content and type
+        messageEl.textContent = message;
+        messageEl.className = '';
+        messageEl.classList.add(type);
+        messageEl.classList.add('visible');
+
+        // Clear after duration
+        setTimeout(() => {
+            messageEl.classList.remove('visible');
+        }, duration);
     }
-    
-    this.errorOverlay.style.display = 'flex';
-  }
-  
-  /**
-   * Hide error overlay
-   */
-  hideError() {
-    if (this.errorOverlay) {
-      this.errorOverlay.style.display = 'none';
+
+    /**
+     * Switch to a different screen
+     * @param {String} screenName - Name of the screen to switch to
+     */
+    switchScreen(screenName) {
+        console.log(`Switching to screen: ${screenName}`);
+
+        // Validate screen name
+        if (!this.screens[screenName]) {
+            console.error(`Screen '${screenName}' not found`);
+            return false;
+        }
+
+        // Hide all screens
+        document.querySelectorAll('.screen').forEach(screen => {
+            screen.classList.remove('active');
+        });
+
+        // Update state
+        GameState.set('currentScreen', screenName);
+        this.activeScreen = screenName;
+
+        // Show and render the target screen
+        const screenElement = document.getElementById(`${screenName}-screen`);
+        if (screenElement) {
+            screenElement.classList.add('active');
+        } else {
+            console.error(`Screen element '${screenName}-screen' not found`);
+        }
+
+        // Render the screen content
+        if (typeof this.screens[screenName].render === 'function') {
+            this.screens[screenName].render();
+        }
+
+        return true;
     }
-  }
-  
-  /**
-   * Update a specific screen component
-   * @param {String} screenName - Name of the screen to update
-   * @param {Object} data - Data to update with
-   */
-  updateScreen(screenName, data) {
-    const screen = this.screens[screenName];
-    if (screen) {
-      screen.update(data);
+
+    /**
+     * Show loading overlay
+     * @param {String} message - Loading message
+     */
+    showLoading(message = 'Loading...') {
+        const loadingEl = this.elements.loadingOverlay;
+        if (!loadingEl) return;
+
+        const messageEl = loadingEl.querySelector('.loading-message');
+        if (messageEl) {
+            messageEl.textContent = message;
+        }
+
+        loadingEl.style.display = 'flex';
     }
-  }
-  
-  /**
-   * Clean up resources and prepare for shutdown
-   */
-  cleanup() {
-    // Remove all event listeners
-    if (typeof EventBus !== 'undefined') {
-      EventBus.unsubscribe('SCREEN_CHANGE');
-      EventBus.unsubscribe('UI_MESSAGE');
-      EventBus.unsubscribe('LOADING_START');
-      EventBus.unsubscribe('LOADING_END');
-      EventBus.unsubscribe('ERROR_SHOW');
-      EventBus.unsubscribe('ERROR_HIDE');
+
+    /**
+     * Hide loading overlay
+     */
+    hideLoading() {
+        if (this.elements.loadingOverlay) {
+            this.elements.loadingOverlay.style.display = 'none';
+        }
     }
-    
-    // Remove DOM elements
-    if (this.messageElement && this.messageElement.parentNode) {
-      this.messageElement.parentNode.removeChild(this.messageElement);
+
+    /**
+     * Show error message
+     * @param {String} message - Error message
+     * @param {Boolean} isFatal - Whether this is a fatal error
+     */
+    showError(message, isFatal = false) {
+        console.error("Game error:", message);
+
+        try {
+            const errorEl = this.elements.errorOverlay;
+
+            if (errorEl) {
+                // Update error message
+                if (this.elements.errorMessage) {
+                    this.elements.errorMessage.textContent = message;
+                }
+
+                // Handle close button
+                if (this.elements.errorClose) {
+                    this.elements.errorClose.textContent = isFatal ? 'Restart Game' : 'Continue';
+                    this.elements.errorClose.onclick = () => {
+                        this.hideError();
+                        if (isFatal) {
+                            window.location.reload();
+                        }
+                    };
+                }
+
+                errorEl.style.display = 'flex';
+            } else {
+                // Fallback to alert
+                alert(message + (isFatal ? " The game will now reload." : ""));
+                if (isFatal) {
+                    window.location.reload();
+                }
+            }
+        } catch (e) {
+            // Last resort fallback
+            console.error("Error while showing error:", e);
+            alert(message);
+        }
     }
-    
-    if (this.loadingOverlay && this.loadingOverlay.parentNode) {
-      this.loadingOverlay.parentNode.removeChild(this.loadingOverlay);
+
+    /**
+     * Hide error message
+     */
+    hideError() {
+        if (this.elements.errorOverlay) {
+            this.elements.errorOverlay.style.display = 'none';
+        }
     }
-    
-    if (this.errorOverlay && this.errorOverlay.parentNode) {
-      this.errorOverlay.parentNode.removeChild(this.errorOverlay);
+
+    /**
+     * Get the active screen
+     * @returns {String} Active screen name
+     */
+    getActiveScreen() {
+        return this.activeScreen;
     }
-    
-    // Clean up all screens
-    Object.values(this.screens).forEach(screen => {
-      if (screen && typeof screen.remove === 'function') {
-        screen.remove();
-      }
-    });
-    
-    this.screens = {};
-    this.currentScreen = null;
-    this.initialized = false;
-  }
+
+    /**
+     * Get a screen instance by name
+     * @param {String} screenName - Name of the screen
+     * @returns {Object} Screen instance
+     */
+    getScreen(screenName) {
+        return this.screens[screenName];
+    }
 }
+
+export default UIManager;
