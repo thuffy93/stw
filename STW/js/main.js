@@ -1,182 +1,176 @@
-// Main entry point for Super Tiny World with direct initialization (no ModuleLoader)
+// Main entry point for Super Tiny World
 import { EventBus } from './core/eventbus.js';
 import { Config } from './core/config.js';
 import { GameState } from './core/state.js';
 import { Utils } from './core/utils.js';
 import { Storage } from './core/storage.js';
-import Renderer from './ui/renderer.js';
+import { Renderer } from './ui/renderer.js';
 import { Character } from './systems/character.js';
 import { Gems } from './systems/gem.js';
 import { Battle } from './systems/battle.js';
 import { Shop } from './systems/shop.js';
 import { EventHandler } from './systems/eventHandler.js';
 
-// Flag to track initialization status
-let gameInitialized = false;
-
 /**
- * Initialize the game with direct module initialization
+ * Game - Main application controller
  */
-function initializeGame() {
-    if (gameInitialized) {
-        console.log("Game already initialized");
-        return true;
+const Game = (() => {
+    // Track initialization status
+    let initialized = false;
+    
+    /**
+     * Initialize the game
+     */
+    function initialize() {
+        if (initialized) {
+            console.warn("Game already initialized, skipping");
+            return;
+        }
+        
+        console.log("Initializing Super Tiny World...");
+        
+        try {
+            // Register global objects for module access
+            window.EventBus = EventBus;
+            window.Config = Config;
+            window.GameState = GameState;
+            window.Utils = Utils;
+            window.Storage = Storage;
+            window.Renderer = Renderer;
+            window.Character = Character;
+            window.Gems = Gems;
+            window.Battle = Battle;
+            window.Shop = Shop;
+            window.EventHandler = EventHandler;
+            window.Game = this;
+            
+            // Setup core EventBus listeners
+            setupEventBusListeners();
+            
+            // Initialize modules in the correct order
+            initializeAllModules();
+            
+            // Mark initialization as complete
+            initialized = true;
+            console.log("Game initialized successfully");
+            
+            // Start at character selection screen
+            EventBus.emit('SCREEN_CHANGE', 'character-select');
+            
+            return true;
+        } catch (error) {
+            console.error("Error during game initialization:", error);
+            alert("Failed to initialize game. Please refresh the page.");
+            return false;
+        }
     }
     
-    console.log("Starting Super Tiny World initialization...");
-    
-    try {
-        // STEP 1: Register modules globally
-        window.EventBus = EventBus;
-        window.Config = Config;
-        window.GameState = GameState;
-        window.Utils = Utils;
-        window.Storage = Storage;
-        window.Renderer = Renderer;
-        window.Character = Character;
-        window.Gems = Gems;
-        window.Battle = Battle;
-        window.Shop = Shop;
-        window.EventHandler = EventHandler;
+    /**
+     * Set up core EventBus listeners
+     */
+    function setupEventBusListeners() {
+        // Core system events
+        EventBus.on('SAVE_GAME_STATE', () => Storage.saveGameState());
+        EventBus.on('LOAD_GAME_STATE', () => Storage.loadGameState());
+        EventBus.on('SAVE_META_ZENNY', () => Storage.saveMetaZenny());
         
-        // STEP 2: Set up event listeners
-        setupEventListeners();
-        
-        // STEP 3: Initialize modules directly in the correct order
-        console.log("Initializing modules directly...");
-        
-        // 3.1: Initialize basic utilities first
-        console.log("Initializing Utils...");
-        if (typeof Utils.initialize === 'function') Utils.initialize();
-        
-        // 3.2: Initialize state management
-        console.log("Initializing GameState...");
-        if (typeof GameState.initialize === 'function') GameState.initialize();
-        
-        // 3.3: Initialize storage
-        console.log("Initializing Storage...");
-        if (typeof Storage.initialize === 'function') Storage.initialize();
-        
-        // 3.4: Initialize UI renderer
-        console.log("Initializing Renderer...");
-        if (typeof Renderer.initialize === 'function') Renderer.initialize();
-        
-        // 3.5: Initialize game systems
-        console.log("Initializing Gems...");
-        if (typeof Gems.initialize === 'function') Gems.initialize();
-        
-        console.log("Initializing Character...");
-        if (typeof Character.initialize === 'function') Character.initialize();
-        
-        console.log("Initializing Battle...");
-        if (typeof Battle.initialize === 'function') Battle.initialize();
-        
-        console.log("Initializing Shop...");
-        if (typeof Shop.initialize === 'function') Shop.initialize();
-        
-        console.log("Initializing EventHandler...");
-        if (typeof EventHandler.initialize === 'function') EventHandler.initialize();
-        
-        // STEP 4: Start the game
-        console.log("Switching to character select screen...");
-        EventBus.emit('SCREEN_CHANGE', 'characterSelect');
-        
-        // Mark initialization as complete
-        gameInitialized = true;
-        console.log("Game initialization completed successfully!");
-        
-        return true;
-    } catch (error) {
-        console.error("Critical error during game initialization:", error);
-        alert("Error initializing game. See console for details.");
-        return false;
-    }
-}
-
-/**
- * Set up core event listeners
- */
-function setupEventListeners() {
-    // Core system events
-    EventBus.on('SAVE_GAME_STATE', () => {
-        if (Storage && typeof Storage.saveGameState === 'function') {
-            Storage.saveGameState();
-        }
-    });
-    
-    EventBus.on('LOAD_GAME_STATE', () => {
-        if (Storage && typeof Storage.loadGameState === 'function') {
-            Storage.loadGameState();
-        }
-    });
-    
-    EventBus.on('SAVE_META_ZENNY', () => {
-        if (Storage && typeof Storage.saveMetaZenny === 'function') {
-            Storage.saveMetaZenny();
-        }
-    });
-    
-    // Screen management
-    EventBus.on('SCREEN_CHANGE', (screen) => {
-        console.log("Screen change event:", screen);
-        // Use updateActiveScreen if available, else fallback to switchScreen
-        if (Renderer) {
+        // Screen management
+        EventBus.on('SCREEN_CHANGE', (screen) => {
             if (typeof Renderer.updateActiveScreen === 'function') {
                 Renderer.updateActiveScreen(screen);
-            } else if (typeof Renderer.switchScreen === 'function') {
-                Renderer.switchScreen(screen);
-            } else {
-                console.error("No screen change method found in Renderer");
             }
-        } else {
-            console.error("Renderer not available for screen change");
-        }
-    });
-    
-    // Selection events
-    EventBus.on('GEM_SELECT', ({ index, context }) => {
-        if (EventHandler && typeof EventHandler.toggleGemSelection === 'function') {
+        });
+        
+        // Selection events
+        EventBus.on('GEM_SELECT', ({ index, context }) => {
             EventHandler.toggleGemSelection(index, context === 'shop');
-        }
-    });
-}
-
-/**
- * Reset the game state
- */
-function resetGame() {
-    // Reset state
-    if (GameState) {
-        GameState.set('currentScreen', 'characterSelect');
-        GameState.set('battleOver', false);
-        GameState.set('selectedGems', new Set());
+        });
+        
+        // Debug events
+        EventBus.on('DEBUG_LOG', (data) => console.log('[DEBUG]', data));
     }
     
-    // Reset UI
-    EventBus.emit('SCREEN_CHANGE', 'characterSelect');
+    /**
+     * Initialize all modules in the correct order
+     */
+    function initializeAllModules() {
+        console.log("Initializing all modules in correct order");
+        
+        // Define module dependencies and initialization order
+        const modules = [
+            { name: 'EventBus', module: EventBus, required: true },
+            { name: 'Config', module: Config, required: true },
+            { name: 'Utils', module: Utils, required: true },
+            { name: 'GameState', module: GameState, required: true },
+            { name: 'Storage', module: Storage, required: true },
+            { name: 'Renderer', module: Renderer, required: true },
+            { name: 'Character', module: Character, required: true },
+            { name: 'Gems', module: Gems, required: true },
+            { name: 'Battle', module: Battle, required: true },
+            { name: 'Shop', module: Shop, required: true },
+            { name: 'EventHandler', module: EventHandler, required: true }
+        ];
+        
+        // Initialize modules in order
+        for (const moduleInfo of modules) {
+            console.log(`Initializing module: ${moduleInfo.name}`);
+            
+            if (typeof moduleInfo.module.initialize === 'function') {
+                try {
+                    moduleInfo.module.initialize();
+                    console.log(`Successfully initialized: ${moduleInfo.name}`);
+                } catch (e) {
+                    console.error(`Error initializing ${moduleInfo.name}:`, e);
+                    if (moduleInfo.required) {
+                        throw new Error(`Failed to initialize required module: ${moduleInfo.name}`);
+                    }
+                }
+            } else {
+                console.log(`Module ${moduleInfo.name} has no initialize method, skipping`);
+            }
+        }
+        
+        // Emit event for successful initialization
+        EventBus.emit('ALL_MODULES_INITIALIZED');
+    }
     
-    console.log("Game reset complete");
-}
+    /**
+     * Reset the game state (for testing)
+     */
+    function reset() {
+        if (!initialized) {
+            console.warn("Game not yet initialized, cannot reset");
+            return;
+        }
+        
+        // Reset state
+        GameState.set('currentScreen', 'character-select');
+        GameState.set('battleOver', false);
+        GameState.set('selectedGems', new Set());
+        
+        // Reset UI
+        EventBus.emit('SCREEN_CHANGE', 'character-select');
+        
+        console.log("Game reset complete");
+    }
+    
+    // Public interface
+    return {
+        initialize,
+        reset
+    };
+})();
 
 // Set up initialization to happen after DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     console.log("DOM content loaded, initializing game");
-    initializeGame();
+    Game.initialize();
 });
 
-// Expose functions globally for convenience
-window.Game = {
-    initialize: initializeGame,
-    reset: resetGame
-};
-
-// Backup initialization for older browsers
+// Backup initialization for older browsers or if DOMContentLoaded already fired
 if (document.readyState === 'interactive' || document.readyState === 'complete') {
     console.log("Document already interactive/complete, initializing game");
-    setTimeout(initializeGame, 100);
+    setTimeout(Game.initialize, 100);
 }
 
-export default {
-    initialize: initializeGame,
-    reset: resetGame
-};
+export default Game;

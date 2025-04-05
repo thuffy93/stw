@@ -9,31 +9,35 @@
 <body>
     <!-- Character Select Screen -->
     <div id="character-select-screen" class="screen active">
-        <h1>Choose Your Hero</h1>
-        <button id="knight-btn" class="btn-knight btn-large">Knight</button>
-        <button id="mage-btn" class="btn-mage btn-large">Mage</button>
-        <button id="rogue-btn" class="btn-rogue btn-large">Rogue</button>
-        <button id="reset-btn" class="btn-large">Reset Progress</button>
+        <h1>Choose Your Class</h1>
+        <div class="character-buttons">
+            <button id="knight-btn" class="btn-knight btn-large">Knight</button>
+            <button id="mage-btn" class="btn-mage btn-large">Mage</button>
+            <button id="rogue-btn" class="btn-rogue btn-large">Rogue</button>
+        </div>
+        <button id="reset-btn" class="btn-reset">Reset Progress</button>
     </div>
     
-    <!-- Gem Catalog Screen -->
-    <div id="gem-catalog-screen" class="screen">
+    <!-- Gem Catalog Screen - Note the ID should be "gemCatalog-screen" -->
+    <div id="gemCatalog-screen" class="screen">
         <h1>Gem Catalog</h1>
-        <p>Meta Zenny: <span id="meta-zenny-display">0</span></p>
+        <div class="meta-info">
+            <p>Meta Zenny: <span id="meta-zenny-display">0</span></p>
+        </div>
         
-        <div id="unlocked-gems-section" class="catalog-section">
+        <div id="unlocked-gems-section">
             <h2>Unlocked Gems</h2>
-            <div id="unlocked-gems" class="gem-container"></div>
+            <div id="unlocked-gems" class="gem-grid"></div>
         </div>
         
-        <div id="available-gems-section" class="catalog-section">
+        <div id="available-gems-section">
             <h2>Available Gems</h2>
-            <div id="available-gems" class="gem-container"></div>
+            <div id="available-gems" class="gem-grid"></div>
         </div>
         
-        <button id="continue-journey-btn" class="btn-large">Start Journey</button>
+        <button id="continue-journey-btn" class="btn-large">Continue Journey</button>
     </div>
-    
+
     <!-- Battle Screen -->
     <div id="battle-screen" class="screen">
         <div id="battle-container">
