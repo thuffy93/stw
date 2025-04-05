@@ -5,6 +5,17 @@ export const AssetManager = (() => {
     let totalAssets = 0;
     let callback = null;
 
+    // Add initialize method
+    function initialize() {
+        console.log("Initializing AssetManager");
+        assets.clear(); // Reset assets map
+        successCount = 0;
+        errorCount = 0;
+        totalAssets = 0;
+        callback = null;
+        return true; // Indicate successful initialization
+    }
+
     function queue(key, data, type = 'data') {
         if (assets.has(key)) {
             console.warn(`Asset already queued: ${key}`);
@@ -22,7 +33,7 @@ export const AssetManager = (() => {
         const { data, type } = assetData;
 
         if (type === 'data') {
-            assetData.asset = data; // Store the raw data directly
+            assetData.asset = data;
             onLoadSuccess(key, data);
         } else if (type === 'json') {
             fetch(data)
@@ -103,6 +114,7 @@ export const AssetManager = (() => {
     }
 
     return {
+        initialize, // Add to public interface
         queue,
         downloadAll,
         getLoadedAssets,
@@ -110,5 +122,3 @@ export const AssetManager = (() => {
         clear
     };
 })();
-
-export default AssetManager;
