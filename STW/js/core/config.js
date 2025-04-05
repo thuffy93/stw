@@ -183,8 +183,6 @@ export const Config = {
       GEM_UNLOCKS_PREFIX: "stw_gemUnlocks_",
       GEM_PROFICIENCY_PREFIX: "stw_gemProficiency_",
       GAME_STATE: "stw_gameState",
-      AUDIO_ENABLED: "stw_audioEnabled",
-      AUDIO_VOLUME: "stw_audioVolume",
       TEMP_HAND: "stw_temp_hand"
   },
 };

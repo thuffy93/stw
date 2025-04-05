@@ -1,4 +1,4 @@
-// Renderer.js - Ensuring proper integration of BaseRenderer and GemRenderer
+// renderer.js - Simplified to use BaseRenderer for screen management
 
 import { EventBus } from '../core/eventbus.js';
 import { BaseRenderer } from './baseRenderer.js';
@@ -17,11 +17,6 @@ export function initialize() {
   
   if (typeof GemRenderer.initialize === 'function') {
     GemRenderer.initialize();
-  }
-  
-  // Initialize audio controls
-  if (typeof BaseRenderer.initializeAudioControls === 'function') {
-    BaseRenderer.initializeAudioControls();
   }
   
   // Set up event listeners for UI functions
@@ -51,6 +46,37 @@ function setupRendererEventListeners() {
   EventBus.on('ERROR_HIDE', () => {
     BaseRenderer.hideError();
   });
+  
+  // Animation and effects
+  EventBus.on('SHOW_DAMAGE', (data) => {
+    BaseRenderer.showDamageAnimation(data);
+  });
+  
+  EventBus.on('SHOW_VICTORY', () => {
+    BaseRenderer.showVictoryEffect();
+  });
+  
+  EventBus.on('SHOW_DEFEAT', () => {
+    BaseRenderer.showDefeatEffect();
+  });
+  
+  // UI updates
+  EventBus.on('UI_UPDATE', ({ target }) => {
+    switch (target) {
+      case 'battle':
+        BaseRenderer.updateBattleUI();
+        break;
+      case 'shop':
+        BaseRenderer.updateShopUI();
+        break;
+      case 'gemCatalog':
+        BaseRenderer.updateGemCatalogUI();
+        break;
+      case 'camp':
+        BaseRenderer.updateCampUI();
+        break;
+    }
+  });
 }
 
 // Export a unified Renderer that combines both modules
@@ -58,42 +84,38 @@ export const Renderer = {
   // Core initialization
   initialize,
   
-  // BaseRenderer methods
+  // Screen management (delegated to BaseRenderer)
   updateActiveScreen: BaseRenderer.updateActiveScreen,
+  registerScreen: BaseRenderer.registerScreen,
+  
+  // UI messaging
   showMessage: BaseRenderer.showMessage,
+  
+  // UI updates
   updateBattleUI: BaseRenderer.updateBattleUI,
   updateShopUI: BaseRenderer.updateShopUI,
   updateGemCatalogUI: BaseRenderer.updateGemCatalogUI,
   updateCampUI: BaseRenderer.updateCampUI,
+  
+  // UI animations
   showDamageAnimation: BaseRenderer.showDamageAnimation,
   showVictoryEffect: BaseRenderer.showVictoryEffect,
   showDefeatEffect: BaseRenderer.showDefeatEffect,
   
-  // UIManager consolidated functions
+  // Loading and error handling
   showLoading: BaseRenderer.showLoading, 
   hideLoading: BaseRenderer.hideLoading,
   showError: BaseRenderer.showError,
   hideError: BaseRenderer.hideError,
-  toggleAudio: BaseRenderer.toggleAudio,
-  initializeAudioControls: BaseRenderer.initializeAudioControls,
   
-  // GemRenderer methods
+  // GemRenderer methods (for gem-specific rendering)
   renderHand: GemRenderer.renderHand,
   renderShopHand: GemRenderer.renderShopHand,
   createGemElement: GemRenderer.createGemElement,
   updateGemDisplay: GemRenderer.updateGemDisplay,
   updateGemSelection: GemRenderer.updateGemSelection,
   renderUnlockedGems: GemRenderer.renderUnlockedGems,
-  renderAvailableGems: GemRenderer.renderAvailableGems,
-  
-  // Helper method to determine which renderer to use based on context
-  getRendererForContext(context) {
-    const gemContexts = ['hand', 'catalog', 'shop'];
-    if (gemContexts.includes(context)) {
-      return GemRenderer;
-    }
-    return BaseRenderer;
-  }
+  renderAvailableGems: GemRenderer.renderAvailableGems
 };
 
 // Also export as default for ES modules

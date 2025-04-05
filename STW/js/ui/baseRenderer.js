@@ -1,17 +1,43 @@
-// STW/js/ui/baseRenderer.js
+// STW/js/ui/baseRenderer.js - Enhanced with screen management
 import { EventBus } from '../core/eventbus.js';
 import { GameState } from '../core/state.js';
 
 /**
- * Base Renderer - Core UI rendering functionality
+ * Base Renderer - Core UI rendering and screen management functionality
  */
 export const BaseRenderer = {
+  /**
+   * Reference to registered screen components
+   */
+  screens: {},
+  
+  /**
+   * Currently active screen name
+   */
+  activeScreen: null,
+  
   /**
    * Initialize the renderer
    */
   initialize() {
-    console.log("Initializing Base Renderer");
+    console.log("Initializing Base Renderer with integrated screen management");
+    
+    // Set up event listeners for screen changes
+    EventBus.on('SCREEN_CHANGE', (screenName) => {
+      this.updateActiveScreen(screenName);
+    });
+    
     return true;
+  },
+  
+  /**
+   * Register a screen component
+   * @param {String} screenName - Name of the screen
+   * @param {Object} screenComponent - Screen component instance
+   */
+  registerScreen(screenName, screenComponent) {
+    console.log(`Registering screen: ${screenName}`);
+    this.screens[screenName] = screenComponent;
   },
   
   /**
@@ -45,11 +71,22 @@ export const BaseRenderer = {
   },
   
   /**
-   * Update active screen
-   * @param {String} screenName - Screen to switch to
+   * Update active screen - enhanced with component integration
+   * @param {String|Object} screenName - Screen to switch to
    */
   updateActiveScreen(screenName) {
+    // If screenName is an object with a screen property, extract it
+    if (typeof screenName === 'object' && screenName.screen) {
+      screenName = screenName.screen;
+    }
+    
     console.log(`Switching to screen: ${screenName}`);
+    
+    // Check if the screen exists
+    if (!this.screens[screenName]) {
+      console.error(`Screen '${screenName}' not found in registered screens`);
+      return;
+    }
     
     // Hide all screens
     document.querySelectorAll('.screen').forEach(screen => {
@@ -58,22 +95,49 @@ export const BaseRenderer = {
     
     // Update state
     GameState.set('currentScreen', screenName);
+    this.activeScreen = screenName;
     
-    // Show targeted screen
+    // Get screen element
     let screenElement;
     
-    // Handle special case for gem catalog
+    // Handle special case for gem catalog (different ID format)
     if (screenName === 'gemCatalog') {
       screenElement = document.getElementById('gemCatalog-screen');
     } else {
       screenElement = document.getElementById(`${screenName}-screen`);
     }
     
-    if (screenElement) {
-      screenElement.classList.add('active');
-    } else {
-      console.error(`Screen element '${screenName}-screen' not found`);
+    // If screen element not found, try to render it
+    if (!screenElement) {
+      console.log(`Screen element '${screenName}-screen' not found, attempting to render`);
+      
+      const screen = this.screens[screenName];
+      if (typeof screen.render === 'function') {
+        const renderedElement = screen.render();
+        if (renderedElement instanceof HTMLElement) {
+          const container = document.getElementById('game-container') || document.body;
+          container.appendChild(renderedElement);
+          screenElement = renderedElement;
+        }
+      }
+      
+      if (!screenElement) {
+        console.error(`Failed to render screen '${screenName}'`);
+        return;
+      }
     }
+    
+    // Show screen
+    screenElement.classList.add('active');
+    
+    // After showing screen, call any post-render functions
+    const screen = this.screens[screenName];
+    if (typeof screen.afterRender === 'function') {
+      screen.afterRender();
+    }
+    
+    // Emit screen changed event
+    EventBus.emit('SCREEN_CHANGED', { screen: screenName });
   },
   
   /**
@@ -221,7 +285,7 @@ export const BaseRenderer = {
     if (enemyMaxHealth) enemyMaxHealth.textContent = enemy.maxHealth || 0;
     
     if (enemyHealthBar) {
-      const healthPercent = (enemy.health / enemy.maxHealth) * 100;
+      const healthPercent = Math.max(0, (enemy.health / enemy.maxHealth) * 100);
       enemyHealthBar.style.width = `${healthPercent}%`;
     }
     
@@ -682,7 +746,6 @@ export const BaseRenderer = {
     if (errorOverlay) {
       errorOverlay.style.display = 'none';
     }
-  },
-};
+},
 
 export default BaseRenderer;
