@@ -123,9 +123,6 @@ const Game = (() => {
         EventHandler.initialize();
         AssetManager.initialize();
         
-        // Initialize audio controls
-        BaseRenderer.initializeAudioControls();
-        
         // Emit event for successful initialization
         EventBus.emit('ALL_MODULES_INITIALIZED');
     }

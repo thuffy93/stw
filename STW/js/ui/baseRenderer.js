@@ -746,6 +746,5 @@ export const BaseRenderer = {
     if (errorOverlay) {
       errorOverlay.style.display = 'none';
     }
-},
-
-export default BaseRenderer;
+   }
+}
