@@ -1,6 +1,5 @@
 // STW/js/ui/components/battle/HandComponent.js
 import { Component } from '../Component.js';
-import { GemComponent } from '../common/GemComponent.js';
 import { EventBus } from '../../../core/eventbus.js';
 import { GameState } from '../../../core/state.js';
 
@@ -28,54 +27,40 @@ export class HandComponent extends Component {
     
     // Store properties
     this.context = context;
-    this.gemComponents = [];
+    this.gemElements = [];
     this.selectedIndices = new Set();
     
     // Subscribe to events
-    const updateEvent = context === 'battle' ? 'HAND_UPDATED' : 'SHOP_HAND_UPDATED';
-    this.subscribeToEvent(updateEvent, this.updateHand);
-    
+    this.subscribeToEvent('HAND_UPDATED', this.updateHand);
     this.subscribeToEvent('GEM_SELECTION_CHANGED', this.updateSelection);
   }
   
   /**
    * Update the hand with new gems
-   * @param {Array} hand - New hand data (optional, will fetch from GameState if not provided)
    */
-  updateHand(hand) {
-    // If hand is not provided, get it from GameState
-    if (!hand || !Array.isArray(hand)) {
-      hand = GameState.get('hand') || [];
-    }
+  updateHand() {
+    // Get hand from GameState
+    const hand = GameState.get('hand') || [];
     
     // Clear existing gems
     if (this.element) {
       this.element.innerHTML = '';
     }
     
-    // Clear component references
-    this.gemComponents = [];
+    // Clear element references
+    this.gemElements = [];
     
-    // Create gem components for each gem in hand
+    // Add each gem to the hand
     hand.forEach((gem, index) => {
       const isSelected = this.selectedIndices.has(index);
+      const gemElement = this.createGemElement(gem, index, isSelected);
       
-      // Create options for gem component
-      const gemOptions = {
-        context: this.context,
-        isSelected: isSelected,
-        isUnlearned: this.isGemUnlearned(gem)
-      };
+      // Store reference
+      this.gemElements.push(gemElement);
       
-      // Create gem component
-      const gemComponent = new GemComponent(gem, index, gemOptions);
-      
-      // Add to tracking array
-      this.gemComponents.push(gemComponent);
-      
-      // Render and add to hand container
+      // Add to DOM
       if (this.element) {
-        this.element.appendChild(gemComponent.render());
+        this.element.appendChild(gemElement);
       }
     });
     
@@ -89,7 +74,136 @@ export class HandComponent extends Component {
   }
   
   /**
-   * Update the selection state of gems
+   * Create a gem element
+   * @param {Object} gem - Gem data
+   * @param {Number} index - Index in hand
+   * @param {Boolean} isSelected - Whether selected
+   * @returns {HTMLElement} Created gem element
+   */
+  createGemElement(gem, index, isSelected) {
+    const gemElement = document.createElement('div');
+    gemElement.className = `gem ${gem.color}${isSelected ? ' selected' : ''}`;
+    gemElement.setAttribute('data-index', index);
+    
+    // Check for class bonus
+    const playerClass = GameState.get('player.class');
+    const hasBonus = (playerClass === "Knight" && gem.color === "red") ||
+                     (playerClass === "Mage" && gem.color === "blue") ||
+                     (playerClass === "Rogue" && gem.color === "green");
+    
+    if (hasBonus) {
+      gemElement.classList.add("class-bonus");
+    }
+    
+    // Create content structure
+    const gemContent = document.createElement('div');
+    gemContent.className = 'gem-content';
+    
+    // Add icon
+    const gemIcon = document.createElement('div');
+    gemIcon.className = 'gem-icon';
+    gemIcon.textContent = this.getGemSymbol(gem);
+    gemContent.appendChild(gemIcon);
+    
+    // Add value
+    if (gem.damage || gem.heal || gem.poison) {
+      const gemValue = document.createElement('div');
+      gemValue.className = 'gem-value';
+      gemValue.textContent = gem.damage || gem.heal || gem.poison || "";
+      gemContent.appendChild(gemValue);
+    }
+    
+    // Add name (hidden in battle/shop, shown in catalog)
+    const gemName = document.createElement('div');
+    gemName.className = 'gem-name';
+    gemName.textContent = gem.name;
+    gemContent.appendChild(gemName);
+    
+    gemElement.appendChild(gemContent);
+    
+    // Add cost
+    const gemCost = document.createElement('div');
+    gemCost.className = 'gem-cost';
+    gemCost.textContent = gem.cost;
+    gemElement.appendChild(gemCost);
+    
+    // Add tooltip
+    const tooltip = this.buildGemTooltip(gem, hasBonus);
+    gemElement.setAttribute('data-tooltip', tooltip);
+    
+    // Add click handler
+    gemElement.addEventListener('click', () => {
+      EventBus.emit('GEM_SELECT', { 
+        index, 
+        context: this.context 
+      });
+    });
+    
+    return gemElement;
+  }
+  
+  /**
+   * Get a symbol for a gem
+   * @param {Object} gem - Gem data
+   * @returns {String} Symbol
+   */
+  getGemSymbol(gem) {
+    if (gem.shield) return "🛡️";
+    if (gem.poison) return "☠️";
+    
+    if (gem.damage) {
+      if (gem.name.includes("Strong")) return "⚔️";
+      if (gem.name.includes("Quick")) return "⚡";
+      if (gem.name.includes("Burst")) return "💥";
+      return "🗡️";
+    }
+    
+    if (gem.heal) {
+      if (gem.name.includes("Strong")) return "❤️";
+      return "💚";
+    }
+    
+    return "✨";
+  }
+  
+  /**
+   * Build tooltip text for a gem
+   * @param {Object} gem - Gem data
+   * @param {Boolean} hasBonus - Whether gem has class bonus
+   * @returns {String} Tooltip text
+   */
+  buildGemTooltip(gem, hasBonus) {
+    let tooltip = '';
+    
+    if (gem.damage) {
+      tooltip += `DMG: ${gem.damage}`;
+      if (hasBonus) tooltip += ' (+50%)';
+    }
+    
+    if (gem.heal) {
+      if (tooltip) tooltip += ' | ';
+      tooltip += `HEAL: ${gem.heal}`;
+      if (hasBonus) tooltip += ' (+50%)';
+    }
+    
+    if (gem.shield) {
+      if (tooltip) tooltip += ' | ';
+      tooltip += 'SHIELD';
+    }
+    
+    if (gem.poison) {
+      if (tooltip) tooltip += ' | ';
+      tooltip += `PSN: ${gem.poison}`;
+      if (hasBonus) tooltip += ' (+50%)';
+    }
+    
+    tooltip += ` | (${gem.cost}⚡)`;
+    
+    return tooltip;
+  }
+  
+  /**
+   * Update gem selection
    * @param {Object} data - Selection data
    */
   updateSelection(data) {
@@ -100,77 +214,24 @@ export class HandComponent extends Component {
     // Update internal state
     this.selectedIndices = new Set(selectedIndices);
     
-    // Update gem components
-    this.gemComponents.forEach((gemComponent, index) => {
-      gemComponent.update({ isSelected: this.selectedIndices.has(index) });
+    // Update gem elements
+    this.gemElements.forEach((element, index) => {
+      if (this.selectedIndices.has(index)) {
+        element.classList.add('selected');
+      } else {
+        element.classList.remove('selected');
+      }
     });
   }
   
   /**
-   * Check if a gem is unlearned by the player
-   * @param {Object} gem - Gem data
-   * @returns {Boolean} Whether the gem is unlearned
-   */
-  isGemUnlearned(gem) {
-    // Generate gem key based on color and name
-    const gemKey = `${gem.color}${gem.name.replace(/\s+/g, '')}`;
-    
-    // Get proficiency data
-    const proficiency = GameState.get('gemProficiency');
-    
-    // Check if proficiency data exists and if failure chance is greater than 0
-    return proficiency && 
-           proficiency[gemKey] && 
-           proficiency[gemKey].failureChance > 0;
-  }
-  
-  /**
-   * Override render method to populate hand
+   * Override render to update hand contents
    */
   render() {
     const element = super.render();
-    
-    // Get initial hand data and update
-    const hand = GameState.get('hand') || [];
-    this.updateHand(hand);
-    
+    this.updateHand();
     return element;
   }
-  
-  /**
-   * Play animation for a gem being played
-   * @param {Number} index - Index of gem to animate
-   * @returns {Promise} Promise that resolves when animation completes
-   */
-  playGemAnimation(index) {
-    if (index < 0 || index >= this.gemComponents.length) {
-      return Promise.resolve();
-    }
-    
-    return this.gemComponents[index].playAnimation();
-  }
-  
-  /**
-   * Play shake animation for a gem (invalid action)
-   * @param {Number} index - Index of gem to animate
-   */
-  shakeGem(index) {
-    if (index < 0 || index >= this.gemComponents.length) return;
-    
-    this.gemComponents[index].shakeAnimation();
-  }
-  
-  /**
-   * Update component with new data
-   * @param {Object} data - Update data
-   */
-  update(data) {
-    if (data.hand) {
-      this.updateHand(data.hand);
-    }
-    
-    if (data.selectedIndices) {
-      this.updateSelection({ selectedIndices: data.selectedIndices });
-    }
-  }
 }
+
+export default HandComponent;

@@ -3,13 +3,6 @@
 import { EventBus } from '../core/eventbus.js';
 import { GameState } from '../core/state.js';
 
-// Import screens
-import { CharacterSelectScreen } from './components/screens/CharacterSelectScreen.js';
-import { GemCatalogScreen } from './components/screens/GemCatalogScreen.js';
-import { BattleScreen } from './components/screens/BattleScreen.js';
-import { ShopScreen } from './components/screens/ShopScreen.js';
-import { CampScreen } from './components/screens/CampScreen.js';
-
 /**
  * Screen Manager - Handles screen transitions and rendering
  */
@@ -28,35 +21,123 @@ export class ScreenManager {
         
         console.log("Initializing Screen Manager");
         
-        // Initialize screen components
-        this.initializeScreens();
-        
-        // Set up event listeners
-        this.setupEventListeners();
-        
-        this.initialized = true;
-        return true;
+        try {
+            // Set up event listeners first
+            this.setupEventListeners();
+            
+            // Initialize screen components with fallbacks
+            this.safeInitializeScreens();
+            
+            this.initialized = true;
+            return true;
+        } catch (error) {
+            console.error("Error initializing ScreenManager:", error);
+            // Try to provide more helpful error message based on the error
+            if (error.message && error.message.includes("is not defined")) {
+                const missingComponent = error.message.split("'")[1];
+                console.error(`Missing component: ${missingComponent}. Make sure it's properly defined and imported.`);
+            }
+            return false;
+        }
     }
     
     /**
-     * Initialize screen components
+     * Safely initialize screens with fallback for missing components
      */
-    initializeScreens() {
-        // Create screen instances
-        this.screens = {
-            characterSelect: new CharacterSelectScreen(),
-            gemCatalog: new GemCatalogScreen(),
-            battle: new BattleScreen(),
-            shop: new ShopScreen(),
-            camp: new CampScreen()
-        };
+    safeInitializeScreens() {
+        // Try to safely load screen components
+        try {
+            // Only load CharacterSelectScreen initially as fallback
+            const CharacterSelectScreen = this.safeRequireComponent('CharacterSelectScreen');
+            this.screens.characterSelect = CharacterSelectScreen ? new CharacterSelectScreen() : this.createFallbackScreen('Character Select');
+        } catch (error) {
+            console.warn("Error creating initial screens:", error);
+            // At minimum, we need a character select screen
+            this.screens.characterSelect = this.createFallbackScreen('Character Select');
+        }
         
-        // Initialize each screen if it has an initialize method
-        Object.values(this.screens).forEach(screen => {
-            if (typeof screen.initialize === 'function') {
-                screen.initialize();
+        // Try to load other screens but don't fail if they're missing
+        this.tryCreateScreen('gemCatalog', 'GemCatalogScreen', 'Gem Catalog');
+        this.tryCreateScreen('battle', 'BattleScreen', 'Battle');
+        this.tryCreateScreen('shop', 'ShopScreen', 'Shop');
+        this.tryCreateScreen('camp', 'CampScreen', 'Camp');
+        
+        console.log("Screen initialization completed with available components");
+    }
+    
+    /**
+     * Try to safely create a screen component
+     * @param {String} key - Screen key in the screens object
+     * @param {String} componentName - Component class name
+     * @param {String} fallbackTitle - Title for fallback screen
+     */
+    tryCreateScreen(key, componentName, fallbackTitle) {
+        try {
+            const ScreenComponent = this.safeRequireComponent(componentName);
+            this.screens[key] = ScreenComponent ? new ScreenComponent() : this.createFallbackScreen(fallbackTitle);
+        } catch (error) {
+            console.warn(`Error creating ${componentName}:`, error);
+            this.screens[key] = this.createFallbackScreen(fallbackTitle);
+        }
+    }
+    
+    /**
+     * Safely try to get a component, return null if not available
+     * @param {String} componentName - Name of the component class
+     * @returns {Function|null} Component class or null if not available
+     */
+    safeRequireComponent(componentName) {
+        // Try to get component based on naming conventions
+        // This is a simplified version - in a real implementation we'd use dynamic imports
+        switch (componentName) {
+            case 'CharacterSelectScreen':
+                try {
+                    return window.CharacterSelectScreen || null;
+                } catch (e) { return null; }
+            case 'GemCatalogScreen':
+                try {
+                    return window.GemCatalogScreen || null;
+                } catch (e) { return null; }
+            case 'BattleScreen':
+                try {
+                    return window.BattleScreen || null;
+                } catch (e) { return null; }
+            case 'ShopScreen':
+                try {
+                    return window.ShopScreen || null;
+                } catch (e) { return null; }
+            case 'CampScreen':
+                try {
+                    return window.CampScreen || null;
+                } catch (e) { return null; }
+            default:
+                return null;
+        }
+    }
+    
+    /**
+     * Create a simple fallback screen when a component is missing
+     * @param {String} title - Screen title
+     * @returns {Object} Simple screen object
+     */
+    createFallbackScreen(title) {
+        return {
+            render: function() {
+                const screenElement = document.createElement('div');
+                screenElement.className = 'screen fallback';
+                
+                const titleElement = document.createElement('h1');
+                titleElement.textContent = title;
+                
+                const messageElement = document.createElement('p');
+                messageElement.textContent = 'Screen component could not be loaded. Please check the console for errors.';
+                
+                screenElement.appendChild(titleElement);
+                screenElement.appendChild(messageElement);
+                
+                return screenElement;
             }
-        });
+        };
     }
     
     /**
@@ -64,9 +145,14 @@ export class ScreenManager {
      */
     setupEventListeners() {
         // Listen for screen change events
-        EventBus.on('SCREEN_CHANGE', (screenName) => {
-            this.changeScreen(screenName);
-        });
+        try {
+            EventBus.on('SCREEN_CHANGE', (screenName) => {
+                this.changeScreen(screenName);
+            });
+            console.log("EventBus listeners registered successfully");
+        } catch (error) {
+            console.error("Error setting up event listeners:", error);
+        }
     }
     
     /**
@@ -85,7 +171,12 @@ export class ScreenManager {
         // Check if the screen exists
         if (!this.screens[screenName]) {
             console.error(`Screen '${screenName}' not found`);
-            return false;
+            // Fallback to character select if screen not found
+            screenName = 'characterSelect';
+            if (!this.screens[screenName]) {
+                console.error("Character select screen also not found, cannot change screens");
+                return false;
+            }
         }
         
         // Update game state
@@ -97,34 +188,53 @@ export class ScreenManager {
             screen.classList.remove('active');
         });
         
-        // Get screen element
-        let screenElement;
-        
-        // Handle special case for gem catalog (different ID format)
-        if (screenName === 'gemCatalog') {
-            screenElement = document.getElementById('gemCatalog-screen') || 
-                           document.getElementById('gem-catalog-screen');
-        } else {
-            screenElement = document.getElementById(`${screenName}-screen`);
-        }
-        
-        if (!screenElement) {
-            console.error(`Screen element for '${screenName}' not found`);
+        try {
+            // Get the screen element
+            const screen = this.screens[screenName];
+            
+            // Check if the screen has a render method
+            if (typeof screen.render !== 'function') {
+                console.error(`Screen ${screenName} does not have a render method`);
+                return false;
+            }
+            
+            // Render the screen
+            const screenElement = screen.render();
+            
+            // If the screen returned an element, add it to the container
+            if (screenElement instanceof HTMLElement) {
+                const container = document.getElementById('game-container') || document.body;
+                
+                // Remove any existing screen
+                const existingScreen = document.getElementById(`${screenName}-screen`);
+                if (existingScreen) {
+                    existingScreen.remove();
+                }
+                
+                // Add the new screen
+                container.appendChild(screenElement);
+                
+                // Activate the screen
+                screenElement.classList.add('active');
+            } else {
+                // Otherwise, try to find the screen element by its ID
+                const screenElement = document.getElementById(`${screenName}-screen`);
+                if (screenElement) {
+                    screenElement.classList.add('active');
+                } else {
+                    console.error(`Screen element for '${screenName}' not found`);
+                    return false;
+                }
+            }
+            
+            // Emit screen changed event
+            EventBus.emit('SCREEN_CHANGED', { screen: screenName });
+            
+            return true;
+        } catch (error) {
+            console.error(`Error changing to screen ${screenName}:`, error);
             return false;
         }
-        
-        // Show the screen
-        screenElement.classList.add('active');
-        
-        // Render the screen if it has a render method
-        if (typeof this.screens[screenName].render === 'function') {
-            this.screens[screenName].render();
-        }
-        
-        // Emit screen changed event
-        EventBus.emit('SCREEN_CHANGED', { screen: screenName });
-        
-        return true;
     }
     
     /**

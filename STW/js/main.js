@@ -145,7 +145,24 @@ const Game = (() => {
             { name: 'BaseRenderer', module: BaseRenderer, required: true },
             { name: 'GemRenderer', module: GemRenderer, required: true },
             { name: 'Renderer', module: Renderer, required: true },
-            { name: 'ScreenManager', module: screenManager, required: true },
+            
+            // Initialize ScreenManager with error handling
+            { 
+                name: 'ScreenManager', 
+                module: screenManager, 
+                required: true,
+                initialize: function() {
+                    if (!screenManager) {
+                        console.error("ScreenManager instance is null or undefined");
+                        return false;
+                    }
+                    if (typeof screenManager.initialize !== 'function') {
+                        console.error("ScreenManager does not have an initialize method");
+                        return false;
+                    }
+                    return screenManager.initialize();
+                }
+            },
             
             // Game systems - in dependency order
             { name: 'Character', module: Character, required: true },
@@ -170,24 +187,43 @@ const Game = (() => {
         for (const moduleInfo of modules) {
             console.log(`Initializing module: ${moduleInfo.name}`);
             
-            if (typeof moduleInfo.module?.initialize === 'function') {
-                try {
-                    moduleInfo.module.initialize();
-                    console.log(`Successfully initialized: ${moduleInfo.name}`);
-                } catch (e) {
-                    console.error(`Error initializing ${moduleInfo.name}:`, e);
-                    if (moduleInfo.required) {
-                        throw new Error(`Failed to initialize required module: ${moduleInfo.name}`);
+            try {
+                // Check if module is defined
+                if (!moduleInfo.module) {
+                    throw new Error(`Module ${moduleInfo.name} is not defined`);
+                }
+                
+                // Use custom initializer if available
+                if (typeof moduleInfo.initialize === 'function') {
+                    const result = moduleInfo.initialize();
+                    if (result !== true && moduleInfo.required) {
+                        throw new Error(`Module ${moduleInfo.name} failed to initialize`);
                     }
                 }
-            } else {
-                console.log(`Module ${moduleInfo.name} has no initialize method, skipping`);
+                // Otherwise use standard initialize method
+                else if (typeof moduleInfo.module.initialize === 'function') {
+                    const result = moduleInfo.module.initialize();
+                    if (result !== true && moduleInfo.required) {
+                        throw new Error(`Module ${moduleInfo.name} failed to initialize`);
+                    }
+                }
+                else {
+                    console.log(`Module ${moduleInfo.name} has no initialize method, skipping`);
+                }
+                
+                console.log(`Successfully initialized: ${moduleInfo.name}`);
+            } catch (e) {
+                console.error(`Error initializing ${moduleInfo.name}:`, e);
+                if (moduleInfo.required) {
+                    throw new Error(`Failed to initialize required module: ${moduleInfo.name}`);
+                }
             }
         }
         
         // Emit event for successful initialization
         EventBus.emit('ALL_MODULES_INITIALIZED');
     }
+
     
     /**
      * Initialize asset manager with gem assets
