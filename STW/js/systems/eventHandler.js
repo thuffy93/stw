@@ -2,6 +2,7 @@ import { EventBus } from '../core/eventbus.js';
 import { GameState } from '../core/state.js';
 import { Utils } from '../core/utils.js';
 import { Config } from '../core/config.js';
+import { Renderer } from '../ui/renderer.js';
 
 /**
  * EventHandler module - Handles user interactions and button events
@@ -15,12 +16,46 @@ export const EventHandler = (() => {
         setupButtonHandlers();
         setupKeyboardHandlers();
         setupAutoSave();
+        setupUIEvents();
         return true;
     }
 
     /**
      * Set up button event handlers for all screens
      */
+    /**
+     * Set up UI event listeners for rendering updates
+     */
+    function setupUIEvents() {
+        // Listen for UI update events
+        EventBus.on('UI_UPDATE', ({ target }) => {
+            switch (target) {
+                case 'battle':
+                    Renderer.updateBattleUI();
+                    break;
+                case 'shop':
+                    Renderer.updateShopUI();
+                    break;
+                case 'gemCatalog':
+                    Renderer.updateGemCatalogUI();
+                    break;
+                case 'camp':
+                    Renderer.updateCampUI();
+                    break;
+            }
+        });
+        
+        // Hand updates
+        EventBus.on('HAND_UPDATED', () => {
+            Renderer.renderHand();
+        });
+        
+        // Gem selection
+        EventBus.on('GEM_SELECTION_CHANGED', ({ selectedIndices }) => {
+            Renderer.updateGemSelection(selectedIndices);
+        });
+    }
+
     function setupButtonHandlers() {
         console.log("Setting up button handlers");
         

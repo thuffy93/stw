@@ -422,15 +422,19 @@ export const Storage = {
                 return false;
             }
             
-            localStorage.setItem('stw_temp_hand', JSON.stringify(hand));
+            localStorage.setItem(Config.STORAGE_KEYS.TEMP_HAND, JSON.stringify(hand));
             console.log("Hand state saved successfully", hand.length, "gems");
+            
+            // Emit hand saved event
+            EventBus.emit('HAND_STATE_SAVED', { handSize: hand.length });
+            
             return true;
         } catch (e) {
             console.error("Failed to save hand state:", e);
             return false;
         }
     },
-    
+
     /**
      * Load player's hand from temporary storage
      * Used when transitioning between screens to restore hand state
@@ -440,7 +444,7 @@ export const Storage = {
         if (!this.isStorageAvailable()) return false;
         
         try {
-            const savedHand = localStorage.getItem('stw_temp_hand');
+            const savedHand = localStorage.getItem(Config.STORAGE_KEYS.TEMP_HAND);
             if (!savedHand) {
                 console.log("No saved hand state found");
                 return false;
@@ -450,6 +454,11 @@ export const Storage = {
             if (Array.isArray(parsedHand) && parsedHand.length > 0) {
                 GameState.set('hand', parsedHand);
                 console.log("Hand state loaded successfully", parsedHand.length, "gems");
+                
+                // Emit hand loaded event
+                EventBus.emit('HAND_STATE_LOADED', { handSize: parsedHand.length });
+                EventBus.emit('HAND_UPDATED'); // Trigger hand render update
+                
                 return true;
             }
             
@@ -460,4 +469,5 @@ export const Storage = {
             return false;
         }
     }
+
 };
