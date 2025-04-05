@@ -3,52 +3,125 @@ import { EventBus } from '../core/eventbus.js';
 import { Utils } from '../core/utils.js';
 import { Config } from '../core/config.js';
 
+/**
+ * Initialize the UI renderer
+ */
 export function initialize() {
-    console.log("Initializing UI Renderer");
+  console.log("Initializing UI Renderer");
+  
+  try {
+    // Register event listeners for UI updates
     setupEventListeners();
-    updateActiveScreen(GameState.get('currentScreen') || 'characterSelect');
-    setTimeout(attachButtonHandlers, 500);
+    
+    // Initial UI setup - carefully handle initial screen
+    const currentScreen = GameState.get('currentScreen');
+    if (currentScreen) {
+      console.log(`Setting initial screen to: ${currentScreen}`);
+      updateActiveScreen(currentScreen);
+    } else {
+      console.log('No current screen set, defaulting to characterSelect');
+      updateActiveScreen('characterSelect');
+    }
+    
+    console.log("Renderer initialization complete");
     return true;
+  } catch (error) {
+    console.error("Error initializing renderer:", error);
+    return false;
+  }
 }
 
+/**
+ * Set up event listeners for UI updates
+ */
 function setupEventListeners() {
-    EventBus.on('SCREEN_CHANGE', (screen) => {
-        console.log("Screen change event received:", screen);
-        updateActiveScreen(screen);
-    });
-    
-    EventBus.on('UI_MESSAGE', ({ message, type = 'success', duration = 2000 }) => {
-        showMessage(message, type, duration);
-    });
-    
-    EventBus.on('BATTLE_UI_UPDATE', updateBattleUI);
-    EventBus.on('HAND_UPDATED', () => {
-        console.log("Hand updated event received");
-        renderHand();
-    });
-    
-    EventBus.on('SHOP_PREPARED', updateShopUI);
-    EventBus.on('UI_UPDATE', ({ target }) => {
-        console.log(`UI update for target: ${target}`);
-        switch (target) {
-            case 'battle': updateBattleUI(); break;
-            case 'shop': updateShopUI(); break;
-            case 'gemCatalog': updateGemCatalogUI(); break;
-            case 'camp': updateCampUI(); break;
-        }
-    });
-    
-    EventBus.on('SHOW_DAMAGE', ({ target, amount, isPoison }) => showDamageAnimation(target, amount, isPoison));
-    EventBus.on('SHOW_VICTORY', showVictoryEffect);
-    EventBus.on('SHOW_DEFEAT', showDefeatEffect);
-    EventBus.on('GEM_SELECTION_CHANGED', ({ selectedIndices }) => updateGemSelection(selectedIndices));
-    EventBus.on('BATTLE_INIT', () => {
-        console.log("Battle initialized, updating UI");
-        setTimeout(() => {
-            updateBattleUI();
-            renderHand();
-        }, 100);
-    });
+  // Screen changes
+  EventBus.on('SCREEN_CHANGE', (data) => {
+    let screenName = data;
+    // Handle both formats: string and object with screen property
+    if (typeof data === 'object' && data.screen) {
+      screenName = data.screen;
+    }
+    updateActiveScreen(screenName);
+  });
+  
+  // UI messages
+  EventBus.on('UI_MESSAGE', ({ message, type = 'success', duration = 2000 }) => {
+    showMessage(message, type, duration);
+  });
+  
+  // Battle UI updates
+  EventBus.on('BATTLE_UI_UPDATE', (data) => {
+    updateBattleUI(data);
+  });
+  
+  // Battle UI specific updates
+  EventBus.on('BATTLE_INIT', () => {
+    updateBattleUI();
+  });
+  
+  // Shop UI updates
+  EventBus.on('SHOP_PREPARED', () => {
+    updateShopUI();
+  });
+  
+  // Hand updates
+  EventBus.on('HAND_UPDATED', () => {
+    renderHand();
+  });
+  
+  // Shop hand updates
+  EventBus.on('SHOP_HAND_UPDATED', () => {
+    renderShopHand();
+  });
+  
+  // Generic UI updates
+  EventBus.on('UI_UPDATE', ({ target }) => {
+    switch (target) {
+      case 'battle':
+        updateBattleUI();
+        break;
+      case 'shop':
+        updateShopUI();
+        break;
+      case 'gemCatalog':
+        updateGemCatalogUI();
+        break;
+      case 'camp':
+        updateCampUI();
+        break;
+    }
+  });
+  
+  // Visual effects
+  EventBus.on('SHOW_DAMAGE', ({ target, amount, isPoison }) => {
+    showDamageAnimation(target, amount, isPoison);
+  });
+  
+  EventBus.on('SHOW_VICTORY', () => {
+    showVictoryEffect();
+  });
+  
+  EventBus.on('SHOW_DEFEAT', () => {
+    showDefeatEffect();
+  });
+  
+  // Gem selection events
+  EventBus.on('GEM_SELECTION_CHANGED', ({ selectedIndices }) => {
+    updateGemSelection(selectedIndices);
+  });
+  
+  // Unlock gem events
+  EventBus.on('UNLOCK_GEM', ({ gemKey }) => {
+    if (typeof window.EventHandler !== 'undefined' && typeof window.EventHandler.unlockGem === 'function') {
+      window.EventHandler.unlockGem(gemKey);
+    }
+  });
+  
+  // Meta progression events
+  EventBus.on('GEM_UNLOCKED', () => {
+    updateGemCatalogUI();
+  });
 }
 
 /**
@@ -57,60 +130,43 @@ function setupEventListeners() {
  */
 function updateActiveScreen(screenName) {
   console.log(`Switching to screen: ${screenName}`);
+  
+  // Convert camelCase to kebab-case for element IDs
+  const screenId = screenName.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase() + '-screen';
+  
+  // Update state
   GameState.set('currentScreen', screenName);
   
-  document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
+  // Hide all screens
+  document.querySelectorAll('.screen').forEach(screen => {
+    screen.classList.remove('active');
+  });
   
-  const targetScreen = document.getElementById(`${screenName}-screen`);
+  // Show the target screen
+  const targetScreen = document.getElementById(screenId);
   if (targetScreen) {
-      targetScreen.classList.add('active');
-      switch (screenName) {
-          case 'characterSelect': updateCharacterSelectUI(); break;
-          case 'battle': updateBattleUI(); renderHand(); setTimeout(attachButtonHandlers, 100); break;
-          case 'shop': updateShopUI(); break;
-          case 'gemCatalog': updateGemCatalogUI(); break;
-          case 'camp': updateCampUI(); break;
-      }
+    targetScreen.classList.add('active');
+    
+    // Update screen-specific UI
+    switch (screenName) {
+      case 'characterSelect':
+        updateCharacterSelectUI();
+        break;
+      case 'gemCatalog':
+        updateGemCatalogUI();
+        break;
+      case 'battle':
+        updateBattleUI();
+        break;
+      case 'shop':
+        updateShopUI();
+        break;
+      case 'camp':
+        updateCampUI();
+        break;
+    }
   } else {
-      console.error(`Target screen "${screenName}-screen" not found`);
-  }
-}
-
-/**
- * Make sure button handlers are attached
- */
-function attachButtonHandlers() {
-  console.log("Attaching button handlers");
-  const currentScreen = GameState.get('currentScreen');
-  
-  if (currentScreen === 'battle') {
-    // Battle screen buttons
-    const executeBtn = document.getElementById('execute-btn');
-    const waitBtn = document.getElementById('wait-btn');
-    const discardEndBtn = document.getElementById('discard-end-btn');
-    const endTurnBtn = document.getElementById('end-turn-btn');
-    const fleeBtn = document.getElementById('flee-btn');
-    
-    if (executeBtn) executeBtn.onclick = () => EventBus.emit('EXECUTE_GEMS');
-    if (waitBtn) waitBtn.onclick = () => EventBus.emit('WAIT_TURN');
-    if (discardEndBtn) discardEndBtn.onclick = () => EventBus.emit('DISCARD_AND_END');
-    if (endTurnBtn) endTurnBtn.onclick = () => EventBus.emit('END_TURN');
-    if (fleeBtn) fleeBtn.onclick = () => EventBus.emit('FLEE_BATTLE');
-  } else if (currentScreen === 'shop') {
-    // Shop screen buttons
-    const buyRandomGem = document.getElementById('buy-random-gem');
-    const discardGem = document.getElementById('discard-gem');
-    const upgradeGem = document.getElementById('upgrade-gem');
-    const cancelUpgrade = document.getElementById('cancel-upgrade');
-    const heal10 = document.getElementById('heal-10');
-    const continueBtn = document.getElementById('continue-btn');
-    
-    if (buyRandomGem) buyRandomGem.onclick = () => EventBus.emit('BUY_RANDOM_GEM');
-    if (discardGem) discardGem.onclick = () => EventBus.emit('DISCARD_GEM');
-    if (upgradeGem) upgradeGem.onclick = () => EventBus.emit('INITIATE_UPGRADE');
-    if (cancelUpgrade) cancelUpgrade.onclick = () => EventBus.emit('CANCEL_UPGRADE');
-    if (heal10) heal10.onclick = () => EventBus.emit('HEAL_IN_SHOP');
-    if (continueBtn) continueBtn.onclick = () => EventBus.emit('CONTINUE_FROM_SHOP');
+    console.error(`Target screen "${screenId}" not found`);
   }
 }
 
@@ -124,14 +180,7 @@ function showMessage(message, type = 'success', duration = 2000) {
   const messageEl = document.getElementById('message');
   
   if (!messageEl) {
-    // Create message element if it doesn't exist
-    const newMessageEl = document.createElement('div');
-    newMessageEl.id = 'message';
-    document.body.appendChild(newMessageEl);
-    
-    setTimeout(() => {
-      showMessage(message, type, duration);
-    }, 10);
+    console.warn("Message element not found");
     return;
   }
   
@@ -153,81 +202,6 @@ function showMessage(message, type = 'success', duration = 2000) {
 function updateCharacterSelectUI() {
   // Simple character select UI doesn't need much updating
   console.log("Character select screen active");
-}
-
-/**
- * Update the gem catalog UI
- */
-function updateGemCatalogUI() {
-  const metaZenny = GameState.get('metaZenny') || 0;
-  const gemCatalog = GameState.get('gemCatalog') || { unlocked: [], available: [] };
-  
-  const metaZennyDisplay = document.getElementById('meta-zenny-display');
-  if (metaZennyDisplay) metaZennyDisplay.textContent = metaZenny;
-  
-  console.log("Updating gem catalog UI with:", gemCatalog);
-  renderUnlockedGems(gemCatalog.unlocked);
-  renderAvailableGems(gemCatalog.available);
-}
-
-/**
- * Render unlocked gems in the gem catalog
- */
-function renderUnlockedGems(unlockedGems) {
-  const container = document.getElementById('unlocked-gems');
-  if (!container) {
-      console.error("Unlocked gems container '#unlocked-gems' not found");
-      return;
-  }
-  
-  container.innerHTML = '';
-  console.log("Rendering unlocked gems:", unlockedGems);
-  
-  if (!unlockedGems || unlockedGems.length === 0) {
-      container.innerHTML = '<p>No unlocked gems</p>';
-      return;
-  }
-  
-  unlockedGems.forEach((gemKey, index) => {
-      const gem = Config.BASE_GEMS[gemKey];
-      if (!gem) {
-          console.warn(`Gem key "${gemKey}" not found in BASE_GEMS`);
-          return;
-      }
-      
-      const gemElement = createGemElement(gem, index, false);
-      container.appendChild(gemElement);
-  });
-}
-
-/**
- * Render available gems to unlock in the gem catalog
- */
-function renderAvailableGems(availableGems) {
-  const container = document.getElementById('available-gems');
-  if (!container) {
-      console.error("Available gems container '#available-gems' not found");
-      return;
-  }
-  
-  container.innerHTML = '';
-  console.log("Rendering available gems:", availableGems);
-  
-  if (!availableGems || availableGems.length === 0) {
-      container.innerHTML = '<p>No available gems</p>';
-      return;
-  }
-  
-  availableGems.forEach((gemKey, index) => {
-      const gem = Config.BASE_GEMS[gemKey];
-      if (!gem) {
-          console.warn(`Gem key "${gemKey}" not found in BASE_GEMS`);
-          return;
-      }
-      
-      const gemElement = createGemElement(gem, index, false);
-      container.appendChild(gemElement);
-  });
 }
 
 /**
@@ -297,13 +271,6 @@ function updateBattleUI(data) {
   
   // Update action buttons
   updateActionButtons(data.battle);
-  
-  // Ensure buttons have handlers
-  attachButtonHandlers();
-  
-  // Force a render of the hand
-  console.log("Force rendering hand from updateBattleUI");
-  renderHand(data.gems.hand, data.battle.selectedGems);
 }
 
 /**
@@ -311,25 +278,22 @@ function updateBattleUI(data) {
  * @param {Object} playerData - Player data
  */
 function updatePlayerStats(playerData) {
-  const elements = {
-    playerClass: document.getElementById('player-class'),
-    playerHealth: document.getElementById('player-health'),
-    playerMaxHealth: document.getElementById('player-max-health'),
-    playerBuffs: document.getElementById('player-buffs'),
-    zenny: document.getElementById('zenny'),
-    playerHealthBar: document.getElementById('player-health-bar')
-  };
-  
   // Update text values
-  if (elements.playerClass) elements.playerClass.textContent = playerData.class || 'None';
-  if (elements.playerHealth) elements.playerHealth.textContent = playerData.health;
-  if (elements.playerMaxHealth) elements.playerMaxHealth.textContent = playerData.maxHealth;
-  if (elements.zenny) elements.zenny.textContent = playerData.zenny;
+  const playerClass = document.getElementById('player-class');
+  const playerHealth = document.getElementById('player-health');
+  const playerMaxHealth = document.getElementById('player-max-health');
+  const zenny = document.getElementById('zenny');
+  
+  if (playerClass) playerClass.textContent = playerData.class || 'None';
+  if (playerHealth) playerHealth.textContent = playerData.health;
+  if (playerMaxHealth) playerMaxHealth.textContent = playerData.maxHealth;
+  if (zenny) zenny.textContent = playerData.zenny;
   
   // Update health bar
-  if (elements.playerHealthBar) {
+  const healthBar = document.getElementById('player-health-bar');
+  if (healthBar) {
     const healthPercent = (playerData.health / playerData.maxHealth) * 100;
-    elements.playerHealthBar.style.width = `${healthPercent}%`;
+    healthBar.style.width = `${healthPercent}%`;
   }
   
   // Update stamina display
@@ -369,57 +333,53 @@ function updateStaminaDisplay(stamina, baseStamina) {
  * @param {Object} enemyData - Enemy data
  */
 function updateEnemyStats(enemyData) {
-  const elements = {
-    enemyName: document.getElementById('enemy-name'),
-    enemyHealth: document.getElementById('enemy-health'),
-    enemyMaxHealth: document.getElementById('enemy-max-health'),
-    enemyAttack: document.getElementById('enemy-attack'),
-    enemyCondition: document.getElementById('enemy-condition'),
-    enemyBuffs: document.getElementById('enemy-buffs'),
-    enemyActionQueue: document.getElementById('enemy-action-queue'),
-    enemyHealthBar: document.getElementById('enemy-health-bar')
-  };
+  const enemyName = document.getElementById('enemy-name');
+  const enemyHealth = document.getElementById('enemy-health');
+  const enemyMaxHealth = document.getElementById('enemy-max-health');
+  const enemyAttack = document.getElementById('enemy-attack');
+  const enemyCondition = document.getElementById('enemy-condition');
+  const enemyActionQueue = document.getElementById('enemy-action-queue');
   
   if (!enemyData) {
     // Hide or reset enemy UI if no enemy
-    if (elements.enemyName) elements.enemyName.textContent = "None";
-    if (elements.enemyHealth) elements.enemyHealth.textContent = "0";
-    if (elements.enemyMaxHealth) elements.enemyMaxHealth.textContent = "0";
-    if (elements.enemyHealthBar) elements.enemyHealthBar.style.width = "0%";
+    if (enemyName) enemyName.textContent = "None";
+    if (enemyHealth) enemyHealth.textContent = "0";
+    if (enemyMaxHealth) enemyMaxHealth.textContent = "0";
     return;
   }
   
   // Update text values
-  if (elements.enemyName) elements.enemyName.textContent = enemyData.name || "None";
-  if (elements.enemyHealth) elements.enemyHealth.textContent = Math.max(enemyData.health || 0, 0);
-  if (elements.enemyMaxHealth) elements.enemyMaxHealth.textContent = enemyData.maxHealth || 0;
+  if (enemyName) enemyName.textContent = enemyData.name || "None";
+  if (enemyHealth) enemyHealth.textContent = Math.max(enemyData.health || 0, 0);
+  if (enemyMaxHealth) enemyMaxHealth.textContent = enemyData.maxHealth || 0;
   
   // Extract attack value from current action
-  if (elements.enemyAttack && enemyData.currentAction) {
+  if (enemyAttack && enemyData.currentAction) {
     if (enemyData.currentAction.startsWith("Attack")) {
       const attackValue = enemyData.currentAction.split(" ")[1] || "0";
-      elements.enemyAttack.textContent = attackValue;
+      enemyAttack.textContent = attackValue;
     } else {
-      elements.enemyAttack.textContent = "0";
+      enemyAttack.textContent = "0";
     }
   }
   
   // Update shield condition
-  if (elements.enemyCondition) {
-    elements.enemyCondition.textContent = enemyData.shield 
+  if (enemyCondition) {
+    enemyCondition.textContent = enemyData.shield 
       ? `Shielded: Use ${enemyData.shieldColor.charAt(0).toUpperCase() + enemyData.shieldColor.slice(1)} Gems to bypass` 
       : "";
   }
   
   // Update action queue
-  if (elements.enemyActionQueue && enemyData.actionQueue) {
-    elements.enemyActionQueue.textContent = `Next: ${enemyData.actionQueue.slice(0, 3).map(action => action.split(" ")[0]).join(", ")}`;
+  if (enemyActionQueue && enemyData.actionQueue) {
+    enemyActionQueue.textContent = `Next: ${enemyData.actionQueue.slice(0, 3).map(action => action.split(" ")[0]).join(", ")}`;
   }
   
   // Update health bar
-  if (elements.enemyHealthBar) {
+  const healthBar = document.getElementById('enemy-health-bar');
+  if (healthBar) {
     const healthPercent = (enemyData.health / enemyData.maxHealth) * 100;
-    elements.enemyHealthBar.style.width = `${healthPercent}%`;
+    healthBar.style.width = `${healthPercent}%`;
   }
   
   // Update buffs
@@ -459,15 +419,7 @@ function createBuffIcon(buff, isEnemy = false) {
   icon.className = `buff-icon ${buff.type}`;
   
   // Set appropriate icon based on buff type
-  let buffSymbol = "⚡";
-  switch (buff.type) {
-    case "focused": buffSymbol = "✦"; break;
-    case "defense": buffSymbol = "🛡️"; break;
-    case "stunned": buffSymbol = "💫"; break;
-    case "poison": buffSymbol = "☠️"; break;
-  }
-  
-  icon.innerHTML = buffSymbol;
+  icon.innerHTML = getBuffIcon(buff.type);
   
   // Add turns indicator
   const turns = document.createElement("span");
@@ -476,27 +428,48 @@ function createBuffIcon(buff, isEnemy = false) {
   icon.appendChild(turns);
   
   // Add tooltip with description
-  const turns_text = buff.turns > 1 ? 's' : '';
-  let description = `${buff.type}\nRemaining: ${buff.turns} turn${turns_text}`;
-  
-  switch (buff.type) {
-    case "focused":
-      description = `Focused\nIncreases damage and healing by 20%\nRemaining: ${buff.turns} turn${turns_text}`;
-      break;
-    case "defense":
-      description = `Defense\nReduces incoming damage by 50%\nRemaining: ${buff.turns} turn${turns_text}`;
-      break;
-    case "stunned":
-      description = `Stunned\nCannot take actions this turn\nRemaining: ${buff.turns} turn${turns_text}`;
-      break;
-    case "poison":
-      description = `Poison\nTaking ${buff.damage} damage per turn\nRemaining: ${buff.turns} turn${turns_text}`;
-      break;
-  }
-  
+  const description = getBuffDescription(buff, isEnemy);
   icon.setAttribute("data-tooltip", description);
   
   return icon;
+}
+
+/**
+ * Get an icon for a buff
+ * @param {String} buffType - Buff type
+ * @returns {String} Icon character
+ */
+function getBuffIcon(buffType) {
+  switch (buffType) {
+    case "focused": return "✦";
+    case "defense": return "🛡️";
+    case "stunned": return "💫";
+    case "poison": return "☠️";
+    default: return "⚡";
+  }
+}
+
+/**
+ * Get a description for a buff
+ * @param {Object} buff - Buff object
+ * @param {Boolean} isEnemy - Whether this is an enemy buff
+ * @returns {String} Buff description
+ */
+function getBuffDescription(buff, isEnemy) {
+  const turns = buff.turns > 1 ? 's' : '';
+  
+  switch (buff.type) {
+    case "focused":
+      return `Focused\nIncreases damage and healing by 20%\nRemaining: ${buff.turns} turn${turns}`;
+    case "defense":
+      return `Defense\nReduces incoming damage by 50%\nRemaining: ${buff.turns} turn${turns}`;
+    case "stunned":
+      return `Stunned\nCannot take actions this turn\nRemaining: ${buff.turns} turn${turns}`;
+    case "poison":
+      return `Poison\nTaking ${buff.damage} damage per turn\nRemaining: ${buff.turns} turn${turns}`;
+    default:
+      return `${buff.type}\nRemaining: ${buff.turns} turn${turns}`;
+  }
 }
 
 /**
@@ -549,9 +522,9 @@ function updateGemDisplay(gems, selectedGems) {
   const gemBagTotal2 = document.getElementById('gem-bag-total2');
   
   if (gemBagCount) gemBagCount.textContent = gems.gemBag.length;
-  if (gemBagTotal) gemBagTotal.textContent = "20"; // MAX_GEM_BAG_SIZE
+  if (gemBagTotal) gemBagTotal.textContent = Config.MAX_GEM_BAG_SIZE;
   if (gemBagCount2) gemBagCount2.textContent = gems.gemBag.length;
-  if (gemBagTotal2) gemBagTotal2.textContent = "20"; // MAX_GEM_BAG_SIZE
+  if (gemBagTotal2) gemBagTotal2.textContent = Config.MAX_GEM_BAG_SIZE;
   
   // Render hand
   renderHand(gems.hand, selectedGems);
@@ -563,32 +536,21 @@ function updateGemDisplay(gems, selectedGems) {
  * @param {Set} selectedGems - Set of selected gem indices (optional)
  */
 function renderHand(hand, selectedGems) {
-  if (!hand) hand = GameState.get('hand') || [];
-  if (!selectedGems) selectedGems = GameState.get('selectedGems') || new Set();
+  // Get data if not provided
+  if (!hand) hand = GameState.get('hand');
+  if (!selectedGems) selectedGems = GameState.get('selectedGems');
   
   const handContainer = document.getElementById('hand');
-  if (!handContainer) {
-      console.error("Hand container '#hand' not found");
-      return;
-  }
+  if (!handContainer) return;
   
+  // Clear current hand
   handContainer.innerHTML = '';
-  console.log("Rendering hand with", hand.length, "gems:", hand);
   
-  if (hand.length === 0) {
-      handContainer.innerHTML = '<p>No gems in hand</p>';
-      return;
-  }
-  
+  // Add each gem
   hand.forEach((gem, index) => {
-      if (!gem || !gem.name) {
-          console.warn(`Invalid gem at index ${index}:`, gem);
-          return;
-      }
-      
-      const isSelected = selectedGems.has(index);
-      const gemElement = createGemElement(gem, index, isSelected);
-      handContainer.appendChild(gemElement);
+    const isSelected = selectedGems.has(index);
+    const gemElement = createGemElement(gem, index, isSelected);
+    handContainer.appendChild(gemElement);
   });
 }
 
@@ -602,7 +564,6 @@ function renderHand(hand, selectedGems) {
 function createGemElement(gem, index, isSelected = false) {
   const gemElement = document.createElement("div");
   gemElement.className = `gem ${gem.color}`;
-  gemElement.dataset.index = index;
   
   // Check for class bonus
   const playerClass = GameState.get('player.class');
@@ -612,6 +573,17 @@ function createGemElement(gem, index, isSelected = false) {
   
   if (hasBonus) {
     gemElement.classList.add("class-bonus");
+  }
+  
+  // Check for proficiency
+  const gemKey = `${gem.color}${gem.name.replace(/\s+/g, '')}`;
+  const proficiency = typeof window.Gems !== 'undefined' && typeof window.Gems.getGemProficiency === 'function' 
+    ? window.Gems.getGemProficiency(gemKey)
+    : { successCount: 6, failureChance: 0 };
+  const isUnlearned = proficiency.failureChance > 0;
+  
+  if (isUnlearned) {
+    gemElement.classList.add("unlearned");
   }
   
   // Add selected class if selected
@@ -652,7 +624,35 @@ function createGemElement(gem, index, isSelected = false) {
   gemElement.appendChild(gemCost);
   
   // Add tooltip
-  gemElement.setAttribute("data-tooltip", buildGemTooltip(gem, hasBonus));
+  let tooltipText = '';
+  
+  // Add effects
+  if (gem.damage) {
+    tooltipText += `DMG: ${gem.damage}`;
+    if (hasBonus) tooltipText += ' (+50%)';
+  }
+  
+  if (gem.heal) {
+    if (tooltipText) tooltipText += ' | ';
+    tooltipText += `HEAL: ${gem.heal}`;
+    if (hasBonus) tooltipText += ' (+50%)';
+  }
+  
+  if (gem.shield) {
+    if (tooltipText) tooltipText += ' | ';
+    tooltipText += 'SHIELD';
+  }
+  
+  if (gem.poison) {
+    if (tooltipText) tooltipText += ' | ';
+    tooltipText += `PSN: ${gem.poison}`;
+    if (hasBonus) tooltipText += ' (+50%)';
+  }
+  
+  // Add stamina cost
+  tooltipText += ` | (${gem.cost}⚡)`;
+  
+  gemElement.setAttribute("data-tooltip", tooltipText);
   
   // Add click handler
   gemElement.addEventListener("click", () => {
@@ -669,7 +669,6 @@ function createGemElement(gem, index, isSelected = false) {
  * @returns {String} Symbol
  */
 function getGemSymbol(gem) {
-  // This is a simplified version - normally would use Gems.getGemSymbol
   if (gem.shield) return "🛡️";
   if (gem.poison) return "☠️";
   if (gem.damage) {
@@ -694,6 +693,7 @@ function getGemSymbol(gem) {
 function buildGemTooltip(gem, hasBonus) {
   let tooltip = '';
   
+  // Add primary effect and value
   if (gem.damage) {
     tooltip += `DMG: ${gem.damage}`;
     if (hasBonus) tooltip += ' (+50%)';
@@ -716,6 +716,7 @@ function buildGemTooltip(gem, hasBonus) {
     if (hasBonus) tooltip += ' (+50%)';
   }
   
+  // Add stamina cost at the end
   tooltip += ` | (${gem.cost}⚡)`;
   
   return tooltip;
@@ -725,35 +726,6 @@ function buildGemTooltip(gem, hasBonus) {
  * Update action buttons state in battle UI
  * @param {Object} battleData - Battle state data
  */
-function updateActionButtons(battleData) {
-  const executeBtn = document.getElementById('execute-btn');
-  const waitBtn = document.getElementById('wait-btn');
-  const discardEndBtn = document.getElementById('discard-end-btn');
-  const endTurnBtn = document.getElementById('end-turn-btn');
-  const fleeBtn = document.getElementById('flee-btn');
-  
-  const player = GameState.get('player');
-  const selectedGems = battleData.selectedGems;
-  const hand = GameState.get('hand');
-  const isStunned = player.buffs && player.buffs.some(b => b.type === "stunned");
-  
-  // Check if player can execute gems
-  const canPlayGems = selectedGems && selectedGems.size > 0 && 
-                  Array.from(selectedGems).every(i => hand[i]) &&
-                  player.stamina >= Math.min(...Array.from(selectedGems).map(i => hand[i].cost));
-  
-  // Update button states
-  if (executeBtn) executeBtn.disabled = battleData.battleOver || !canPlayGems || battleData.isEnemyTurn || isStunned;
-  if (waitBtn) waitBtn.disabled = battleData.battleOver || battleData.isEnemyTurn || GameState.get('hasActedThisTurn') || GameState.get('hasPlayedGemThisTurn') || isStunned;
-  if (discardEndBtn) discardEndBtn.disabled = battleData.battleOver || !selectedGems || !selectedGems.size || battleData.isEnemyTurn || GameState.get('hasActedThisTurn') || isStunned;
-  if (endTurnBtn) endTurnBtn.disabled = battleData.battleOver || battleData.isEnemyTurn || isStunned;
-  
-  // Show/hide flee button
-  if (fleeBtn) {
-    fleeBtn.style.display = (battleData.phase < 2 && !battleData.battleOver && !battleData.isEnemyTurn && !isStunned) ? "block" : "none";
-  }
-}
-
 /**
  * Update gem selection in the UI
  * @param {Array} selectedIndices - Array of selected gem indices
@@ -772,6 +744,526 @@ function updateGemSelection(selectedIndices) {
       hand[index].classList.add('selected');
     }
   });
+}
+
+/**
+ * Render gems in shop hand
+ */
+function renderShopHand() {
+  const hand = GameState.get('hand');
+  const selectedGems = GameState.get('selectedGems');
+  
+  const shopHandContainer = document.getElementById('shop-hand');
+  if (!shopHandContainer) return;
+  
+  // Clear current hand
+  shopHandContainer.innerHTML = '';
+  
+  // Add each gem
+  hand.forEach((gem, index) => {
+    const isSelected = selectedGems.has(index);
+    const gemElement = createGemElement(gem, index, isSelected);
+    shopHandContainer.appendChild(gemElement);
+  });
+}
+
+/**
+ * Update the shop UI
+ */
+function updateShopUI() {
+  const player = GameState.get('player');
+  const inUpgradeMode = GameState.get('inUpgradeMode');
+  
+  // Update shop stats
+  const shopHealth = document.getElementById('shop-health');
+  const shopMaxHealth = document.getElementById('shop-max-health');
+  const shopZenny = document.getElementById('shop-zenny');
+  
+  if (shopHealth) shopHealth.textContent = player.health;
+  if (shopMaxHealth) shopMaxHealth.textContent = player.maxHealth;
+  if (shopZenny) shopZenny.textContent = player.zenny;
+  
+  // Update gem bag info
+  const shopGemBagCount = document.getElementById('shop-gem-bag-count');
+  const shopGemBagTotal = document.getElementById('shop-gem-bag-total');
+  
+  if (shopGemBagCount) shopGemBagCount.textContent = GameState.get('gemBag').length;
+  if (shopGemBagTotal) shopGemBagTotal.textContent = Config.MAX_GEM_BAG_SIZE;
+  
+  // Handle different shop modes
+  if (inUpgradeMode) {
+    updateShopUpgradeMode();
+  } else {
+    updateShopNormalMode();
+  }
+  
+  // Update healing button state
+  const healBtn = document.getElementById('heal-10');
+  if (healBtn) {
+    healBtn.disabled = player.zenny < 3 || player.health >= player.maxHealth;
+    healBtn.title = player.health >= player.maxHealth ? "Already at full health" : 
+                     player.zenny < 3 ? "Not enough $ZENNY (need 3)" : 
+                     "Heal 10 health";
+  }
+  
+  // Render shop hand
+  renderShopHand();
+}
+
+/**
+ * Update shop UI for upgrade mode
+ */
+function updateShopUpgradeMode() {
+  const gemCatalog = GameState.get('gemCatalog');
+  const hand = GameState.get('hand');
+  const selectedGems = GameState.get('selectedGems');
+  
+  // Get UI elements
+  const gemPool = document.getElementById('gem-pool');
+  const gemPoolInstructions = document.getElementById('gem-pool-instructions');
+  const cancelUpgrade = document.getElementById('cancel-upgrade');
+  const upgradeGem = document.getElementById('upgrade-gem');
+  const discardGem = document.getElementById('discard-gem');
+  const buyRandomGem = document.getElementById('buy-random-gem');
+  const swapGem = document.getElementById('swap-gem');
+  
+  // Show gem pool, hide other options
+  if (gemPool) gemPool.style.display = 'flex';
+  
+  // Update instructions
+  if (gemPoolInstructions && selectedGems.size === 1) {
+    const selectedGem = hand[Array.from(selectedGems)[0]];
+    gemPoolInstructions.textContent = `Choose an upgrade option for your ${selectedGem.color} ${selectedGem.name}:`;
+    gemPoolInstructions.style.fontWeight = 'bold';
+  }
+  
+  // Show cancel button, hide all other buttons
+  if (cancelUpgrade) cancelUpgrade.style.display = 'block';
+  if (upgradeGem) upgradeGem.style.display = 'none';
+  if (discardGem) discardGem.style.display = 'none';
+  if (buyRandomGem) buyRandomGem.style.display = 'none';
+  if (swapGem) swapGem.style.display = 'none';
+  
+  // Render all upgrade options
+  if (gemPool && gemCatalog.gemPool) {
+    gemPool.innerHTML = '';
+    gemCatalog.gemPool.forEach((gem, index) => {
+      const gemElement = createGemElement(gem, index, false);
+      gemElement.addEventListener('click', () => {
+        EventBus.emit('UPGRADE_OPTION_SELECTED', { poolIndex: index });
+      });
+      gemPool.appendChild(gemElement);
+    });
+  }
+}
+
+/**
+ * Update shop UI for normal mode
+ */
+function updateShopNormalMode() {
+  const selectedGems = GameState.get('selectedGems');
+  const hand = GameState.get('hand');
+  
+  // Get UI elements
+  const gemPool = document.getElementById('gem-pool');
+  const gemPoolInstructions = document.getElementById('gem-pool-instructions');
+  const cancelUpgrade = document.getElementById('cancel-upgrade');
+  const upgradeGem = document.getElementById('upgrade-gem');
+  const discardGem = document.getElementById('discard-gem');
+  const buyRandomGem = document.getElementById('buy-random-gem');
+  const swapGem = document.getElementById('swap-gem');
+  
+  // Hide gem pool, show normal options
+  if (gemPool) gemPool.style.display = 'none';
+  
+  // Show/hide appropriate buttons
+  if (cancelUpgrade) cancelUpgrade.style.display = 'none';
+  if (buyRandomGem) buyRandomGem.style.display = 'block';
+  if (upgradeGem) upgradeGem.style.display = 'block';
+  if (discardGem) discardGem.style.display = 'block';
+  if (swapGem) swapGem.style.display = 'none';
+  
+  // Update instructions based on selection
+  if (gemPoolInstructions) {
+    if (selectedGems.size === 1) {
+      const selectedGem = hand[Array.from(selectedGems)[0]];
+      gemPoolInstructions.textContent = `Selected: ${selectedGem.color} ${selectedGem.name}`;
+      gemPoolInstructions.style.fontWeight = 'normal';
+    } else {
+      gemPoolInstructions.textContent = 'Select a gem from your hand';
+      gemPoolInstructions.style.fontWeight = 'normal';
+    }
+  }
+  
+  updateShopButtonStates();
+}
+
+/**
+ * Update shop button states
+ */
+function updateShopButtonStates() {
+  const player = GameState.get('player');
+  const selectedGems = GameState.get('selectedGems');
+  const hand = GameState.get('hand');
+  const gemCatalog = GameState.get('gemCatalog');
+  const inUpgradeMode = GameState.get('inUpgradeMode');
+  
+  // Skip if in upgrade mode
+  if (inUpgradeMode) return;
+  
+  const hasSelection = selectedGems.size > 0;
+  
+  // Get UI elements
+  const upgradeGem = document.getElementById('upgrade-gem');
+  const discardGem = document.getElementById('discard-gem');
+  const buyRandomGem = document.getElementById('buy-random-gem');
+  
+  // Update button states
+  if (upgradeGem) upgradeGem.disabled = !hasSelection || player.zenny < 5;
+  if (discardGem) discardGem.disabled = !hasSelection || player.zenny < 3;
+  
+  if (hasSelection) {
+    // Additional checks for upgrade eligibility
+    const selectedIndex = Array.from(selectedGems)[0];
+    const selectedGem = hand[selectedIndex];
+    const canUpgrade = selectedGem && 
+                    !selectedGem.freshlySwapped && 
+                    !gemCatalog.upgradedThisShop.has(selectedGem.id);
+    
+    if (upgradeGem) {
+      upgradeGem.disabled = !canUpgrade || player.zenny < 5;
+      upgradeGem.title = !canUpgrade ? "Cannot upgrade this gem now" :
+                            player.zenny < 5 ? "Not enough $ZENNY (need 5)" :
+                            "Upgrade selected gem (5 $ZENNY)";
+    }
+  }
+  
+  // Update buy random gem button
+  if (buyRandomGem) {
+    buyRandomGem.disabled = player.zenny < 3;
+    buyRandomGem.title = player.zenny < 3 ? "Not enough $ZENNY" : "Buy random gem for Gem Bag";
+  }
+}
+
+/**
+ * Update the gem catalog UI
+ */
+function updateGemCatalogUI() {
+  const metaZenny = GameState.get('metaZenny');
+  
+  // Update meta zenny display
+  const metaZennyDisplay = document.getElementById('meta-zenny-display');
+  if (metaZennyDisplay) {
+    metaZennyDisplay.textContent = metaZenny;
+  }
+  
+  // Update unlocked gems
+  renderUnlockedGems();
+  
+  // Update available gems
+  renderAvailableGems();
+}
+
+/**
+ * Render unlocked gems in the gem catalog
+ */
+function renderUnlockedGems() {
+  const gemCatalog = GameState.get('gemCatalog');
+  const playerClass = GameState.get('player.class');
+  const unlockedGemsContainer = document.getElementById('unlocked-gems');
+  
+  if (!unlockedGemsContainer) {
+    console.warn("Unlocked gems container not found");
+    return;
+  }
+  
+  unlockedGemsContainer.innerHTML = '';
+  
+  // Filter gems by class color appropriateness
+  if (!gemCatalog || !gemCatalog.unlocked || !Array.isArray(gemCatalog.unlocked)) {
+    console.warn("Invalid gem catalog or unlocked gems data");
+    return;
+  }
+  
+  const filteredGems = gemCatalog.unlocked.filter(gemKey => {
+    // This would normally be imported from Config.BASE_GEMS
+    const baseGems = Config.BASE_GEMS;
+    if (!baseGems) {
+      console.warn("BASE_GEMS not available");
+      return false;
+    }
+    
+    const gem = baseGems[gemKey];
+    if (!gem) return false;
+    
+    // Grey gems are universal
+    if (gem.color === "grey") return true;
+    
+    // Class-specific color filtering
+    const classColors = {
+      "Knight": "red",
+      "Mage": "blue",
+      "Rogue": "green"
+    };
+    
+    // The base gems should be available to all classes
+    const basicGems = ["redAttack", "blueMagicAttack", "greenAttack", "greyHeal"];
+    if (basicGems.includes(gemKey)) return true;
+    
+    return gem.color === classColors[playerClass];
+  });
+  
+  // Add each filtered gem
+  filteredGems.forEach(gemKey => {
+    const gem = Config.BASE_GEMS[gemKey];
+    if (!gem) return;
+    
+    // Create gem element
+    const gemElement = document.createElement("div");
+    gemElement.className = `gem ${gem.color}`;
+    
+    // Create content structure
+    const gemContent = document.createElement("div");
+    gemContent.className = "gem-content";
+    
+    // Add icon
+    const gemIcon = document.createElement("div");
+    gemIcon.className = "gem-icon";
+    gemIcon.textContent = getGemSymbol(gem);
+    gemContent.appendChild(gemIcon);
+    
+    // Add value
+    if (gem.damage || gem.heal || gem.poison) {
+      const gemValue = document.createElement("div");
+      gemValue.className = "gem-value";
+      gemValue.textContent = gem.damage || gem.heal || gem.poison || "";
+      gemContent.appendChild(gemValue);
+    }
+    
+    // Add name (visible in catalog)
+    const gemName = document.createElement("div");
+    gemName.className = "gem-name";
+    gemName.style.display = "block";
+    gemName.textContent = gem.name;
+    gemContent.appendChild(gemName);
+    
+    gemElement.appendChild(gemContent);
+    
+    // Add cost
+    const gemCost = document.createElement("div");
+    gemCost.className = "gem-cost";
+    gemCost.textContent = gem.cost;
+    gemElement.appendChild(gemCost);
+    
+    // Add tooltip
+    const hasBonus = (playerClass === "Knight" && gem.color === "red") ||
+                   (playerClass === "Mage" && gem.color === "blue") ||
+                   (playerClass === "Rogue" && gem.color === "green");
+    
+    gemElement.setAttribute("data-tooltip", buildGemTooltip(gem, hasBonus));
+    
+    unlockedGemsContainer.appendChild(gemElement);
+  });
+  
+  // If no gems to display, show a message
+  if (filteredGems.length === 0) {
+    const noGemsMessage = document.createElement("p");
+    noGemsMessage.textContent = "No unlocked gems for your class";
+    noGemsMessage.style.textAlign = "center";
+    unlockedGemsContainer.appendChild(noGemsMessage);
+  }
+}
+
+/**
+ * Render available gems to unlock in the gem catalog
+ */
+function renderAvailableGems() {
+  const gemCatalog = GameState.get('gemCatalog');
+  const playerClass = GameState.get('player.class');
+  const metaZenny = GameState.get('metaZenny');
+  const availableGemsContainer = document.getElementById('available-gems');
+  
+  if (!availableGemsContainer) {
+    console.warn("Available gems container not found");
+    return;
+  }
+  
+  availableGemsContainer.innerHTML = '';
+  
+  // Create a Set of unlocked gem keys for faster lookups
+  const unlockedGemKeys = new Set(gemCatalog.unlocked || []);
+  
+  // Make sure we're working with arrays
+  const availableGems = Array.isArray(gemCatalog.available) ? gemCatalog.available : [];
+  
+  // Filter out gems that are already unlocked
+  const filteredGems = availableGems
+    .filter(gemKey => !unlockedGemKeys.has(gemKey)) // Only show gems that are not already unlocked
+    .filter(gemKey => {
+      const gem = Config.BASE_GEMS[gemKey];
+      if (!gem) {
+        console.warn(`Gem not found in BASE_GEMS: ${gemKey}`);
+        return false;
+      }
+      
+      // Grey gems are universal
+      if (gem.color === "grey") return true;
+      
+      // Class-specific color filtering
+      const classColors = {
+        "Knight": "red",
+        "Mage": "blue",
+        "Rogue": "green"
+      };
+      
+      return gem.color === classColors[playerClass];
+    });
+  
+  // Add each available gem
+  filteredGems.forEach((gemKey) => {
+    const gem = Config.BASE_GEMS[gemKey];
+    if (!gem) return;
+    
+    // Create a container for the unlockable gem
+    const gemContainer = document.createElement("div");
+    gemContainer.className = "unlockable-gem-container";
+    
+    // Create special gem element for catalog
+    const gemElement = document.createElement("div");
+    gemElement.className = `gem ${gem.color}`;
+    gemElement.style.cursor = 'pointer';
+    
+    // Create content structure
+    const gemContent = document.createElement("div");
+    gemContent.className = "gem-content";
+    
+    // Add icon
+    const gemIcon = document.createElement("div");
+    gemIcon.className = "gem-icon";
+    gemIcon.textContent = getGemSymbol(gem);
+    gemContent.appendChild(gemIcon);
+    
+    // Add value
+    if (gem.damage || gem.heal || gem.poison) {
+      const gemValue = document.createElement("div");
+      gemValue.className = "gem-value";
+      gemValue.textContent = gem.damage || gem.heal || gem.poison || "";
+      gemContent.appendChild(gemValue);
+    }
+    
+    // Add name (visible in catalog)
+    const gemName = document.createElement("div");
+    gemName.className = "gem-name";
+    gemName.style.display = "block";
+    gemName.textContent = gem.name;
+    gemContent.appendChild(gemName);
+    
+    gemElement.appendChild(gemContent);
+    
+    // Add cost
+    const gemCost = document.createElement("div");
+    gemCost.className = "gem-cost";
+    gemCost.textContent = gem.cost;
+    gemElement.appendChild(gemCost);
+    
+    // Add click handler for unlocking
+    gemElement.onclick = function() {
+      if (metaZenny < 50) {
+        EventBus.emit('UI_MESSAGE', {
+          message: "Not enough Meta $ZENNY!",
+          type: 'error'
+        });
+        return;
+      }
+      
+      if (confirm(`Would you like to unlock the ${gem.color} ${gem.name} gem for 50 $ZENNY?`)) {
+        EventBus.emit('UNLOCK_GEM', { gemKey });
+      }
+    };
+    
+    // Add cost label
+    const costLabel = document.createElement("div");
+    costLabel.className = "gem-cost-label";
+    costLabel.textContent = "50 $ZENNY";
+    
+    // Add to container
+    gemContainer.appendChild(gemElement);
+    gemContainer.appendChild(costLabel);
+    
+    // Add to available gems section
+    availableGemsContainer.appendChild(gemContainer);
+  });
+  
+  // If no gems to display, show a message
+  if (filteredGems.length === 0) {
+    const noGemsMessage = document.createElement("p");
+    noGemsMessage.textContent = "No available gems to unlock";
+    noGemsMessage.style.textAlign = "center";
+    availableGemsContainer.appendChild(noGemsMessage);
+  }
+}
+
+function updateActionButtons(battleData) {
+  const executeBtn = document.getElementById('execute-btn');
+  const waitBtn = document.getElementById('wait-btn');
+  const discardEndBtn = document.getElementById('discard-end-btn');
+  const endTurnBtn = document.getElementById('end-turn-btn');
+  const fleeBtn = document.getElementById('flee-btn');
+  
+  const player = GameState.get('player');
+  const selectedGems = battleData.selectedGems;
+  const hand = GameState.get('hand');
+  const isStunned = player.buffs && player.buffs.some(b => b.type === "stunned");
+  
+  // Check if player can execute gems
+  const canPlayGems = selectedGems.size > 0 && 
+                  Array.from(selectedGems).every(i => hand[i]) &&
+                  player.stamina >= Math.min(...Array.from(selectedGems).map(i => hand[i].cost));
+  
+  // Update button states
+  if (executeBtn) executeBtn.disabled = battleData.battleOver || !canPlayGems || battleData.isEnemyTurn || isStunned;
+  if (waitBtn) waitBtn.disabled = battleData.battleOver || battleData.isEnemyTurn || GameState.get('hasActedThisTurn') || GameState.get('hasPlayedGemThisTurn') || isStunned;
+  if (discardEndBtn) discardEndBtn.disabled = battleData.battleOver || !selectedGems.size || battleData.isEnemyTurn || GameState.get('hasActedThisTurn') || isStunned;
+  if (endTurnBtn) endTurnBtn.disabled = battleData.battleOver || battleData.isEnemyTurn || isStunned;
+  
+  // Show/hide flee button
+  if (fleeBtn) {
+    fleeBtn.style.display = (battleData.phase < 2 && !battleData.battleOver && !battleData.isEnemyTurn && !isStunned) ? "block" : "none";
+  }
+}
+
+/**
+ * Update the camp screen
+ */
+function updateCampUI() {
+  const currentDay = GameState.get('currentDay');
+  const player = GameState.get('player');
+  const metaZenny = GameState.get('metaZenny');
+  
+  // Update day display
+  const campDay = document.getElementById('camp-day');
+  if (campDay) campDay.textContent = currentDay;
+  
+  // Update zenny displays
+  const campZenny = document.getElementById('camp-zenny');
+  const campMetaZenny = document.getElementById('camp-meta-zenny');
+  
+  if (campZenny) campZenny.textContent = player.zenny;
+  if (campMetaZenny) campMetaZenny.textContent = metaZenny;
+  
+  // Clear input fields
+  const withdrawAmount = document.getElementById('withdraw-amount');
+  const depositAmount = document.getElementById('deposit-amount');
+  
+  if (withdrawAmount) withdrawAmount.value = "";
+  if (depositAmount) depositAmount.value = "";
+  
+  // Disable buttons if no zenny available
+  const withdrawBtn = document.getElementById('withdraw-btn');
+  const depositBtn = document.getElementById('deposit-btn');
+  
+  if (withdrawBtn) withdrawBtn.disabled = player.zenny <= 0;
+  if (depositBtn) depositBtn.disabled = metaZenny <= 0;
 }
 
 /**
@@ -856,242 +1348,10 @@ function showDefeatEffect() {
   }, 1500);
 }
 
-/**
- * Update the shop UI
- */
-function updateShopUI() {
-  const player = GameState.get('player');
-  const inUpgradeMode = GameState.get('inUpgradeMode');
-  
-  // Update shop stats
-  const shopHealth = document.getElementById('shop-health');
-  const shopMaxHealth = document.getElementById('shop-max-health');
-  const shopZenny = document.getElementById('shop-zenny');
-  
-  if (shopHealth) shopHealth.textContent = player.health;
-  if (shopMaxHealth) shopMaxHealth.textContent = player.maxHealth;
-  if (shopZenny) shopZenny.textContent = player.zenny;
-  
-  // Update gem bag info
-  const shopGemBagCount = document.getElementById('shop-gem-bag-count');
-  const shopGemBagTotal = document.getElementById('shop-gem-bag-total');
-  
-  if (shopGemBagCount) shopGemBagCount.textContent = GameState.get('gemBag').length;
-  if (shopGemBagTotal) shopGemBagTotal.textContent = "20"; // MAX_GEM_BAG_SIZE
-  
-  // Handle different shop modes
-  if (inUpgradeMode) {
-    updateShopUpgradeMode();
-  } else {
-    updateShopNormalMode();
-  }
-  
-  // Update healing button state
-  const healBtn = document.getElementById('heal-10');
-  if (healBtn) {
-    healBtn.disabled = player.zenny < 3 || player.health >= player.maxHealth;
-    healBtn.title = player.health >= player.maxHealth ? "Already at full health" : 
-                     player.zenny < 3 ? "Not enough $ZENNY (need 3)" : 
-                     "Heal 10 health";
-  }
-  
-  // Render shop hand
-  renderShopHand();
-}
-
-/**
- * Update shop UI for upgrade mode
- */
-function updateShopUpgradeMode() {
-  const gemCatalog = GameState.get('gemCatalog');
-  const hand = GameState.get('hand');
-  const selectedGems = GameState.get('selectedGems');
-  
-  // Get UI elements
-  const gemPool = document.getElementById('gem-pool');
-  const gemPoolInstructions = document.getElementById('gem-pool-instructions');
-  const cancelUpgrade = document.getElementById('cancel-upgrade');
-  const upgradeGem = document.getElementById('upgrade-gem');
-  const discardGem = document.getElementById('discard-gem');
-  const buyRandomGem = document.getElementById('buy-random-gem');
-  
-  // Show gem pool, hide other options
-  if (gemPool) gemPool.style.display = 'flex';
-  
-  // Update instructions
-  if (gemPoolInstructions && selectedGems.size === 1) {
-    const selectedGem = hand[Array.from(selectedGems)[0]];
-    gemPoolInstructions.textContent = `Choose an upgrade option for your ${selectedGem.color} ${selectedGem.name}:`;
-    gemPoolInstructions.style.fontWeight = 'bold';
-  }
-  
-  // Show cancel button, hide all other buttons
-  if (cancelUpgrade) cancelUpgrade.style.display = 'block';
-  if (upgradeGem) upgradeGem.style.display = 'none';
-  if (discardGem) discardGem.style.display = 'none';
-  if (buyRandomGem) buyRandomGem.style.display = 'none';
-  
-  // Render all upgrade options
-  if (gemPool) {
-    gemPool.innerHTML = '';
-    gemCatalog.gemPool.forEach((gem, index) => {
-      const gemElement = createGemElement(gem, index, false);
-      gemElement.addEventListener('click', () => {
-        EventBus.emit('UPGRADE_OPTION_SELECTED', { poolIndex: index });
-      });
-      gemPool.appendChild(gemElement);
-    });
-  }
-}
-
-/**
- * Update shop UI for normal mode
- */
-function updateShopNormalMode() {
-  const selectedGems = GameState.get('selectedGems');
-  const hand = GameState.get('hand');
-  
-  // Get UI elements
-  const gemPool = document.getElementById('gem-pool');
-  const gemPoolInstructions = document.getElementById('gem-pool-instructions');
-  const cancelUpgrade = document.getElementById('cancel-upgrade');
-  const upgradeGem = document.getElementById('upgrade-gem');
-  const discardGem = document.getElementById('discard-gem');
-  const buyRandomGem = document.getElementById('buy-random-gem');
-  
-  // Hide gem pool, show normal options
-  if (gemPool) gemPool.style.display = 'none';
-  
-  // Show/hide appropriate buttons
-  if (cancelUpgrade) cancelUpgrade.style.display = 'none';
-  if (buyRandomGem) buyRandomGem.style.display = 'block';
-  if (upgradeGem) upgradeGem.style.display = 'block';
-  if (discardGem) discardGem.style.display = 'block';
-  
-  // Update instructions based on selection
-  if (gemPoolInstructions) {
-    if (selectedGems.size === 1) {
-      const selectedGem = hand[Array.from(selectedGems)[0]];
-      gemPoolInstructions.textContent = `Selected: ${selectedGem.color} ${selectedGem.name}`;
-      gemPoolInstructions.style.fontWeight = 'normal';
-    } else {
-      gemPoolInstructions.textContent = 'Select a gem from your hand';
-      gemPoolInstructions.style.fontWeight = 'normal';
-    }
-  }
-  
-  updateShopButtonStates();
-}
-
-/**
- * Update shop button states
- */
-function updateShopButtonStates() {
-  const player = GameState.get('player');
-  const selectedGems = GameState.get('selectedGems');
-  const hand = GameState.get('hand');
-  const gemCatalog = GameState.get('gemCatalog');
-  const inUpgradeMode = GameState.get('inUpgradeMode');
-  
-  // Skip if in upgrade mode
-  if (inUpgradeMode) return;
-  
-  const hasSelection = selectedGems.size > 0;
-  
-  // Get UI elements
-  const upgradeGem = document.getElementById('upgrade-gem');
-  const discardGem = document.getElementById('discard-gem');
-  const buyRandomGem = document.getElementById('buy-random-gem');
-  
-  // Update button states
-  if (upgradeGem) upgradeGem.disabled = !hasSelection || player.zenny < 5;
-  if (discardGem) discardGem.disabled = !hasSelection || player.zenny < 3;
-  
-  if (hasSelection) {
-    // Additional checks for upgrade eligibility
-    const selectedIndex = Array.from(selectedGems)[0];
-    const selectedGem = hand[selectedIndex];
-    const canUpgrade = selectedGem && 
-                    !selectedGem.freshlySwapped && 
-                    !gemCatalog.upgradedThisShop.has(selectedGem.id);
-    
-    if (upgradeGem) {
-      upgradeGem.disabled = !canUpgrade || player.zenny < 5;
-      upgradeGem.title = !canUpgrade ? "Cannot upgrade this gem now" :
-                            player.zenny < 5 ? "Not enough $ZENNY (need 5)" :
-                            "Upgrade selected gem (5 $ZENNY)";
-    }
-  }
-  
-  // Update buy random gem button
-  if (buyRandomGem) {
-    buyRandomGem.disabled = player.zenny < 3;
-    buyRandomGem.title = player.zenny < 3 ? "Not enough $ZENNY" : "Buy random gem for Gem Bag";
-  }
-}
-
-/**
- * Render the hand of gems for shop
- */
-function renderShopHand() {
-  const hand = GameState.get('hand');
-  const selectedGems = GameState.get('selectedGems');
-  
-  const shopHandContainer = document.getElementById('shop-hand');
-  if (!shopHandContainer) return;
-  
-  // Clear current hand
-  shopHandContainer.innerHTML = '';
-  
-  // Add each gem
-  hand.forEach((gem, index) => {
-    const isSelected = selectedGems.has(index);
-    const gemElement = createGemElement(gem, index, isSelected);
-    gemElement.addEventListener('click', () => {
-      EventBus.emit('GEM_SELECT', { index, context: 'shop' });
-    });
-    shopHandContainer.appendChild(gemElement);
-  });
-}
-
-/**
- * Update the camp screen
- */
-function updateCampUI() {
-  const currentDay = GameState.get('currentDay');
-  const player = GameState.get('player');
-  const metaZenny = GameState.get('metaZenny');
-  
-  // Update day display
-  const campDay = document.getElementById('camp-day');
-  if (campDay) campDay.textContent = currentDay;
-  
-  // Update zenny displays
-  const campZenny = document.getElementById('camp-zenny');
-  const campMetaZenny = document.getElementById('camp-meta-zenny');
-  
-  if (campZenny) campZenny.textContent = player.zenny;
-  if (campMetaZenny) campMetaZenny.textContent = metaZenny;
-  
-  // Clear input fields
-  const withdrawAmount = document.getElementById('withdraw-amount');
-  const depositAmount = document.getElementById('deposit-amount');
-  
-  if (withdrawAmount) withdrawAmount.value = "";
-  if (depositAmount) depositAmount.value = "";
-  
-  // Disable buttons if no zenny available
-  const withdrawBtn = document.getElementById('withdraw-btn');
-  const depositBtn = document.getElementById('deposit-btn');
-  
-  if (withdrawBtn) withdrawBtn.disabled = player.zenny <= 0;
-  if (depositBtn) depositBtn.disabled = metaZenny <= 0;
-}
-
-// Export methods
 export default {
   initialize,
   showMessage,
+  updateActiveScreen, // This is the function to change screens
   updateBattleUI,
   updateShopUI,
   updateGemCatalogUI,
@@ -1101,5 +1361,7 @@ export default {
   showDamageAnimation,
   showVictoryEffect,
   showDefeatEffect,
-  updateActiveScreen
+  
+  // Make sure we alias updateActiveScreen to switchScreen for backward compatibility
+  switchScreen: updateActiveScreen
 };
