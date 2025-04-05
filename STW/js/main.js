@@ -55,7 +55,6 @@ const Game = (() => {
             window.BaseRenderer = BaseRenderer;
             window.GemRenderer = GemRenderer;
             window.Renderer = Renderer;
-            window.AudioManager = AudioManager;
             window.Character = Character;
             window.GemGeneration = GemGeneration;
             window.GemProficiency = GemProficiency;
@@ -146,7 +145,6 @@ const Game = (() => {
             { name: 'BaseRenderer', module: BaseRenderer, required: true },
             { name: 'GemRenderer', module: GemRenderer, required: true },
             { name: 'Renderer', module: Renderer, required: true },
-            { name: 'AudioManager', module: AudioManager, required: true },
             { name: 'ScreenManager', module: screenManager, required: true },
             
             // Game systems - in dependency order
