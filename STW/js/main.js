@@ -1,15 +1,30 @@
+// Updated main.js with new module structure integration
+
 // Main entry point for Super Tiny World
 import { EventBus } from './core/eventbus.js';
 import { Config } from './core/config.js';
 import { GameState } from './core/state.js';
 import { Utils } from './core/utils.js';
 import { Storage } from './core/storage.js';
+
+// Import UI modules
+import { BaseRenderer } from './ui/baseRenderer.js';
+import { GemRenderer } from './ui/gemRenderer.js';
 import { Renderer } from './ui/renderer.js';
+import { ScreenManager } from './ui/ScreenManager.js';
+
+// Import game systems
 import { Character } from './systems/character.js';
+import { GemGeneration } from './systems/gem-generation.js';
+import { GemProficiency } from './systems/gem-proficiency.js';
+import { GemUpgrades } from './systems/gem-upgrades.js';
 import { Gems } from './systems/gem.js';
+import { BattleInitialization } from './systems/battle-initialization.js';
+import { BattleMechanics } from './systems/battle-mechanics.js';
 import { Battle } from './systems/battle.js';
 import { Shop } from './systems/shop.js';
 import { EventHandler } from './systems/eventHandler.js';
+import { AssetManager } from './core/AssetManager.js';
 
 /**
  * Game - Main application controller
@@ -17,6 +32,7 @@ import { EventHandler } from './systems/eventHandler.js';
 const Game = (() => {
     // Track initialization status
     let initialized = false;
+    let screenManager = null;
     
     /**
      * Initialize the game
@@ -36,13 +52,26 @@ const Game = (() => {
             window.GameState = GameState;
             window.Utils = Utils;
             window.Storage = Storage;
+            window.BaseRenderer = BaseRenderer;
+            window.GemRenderer = GemRenderer;
             window.Renderer = Renderer;
+            window.AudioManager = AudioManager;
             window.Character = Character;
+            window.GemGeneration = GemGeneration;
+            window.GemProficiency = GemProficiency;
+            window.GemUpgrades = GemUpgrades;
             window.Gems = Gems;
+            window.BattleInitialization = BattleInitialization;
+            window.BattleMechanics = BattleMechanics;
             window.Battle = Battle;
             window.Shop = Shop;
             window.EventHandler = EventHandler;
+            window.AssetManager = AssetManager;
             window.Game = this;
+            
+            // Create screen manager
+            screenManager = new ScreenManager();
+            window.ScreenManager = screenManager;
             
             // Setup core EventBus listeners
             setupEventBusListeners();
@@ -50,12 +79,15 @@ const Game = (() => {
             // Initialize modules in the correct order
             initializeAllModules();
             
+            // Initialize asset manager with gems
+            initializeAssets();
+            
             // Mark initialization as complete
             initialized = true;
             console.log("Game initialized successfully");
             
             // Start at character selection screen
-            EventBus.emit('SCREEN_CHANGE', 'character-select');
+            EventBus.emit('SCREEN_CHANGE', 'characterSelect');
             
             return true;
         } catch (error) {
@@ -76,14 +108,20 @@ const Game = (() => {
         
         // Screen management
         EventBus.on('SCREEN_CHANGE', (screen) => {
-            if (typeof Renderer.updateActiveScreen === 'function') {
+            if (screenManager && typeof screenManager.changeScreen === 'function') {
+                screenManager.changeScreen(screen);
+            } else if (typeof Renderer.updateActiveScreen === 'function') {
                 Renderer.updateActiveScreen(screen);
             }
         });
         
         // Selection events
         EventBus.on('GEM_SELECT', ({ index, context }) => {
-            EventHandler.toggleGemSelection(index, context === 'shop');
+            if (typeof EventHandler.toggleGemSelection === 'function') {
+                EventHandler.toggleGemSelection(index, context === 'shop');
+            } else if (typeof Battle.toggleGemSelection === 'function') {
+                Battle.toggleGemSelection(index, context === 'shop');
+            }
         });
         
         // Debug events
@@ -103,19 +141,38 @@ const Game = (() => {
             { name: 'Utils', module: Utils, required: true },
             { name: 'GameState', module: GameState, required: true },
             { name: 'Storage', module: Storage, required: true },
+            
+            // UI modules - initialize renderer and components first
+            { name: 'BaseRenderer', module: BaseRenderer, required: true },
+            { name: 'GemRenderer', module: GemRenderer, required: true },
             { name: 'Renderer', module: Renderer, required: true },
+            { name: 'AudioManager', module: AudioManager, required: true },
+            { name: 'ScreenManager', module: screenManager, required: true },
+            
+            // Game systems - in dependency order
             { name: 'Character', module: Character, required: true },
+            
+            // Gem system and submodules
+            { name: 'GemGeneration', module: GemGeneration, required: false },
+            { name: 'GemProficiency', module: GemProficiency, required: false },
+            { name: 'GemUpgrades', module: GemUpgrades, required: false },
             { name: 'Gems', module: Gems, required: true },
+            
+            // Battle system and submodules
+            { name: 'BattleInitialization', module: BattleInitialization, required: false },
+            { name: 'BattleMechanics', module: BattleMechanics, required: false },
             { name: 'Battle', module: Battle, required: true },
+            
             { name: 'Shop', module: Shop, required: true },
-            { name: 'EventHandler', module: EventHandler, required: true }
+            { name: 'EventHandler', module: EventHandler, required: true },
+            { name: 'AssetManager', module: AssetManager, required: true }
         ];
         
         // Initialize modules in order
         for (const moduleInfo of modules) {
             console.log(`Initializing module: ${moduleInfo.name}`);
             
-            if (typeof moduleInfo.module.initialize === 'function') {
+            if (typeof moduleInfo.module?.initialize === 'function') {
                 try {
                     moduleInfo.module.initialize();
                     console.log(`Successfully initialized: ${moduleInfo.name}`);
@@ -135,6 +192,16 @@ const Game = (() => {
     }
     
     /**
+     * Initialize asset manager with gem assets
+     */
+    function initializeAssets() {
+        // Queue up gem assets in AssetManager
+        Object.entries(Config.BASE_GEMS).forEach(([key, gem]) => {
+            AssetManager.queue(key, gem, 'data');
+        });
+    }
+    
+    /**
      * Reset the game state (for testing)
      */
     function reset() {
@@ -149,7 +216,7 @@ const Game = (() => {
         GameState.set('selectedGems', new Set());
         
         // Reset UI
-        EventBus.emit('SCREEN_CHANGE', 'character-select');
+        EventBus.emit('SCREEN_CHANGE', 'characterSelect');
         
         console.log("Game reset complete");
     }
@@ -157,7 +224,8 @@ const Game = (() => {
     // Public interface
     return {
         initialize,
-        reset
+        reset,
+        getScreenManager: () => screenManager
     };
 })();
 

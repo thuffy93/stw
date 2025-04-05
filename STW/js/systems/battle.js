@@ -1,17 +1,20 @@
+// Update to battle.js to properly integrate submodules
+
 import { GameState } from '../core/state.js';
 import { EventBus } from '../core/eventbus.js';
 import { Config } from '../core/config.js';
 import { Utils } from '../core/utils.js';
 
-import BattleInitialization from './battle-initialization.js';
-import BattleMechanics from './battle-mechanics.js';
-import Gems from './gem.js';
+import { BattleInitialization } from './battle-initialization.js';
+import { BattleMechanics } from './battle-mechanics.js';
+import { Gems } from './gem.js';
 
 /**
  * Battle System Module
  * Comprehensive battle system management
  */
 export const Battle = {
+    // Reference submodules
     Initialization: BattleInitialization,
     Mechanics: BattleMechanics,
     
@@ -21,12 +24,17 @@ export const Battle = {
      */
     initialize() {
         console.log("Initializing Battle System");
-        this.setupEventHandlers();
         
-        const gemBag = GameState.get('gemBag');
-        const hand = GameState.get('hand');
-        console.log("Battle starting with gemBag:", gemBag);
-        console.log("Battle starting with hand:", hand);
+        // Initialize submodules if they have initialize methods
+        if (typeof this.Initialization.initialize === 'function') {
+            this.Initialization.initialize();
+        }
+        
+        if (typeof this.Mechanics.initialize === 'function') {
+            this.Mechanics.initialize();
+        }
+        
+        this.setupEventHandlers();
         
         return true;
     },
