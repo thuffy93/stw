@@ -263,16 +263,20 @@ const Game = (() => {
     };
 })();
 
-// Set up initialization to happen after DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
-    console.log("DOM content loaded, initializing game");
+// Single initialization function
+function initializeGame() {
+    console.log("Initializing game");
     Game.initialize();
-});
+}
 
-// Backup initialization for older browsers or if DOMContentLoaded already fired
-if (document.readyState === 'interactive' || document.readyState === 'complete') {
-    console.log("Document already interactive/complete, initializing game");
-    setTimeout(Game.initialize, 100);
+// Set up initialization to happen once, using the most appropriate method
+if (document.readyState === 'loading') {
+    // If document is still loading, add event listener
+    document.addEventListener('DOMContentLoaded', initializeGame);
+} else {
+    // If document is already loaded, initialize now
+    console.log("Document already loaded, initializing game");
+    initializeGame();
 }
 
 export default Game;
