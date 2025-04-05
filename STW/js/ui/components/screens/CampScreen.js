@@ -175,8 +175,8 @@ export class CampScreen extends Component {
     const metaZenny = GameState.get('metaZenny');
     
     // Update journey wallet display
-    const zenny = this.element.querySelector('#camp-zenny');
-    if (zenny) zenny.textContent = player.zenny;
+    const journeyZenny = this.element.querySelector('#camp-zenny');
+    if (journeyZenny) journeyZenny.textContent = player.zenny;
     
     // Update meta wallet display
     const metaZennyDisplay = this.element.querySelector('#camp-meta-zenny');
@@ -299,3 +299,5 @@ export class CampScreen extends Component {
     }
   }
 }
+
+export default CampScreen;
