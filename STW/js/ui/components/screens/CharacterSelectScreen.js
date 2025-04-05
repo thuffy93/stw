@@ -1,103 +1,83 @@
-import { EventBus } from '../core/eventbus.js';
-import { GameState } from '../core/state.js';
-import { Config } from '../core/config.js';  // Add Config import
+// STW/js/ui/components/screens/CharacterSelectScreen.js
+import { Component } from '../Component.js';
+import { ButtonComponent } from '../common/ButtonComponent.js';
+import { EventBus } from '../../../core/eventbus.js';
+import { GameState } from '../../../core/state.js';
+import { Config } from '../../../core/config.js';
 
 /**
- * CharacterSelectScreen - Handles character selection UI and interactions
+ * Character selection screen component
  */
-export class CharacterSelectScreen {
-    constructor() {
-        this.elements = {};
-        this.initialized = false;
-    }
-
-    /**
-     * Initialize the screen
-     */
-    initialize() {
-        if (this.initialized) return true;
-        
-        console.log("Initializing Character Select Screen");
-        
-        // Cache DOM elements
-        this.elements = {
-            screen: document.getElementById('character-select-screen'),
-            knightBtn: document.getElementById('knight-btn'),
-            mageBtn: document.getElementById('mage-btn'),
-            rogueBtn: document.getElementById('rogue-btn'),
-            resetBtn: document.getElementById('reset-btn')
-        };
-        
-        // Add event listeners
-        this.setupEventListeners();
-        
-        this.initialized = true;
-        return true;
+export class CharacterSelectScreen extends Component {
+  constructor() {
+    super('character-select-screen', `
+      <div id="character-select-screen" class="screen">
+        <h1>Choose Your Class</h1>
+        <div class="character-buttons">
+          <div id="knight-btn-container"></div>
+          <div id="mage-btn-container"></div>
+          <div id="rogue-btn-container"></div>
+        </div>
+        <div id="reset-btn-container"></div>
+      </div>
+    `);
+    
+    // Create child components
+    this.knightButton = new ButtonComponent('knight-btn', 'Knight', {
+      className: 'btn-knight btn-large',
+      onClick: () => this.selectClass('Knight')
+    });
+    
+    this.mageButton = new ButtonComponent('mage-btn', 'Mage', {
+      className: 'btn-mage btn-large',
+      onClick: () => this.selectClass('Mage')
+    });
+    
+    this.rogueButton = new ButtonComponent('rogue-btn', 'Rogue', {
+      className: 'btn-rogue btn-large',
+      onClick: () => this.selectClass('Rogue')
+    });
+    
+    this.resetButton = new ButtonComponent('reset-btn', 'Reset Progress', {
+      className: 'btn-reset',
+      onClick: () => this.resetMetaProgression()
+    });
+    
+    // Add child components
+    this.addChild(this.knightButton)
+        .addChild(this.mageButton)
+        .addChild(this.rogueButton)
+        .addChild(this.resetButton);
+  }
+  
+  /**
+   * Handle class selection
+   * @param {String} className - Selected class name
+   */
+  selectClass(className) {
+    console.log(`Character class selected: ${className}`);
+    
+    // Validate class
+    if (!Config.CLASSES[className]) {
+      EventBus.emit('UI_MESSAGE', {
+        message: `Invalid class: ${className}`,
+        type: 'error'
+      });
+      return;
     }
     
-    /**
-     * Set up event listeners
-     */
-    setupEventListeners() {
-        // Character class buttons
-        if (this.elements.knightBtn) {
-            this.elements.knightBtn.addEventListener('click', () => this.selectClass('Knight'));
-        }
-        
-        if (this.elements.mageBtn) {
-            this.elements.mageBtn.addEventListener('click', () => this.selectClass('Mage'));
-        }
-        
-        if (this.elements.rogueBtn) {
-            this.elements.rogueBtn.addEventListener('click', () => this.selectClass('Rogue'));
-        }
-        
-        // Reset button
-        if (this.elements.resetBtn) {
-            this.elements.resetBtn.addEventListener('click', () => this.resetMetaProgression());
-        }
+    // Emit class selection event
+    EventBus.emit('CLASS_SELECTED', { className });
+  }
+  
+  /**
+   * Reset meta progression
+   */
+  resetMetaProgression() {
+    if (confirm("Are you sure you want to reset all meta-progression? This will clear Meta $ZENNY, unlocked gems, and proficiency.")) {
+      EventBus.emit('META_PROGRESSION_RESET');
     }
-    
-    /**
-     * Render the screen
-     */
-    render() {
-        if (!this.initialized) this.initialize();
-        
-        console.log("Rendering character select screen");
-        
-        // No specific rendering needed for this simple screen
-        return true;
-    }
-    
-    /**
-     * Handle class selection
-     * @param {String} className - Selected class name
-     */
-    selectClass(className) {
-        console.log(`Character class selected: ${className}`);
-        
-        // Validate class
-        if (!Config.CLASSES[className]) {
-            EventBus.emit('UI_MESSAGE', {
-                message: `Invalid class: ${className}`,
-                type: 'error'
-            });
-            return;
-        }
-        
-        // Emit class selection event
-        EventBus.emit('CLASS_SELECTED', { className });
-    }
-    
-    /**
-     * Reset meta progression
-     */
-    resetMetaProgression() {
-        if (confirm("Are you sure you want to reset all meta-progression? This will clear Meta $ZENNY, unlocked gems, and proficiency.")) {
-            EventBus.emit('META_PROGRESSION_RESET');
-        }
-    }
+  }
 }
 
 export default CharacterSelectScreen;
