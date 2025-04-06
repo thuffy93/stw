@@ -1,11 +1,11 @@
-// Enhanced utility functions for game mechanics
-export const Utils = {
+// Enhanced utility functions for game mechanics with standardized ES6 patterns
+export class Utils {
     /**
      * Shuffle an array using Fisher-Yates algorithm
      * @param {Array} array - Array to shuffle
      * @returns {Array} - Shuffled array
      */
-    shuffle(array) {
+    static shuffle(array) {
         if (!Array.isArray(array)) {
             console.warn("Shuffle received non-array:", array);
             return array;
@@ -20,26 +20,26 @@ export const Utils = {
         }
         
         return arr;
-    },
+    }
     
     /**
-     * Generate a unique ID
+     * Generate a unique ID with optional prefix
      * @param {String} prefix - Optional prefix for the ID
      * @returns {String} Unique ID
      */
-    generateId(prefix = '') {
+    static generateId(prefix = '') {
         const timestamp = Date.now().toString(36);
         const randomPart = Math.random().toString(36).substring(2, 10);
         return `${prefix}${timestamp}${randomPart}`;
-    },
+    }
     
     /**
-     * Safely parse JSON with error handling
+     * Safely parse JSON with error handling and logging
      * @param {String} jsonString - JSON string to parse
      * @param {*} defaultValue - Default value if parsing fails
      * @returns {*} Parsed object or default value
      */
-    safeJsonParse(jsonString, defaultValue = null) {
+    static safeJsonParse(jsonString, defaultValue = null) {
         if (!jsonString) return defaultValue;
         
         try {
@@ -49,16 +49,16 @@ export const Utils = {
             console.error("JSON string:", jsonString.substring(0, 100) + (jsonString.length > 100 ? '...' : ''));
             return defaultValue;
         }
-    },
+    }
     
     /**
-     * Delay execution for a specified time
+     * Create a Promise-based delay function
      * @param {Number} ms - Time to delay in milliseconds
      * @returns {Promise} Promise that resolves after the delay
      */
-    delay(ms) {
+    static delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
-    },
+    }
     
     /**
      * Create a debounced function
@@ -67,7 +67,7 @@ export const Utils = {
      * @param {Boolean} immediate - Whether to call immediately
      * @returns {Function} Debounced function
      */
-    debounce(func, wait, immediate = false) {
+    static debounce(func, wait, immediate = false) {
         let timeout;
         
         return function(...args) {
@@ -84,7 +84,7 @@ export const Utils = {
             
             if (callNow) func.apply(context, args);
         };
-    },
+    }
     
     /**
      * Create a throttled function
@@ -92,7 +92,7 @@ export const Utils = {
      * @param {Number} limit - Time limit in milliseconds
      * @returns {Function} Throttled function
      */
-    throttle(func, limit) {
+    static throttle(func, limit) {
         let lastCall = 0;
         
         return function(...args) {
@@ -103,7 +103,7 @@ export const Utils = {
                 func.apply(this, args);
             }
         };
-    },
+    }
     
     /**
      * Get a random weighted item from an array
@@ -111,7 +111,7 @@ export const Utils = {
      * @param {Function} weightFn - Function to calculate weight for each item
      * @returns {*} Randomly selected item
      */
-    getRandomWeighted(items, weightFn) {
+    static getRandomWeighted(items, weightFn) {
         if (!Array.isArray(items) || items.length === 0) {
             return null;
         }
@@ -136,7 +136,7 @@ export const Utils = {
         }
         
         return weightedItems[Math.floor(Math.random() * weightedItems.length)];
-    },
+    }
     
     /**
      * Clamp a value between min and max
@@ -145,16 +145,16 @@ export const Utils = {
      * @param {Number} max - Maximum value
      * @returns {Number} Clamped value
      */
-    clamp(value, min, max) {
+    static clamp(value, min, max) {
         return Math.max(min, Math.min(max, value));
-    },
+    }
     
     /**
      * Deep clone an object
      * @param {*} obj - Object to clone
      * @returns {*} Cloned object
      */
-    deepClone(obj) {
+    static deepClone(obj) {
         if (obj === null || typeof obj !== 'object') {
             return obj;
         }
@@ -174,7 +174,7 @@ export const Utils = {
             
             return clone;
         }
-    },
+    }
     
     /**
      * Check if two objects are deeply equal
@@ -182,7 +182,7 @@ export const Utils = {
      * @param {*} obj2 - Second object
      * @returns {Boolean} Whether objects are equal
      */
-    deepEqual(obj1, obj2) {
+    static deepEqual(obj1, obj2) {
         // Handle primitive types (including null)
         if (obj1 === obj2) return true;
         
@@ -214,14 +214,14 @@ export const Utils = {
         return keys1.every(key => 
             keys2.includes(key) && this.deepEqual(obj1[key], obj2[key])
         );
-    },
+    }
     
     /**
      * Remove null and undefined values from an object
      * @param {Object} obj - Object to clean
      * @returns {Object} Cleaned object
      */
-    cleanObject(obj) {
+    static cleanObject(obj) {
         const result = {};
         
         Object.entries(obj).forEach(([key, value]) => {
@@ -231,26 +231,26 @@ export const Utils = {
         });
         
         return result;
-    },
+    }
     
     /**
      * Format a number with commas for thousands
      * @param {Number} number - Number to format
      * @returns {String} Formatted number
      */
-    formatNumber(number) {
+    static formatNumber(number) {
         return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-    },
+    }
     
     /**
      * Capitalize first letter of a string
      * @param {String} string - String to capitalize
      * @returns {String} Capitalized string
      */
-    capitalize(string) {
+    static capitalize(string) {
         if (!string || typeof string !== 'string') return '';
         return string.charAt(0).toUpperCase() + string.slice(1);
-    },
+    }
     
     /**
      * Get a random integer between min and max (inclusive)
@@ -258,9 +258,73 @@ export const Utils = {
      * @param {Number} max - Maximum value
      * @returns {Number} Random integer
      */
-    randomInt(min, max) {
+    static randomInt(min, max) {
         min = Math.ceil(min);
         max = Math.floor(max);
         return Math.floor(Math.random() * (max - min + 1)) + min;
     }
+    
+    /**
+     * Generate a consistent hash code from a string
+     * @param {String} str - String to hash
+     * @returns {Number} Hash code
+     */
+    static hashCode(str) {
+        if (!str || typeof str !== 'string') return 0;
+        
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32bit integer
+        }
+        return hash;
+    }
+    
+    /**
+     * Validate and sanitize a numeric input
+     * @param {*} value - Value to validate
+     * @param {Number} defaultValue - Default value if invalid
+     * @param {Number} min - Minimum allowed value
+     * @param {Number} max - Maximum allowed value
+     * @returns {Number} Validated and sanitized number
+     */
+    static validateNumber(value, defaultValue = 0, min = null, max = null) {
+        // Parse value to number if it's a string
+        const num = typeof value === 'string' ? parseFloat(value) : value;
+        
+        // Check if result is a valid number
+        if (isNaN(num) || typeof num !== 'number') {
+            return defaultValue;
+        }
+        
+        // Apply min/max constraints if provided
+        let result = num;
+        if (min !== null) result = Math.max(min, result);
+        if (max !== null) result = Math.min(max, result);
+        
+        return result;
+    }
+}
+
+// For backwards compatibility, also export as an object
+export const UtilsObject = {
+    shuffle: Utils.shuffle,
+    generateId: Utils.generateId,
+    safeJsonParse: Utils.safeJsonParse,
+    delay: Utils.delay,
+    debounce: Utils.debounce,
+    throttle: Utils.throttle,
+    getRandomWeighted: Utils.getRandomWeighted,
+    clamp: Utils.clamp,
+    deepClone: Utils.deepClone,
+    deepEqual: Utils.deepEqual,
+    cleanObject: Utils.cleanObject,
+    formatNumber: Utils.formatNumber,
+    capitalize: Utils.capitalize,
+    randomInt: Utils.randomInt,
+    hashCode: Utils.hashCode,
+    validateNumber: Utils.validateNumber
 };
+
+export default Utils;
