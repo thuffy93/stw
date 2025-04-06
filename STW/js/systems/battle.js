@@ -1,4 +1,5 @@
-// Updated battle.js with standardized EventBus integration
+// Enhanced Battle module with proper initialization support
+// For STW/js/systems/battle.js
 
 import { GameState } from '../core/state.js';
 import { EventBus } from '../core/eventbus.js';
@@ -10,7 +11,7 @@ import { BattleMechanics } from './battle-mechanics.js';
 import { Gems } from './gem.js';
 
 /**
- * Battle System Module
+ * Battle System Module - enhanced with proper initialization support
  * Comprehensive battle system management with standardized event handling
  */
 export class Battle {
@@ -22,8 +23,8 @@ export class Battle {
         // Track subscriptions for cleanup
         this.eventSubscriptions = [];
         
-        // Initialize the battle system
-        this.initialize();
+        // Track initialization status
+        this.initialized = false;
     }
     
     /**
@@ -31,6 +32,12 @@ export class Battle {
      * @returns {Boolean} Initialization success
      */
     initialize() {
+        // Prevent multiple initializations
+        if (this.initialized) {
+            console.log("Battle system already initialized");
+            return true;
+        }
+        
         console.log("Initializing Battle System");
         
         // Initialize submodules if they have initialize methods
@@ -43,6 +50,9 @@ export class Battle {
         }
         
         this.setupEventHandlers();
+        
+        // Mark as initialized
+        this.initialized = true;
         
         return true;
     }
@@ -235,5 +245,5 @@ export class Battle {
 // Create singleton instance
 export const BattleInstance = new Battle();
 
-// For backwards compatibility
-export default BattleInstance;
+// For backwards compatibility, export both the class and the instance
+export { BattleInstance as default };

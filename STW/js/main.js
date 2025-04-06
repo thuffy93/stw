@@ -142,24 +142,60 @@ const Game = (() => {
         });
     }
     
-    /**
+   /**
      * Initialize all modules in the correct order
+     * Fixed to handle modules that are instances rather than static classes
      */
     function initializeAllModules() {
         console.log("Initializing core modules");
         
         // Initialize renderer first
-        BaseRenderer.initialize();
-        GemRenderer.initialize();
-        Renderer.initialize();
+        if (typeof BaseRenderer.initialize === 'function') {
+            BaseRenderer.initialize();
+        }
         
-        // Initialize system modules
-        Character.initialize();
-        Gems.initialize();
-        Battle.initialize();
-        Shop.initialize();
-        EventHandler.initialize();
-        AssetManager.initialize();
+        if (typeof GemRenderer.initialize === 'function') {
+            GemRenderer.initialize();
+        }
+        
+        if (typeof Renderer.initialize === 'function') {
+            Renderer.initialize();
+        }
+        
+        // Initialize system modules - handle both function and method approaches
+        if (typeof Character.initialize === 'function') {
+            Character.initialize();
+        }
+        
+        // Gems module - check if it's a class instance or static class
+        if (typeof Gems.initialize === 'function') {
+            Gems.initialize();
+        }
+        
+        // Battle module - check different possible forms
+        if (typeof Battle.initialize === 'function') {
+            Battle.initialize();
+        } else if (Battle && typeof Battle === 'object') {
+            // If Battle is an instance and doesn't have initialize, just log a message
+            console.log("Battle module is an instance, no initialization needed");
+        }
+        
+        // Shop module - check if it's a class instance or static class
+        if (typeof Shop.initialize === 'function') {
+            Shop.initialize();
+        } else if (Shop && typeof Shop === 'object') {
+            console.log("Shop module is an instance, no initialization needed");
+        }
+        
+        // EventHandler module
+        if (typeof EventHandler.initialize === 'function') {
+            EventHandler.initialize();
+        }
+        
+        // AssetManager module
+        if (typeof AssetManager.initialize === 'function') {
+            AssetManager.initialize();
+        }
         
         // Emit event for successful initialization
         EventBus.emit('ALL_MODULES_INITIALIZED', {
