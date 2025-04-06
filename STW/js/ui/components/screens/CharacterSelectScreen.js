@@ -6,7 +6,7 @@ import { GameState } from '../../../core/state.js';
 import { Config } from '../../../core/config.js';
 
 /**
- * Character selection screen component
+ * Character selection screen component with standardized event handling
  */
 export class CharacterSelectScreen extends Component {
   constructor() {
@@ -22,7 +22,7 @@ export class CharacterSelectScreen extends Component {
       </div>
     `);
     
-    // Create child components
+    // Create child components with standardized event patterns
     this.knightButton = new ButtonComponent('knight-btn', 'Knight', {
       className: 'btn-knight btn-large',
       onClick: () => this.selectClass('Knight')
@@ -48,10 +48,14 @@ export class CharacterSelectScreen extends Component {
         .addChild(this.mageButton)
         .addChild(this.rogueButton)
         .addChild(this.resetButton);
+        
+    // Subscribe to events with standardized pattern
+    this.subscribeToEvent('META_PROGRESSION_RESET_COMPLETE', this.onResetComplete.bind(this));
+    this.subscribeToEvent('LOAD_GAME_STATE_COMPLETE', this.updateButtonsBasedOnSaveData.bind(this));
   }
   
   /**
-   * Handle class selection
+   * Handle class selection with consistent event emission pattern
    * @param {String} className - Selected class name
    */
   selectClass(className) {
@@ -66,17 +70,82 @@ export class CharacterSelectScreen extends Component {
       return;
     }
     
-    // Emit class selection event
-    EventBus.emit('CLASS_SELECTED', { className });
+    // Emit class selection event with consistent object pattern
+    EventBus.emit('CLASS_SELECTED', { 
+      className,
+      timestamp: Date.now()
+    });
+    
+    // Play sound with consistent pattern
+    EventBus.emit('PLAY_SOUND', { sound: 'BUTTON_CLICK' });
+    
+    // Navigate to next screen
+    EventBus.emit('SCREEN_CHANGE', { screen: 'gemCatalog' });
   }
   
   /**
-   * Reset meta progression
+   * Reset meta progression with standardized confirmation
    */
   resetMetaProgression() {
-    if (confirm("Are you sure you want to reset all meta-progression? This will clear Meta $ZENNY, unlocked gems, and proficiency.")) {
-      EventBus.emit('META_PROGRESSION_RESET');
+    // Use consistent pattern for confirmation
+    EventBus.emit('SHOW_CONFIRMATION', {
+      message: "Are you sure you want to reset all meta-progression? This will clear Meta $ZENNY, unlocked gems, and proficiency.",
+      onConfirm: () => {
+        // Show loading indicator while resetting
+        EventBus.emit('LOADING_START', { message: "Resetting progression..." });
+        
+        // Emit reset event
+        EventBus.emit('META_PROGRESSION_RESET');
+      }
+    });
+  }
+  
+  /**
+   * Handle reset completion
+   */
+  onResetComplete() {
+    EventBus.emit('LOADING_END');
+    EventBus.emit('UI_MESSAGE', {
+      message: "Progress reset successfully!",
+      type: 'success'
+    });
+  }
+  
+  /**
+   * Update buttons based on save data
+   * @param {Object} data - Save data
+   */
+  updateButtonsBasedOnSaveData(data) {
+    // If saved class exists, update button states
+    const savedClass = data?.playerState?.class;
+    
+    if (savedClass) {
+      // Update button tooltips
+      this.knightButton.update({
+        tooltip: savedClass === 'Knight' ? 
+          'Continue with Knight' : 'Start new game as Knight'
+      });
+      
+      this.mageButton.update({
+        tooltip: savedClass === 'Mage' ? 
+          'Continue with Mage' : 'Start new game as Mage'
+      });
+      
+      this.rogueButton.update({
+        tooltip: savedClass === 'Rogue' ? 
+          'Continue with Rogue' : 'Start new game as Rogue'
+      });
     }
+  }
+  
+  /**
+   * After render actions
+   */
+  afterRender() {
+    // Add any post-render initialization here
+    
+    // Try to load saved data
+    EventBus.emit('LOAD_GAME_STATE');
   }
 }
 
