@@ -1,4 +1,4 @@
-// Update to battle.js to properly integrate submodules
+// Updated battle.js with standardized EventBus integration
 
 import { GameState } from '../core/state.js';
 import { EventBus } from '../core/eventbus.js';
@@ -11,12 +11,20 @@ import { Gems } from './gem.js';
 
 /**
  * Battle System Module
- * Comprehensive battle system management
+ * Comprehensive battle system management with standardized event handling
  */
-export const Battle = {
-    // Reference submodules
-    Initialization: BattleInitialization,
-    Mechanics: BattleMechanics,
+export class Battle {
+    constructor() {
+        // Reference submodules
+        this.Initialization = BattleInitialization;
+        this.Mechanics = BattleMechanics;
+        
+        // Track subscriptions for cleanup
+        this.eventSubscriptions = [];
+        
+        // Initialize the battle system
+        this.initialize();
+    }
     
     /**
      * Initialize the battle system
@@ -37,60 +45,84 @@ export const Battle = {
         this.setupEventHandlers();
         
         return true;
-    },
+    }
     
     /**
-     * Set up event handlers for battle-related events
+     * Helper method to subscribe to events and track subscriptions
+     * @param {String} eventName - Event name
+     * @param {Function} handler - Event handler function
+     * @returns {Object} Subscription object
+     */
+    subscribe(eventName, handler) {
+        const subscription = EventBus.on(eventName, handler);
+        this.eventSubscriptions.push(subscription);
+        return subscription;
+    }
+    
+    /**
+     * Unsubscribe from all events (useful for cleanup)
+     */
+    unsubscribeAll() {
+        this.eventSubscriptions.forEach(subscription => {
+            if (subscription && typeof subscription.unsubscribe === 'function') {
+                subscription.unsubscribe();
+            }
+        });
+        this.eventSubscriptions = [];
+    }
+    
+    /**
+     * Set up event handlers for battle-related events using standardized pattern
      */
     setupEventHandlers() {
         // Battle initialization events
-        EventBus.on('START_BATTLE', () => {
+        this.subscribe('START_BATTLE', () => {
             this.Initialization.initializeBattle();
         });
         
         // Gem-related events
-        EventBus.on('EXECUTE_GEMS', () => {
+        this.subscribe('EXECUTE_GEMS', () => {
             const selectedGems = GameState.get('selectedGems');
             this.Mechanics.executeSelectedGems(selectedGems);
         });
         
         // Turn management events
-        EventBus.on('END_TURN', () => {
+        this.subscribe('END_TURN', () => {
             this.Mechanics.endTurn();
         });
         
-        EventBus.on('WAIT_TURN', () => {
+        this.subscribe('WAIT_TURN', () => {
             this.Mechanics.waitTurn();
         });
         
-        EventBus.on('DISCARD_AND_END', () => {
+        this.subscribe('DISCARD_AND_END', () => {
             this.Mechanics.discardAndEndTurn();
         });
         
         // Enemy turn events
-        EventBus.on('PROCESS_ENEMY_TURN', () => {
+        this.subscribe('PROCESS_ENEMY_TURN', () => {
             this.Mechanics.processEnemyTurn();
         });
         
         // Battle progression events
-        EventBus.on('BATTLE_WIN', (outcome) => {
+        this.subscribe('BATTLE_WIN', (outcome) => {
             this.handleBattleVictory(outcome);
         });
         
-        EventBus.on('BATTLE_LOSE', () => {
+        this.subscribe('BATTLE_LOSE', () => {
             this.handleBattleDefeat();
         });
         
         // Additional battle events
-        EventBus.on('FLEE_BATTLE', () => {
+        this.subscribe('FLEE_BATTLE', () => {
             this.Mechanics.fleeBattle();
         });
         
         // Battle state tracking
-        EventBus.on('BATTLE_STATE_UPDATE', () => {
+        this.subscribe('BATTLE_STATE_UPDATE', () => {
             this.updateBattleState();
         });
-    },
+    }
     
     /**
      * Handle battle victory
@@ -120,7 +152,7 @@ export const Battle = {
         
         // Transition to next screen
         EventBus.emit('SCREEN_CHANGE', progression.screenTransition);
-    },
+    }
     
     /**
      * Handle battle defeat
@@ -137,7 +169,7 @@ export const Battle = {
         
         // Transition to character select
         EventBus.emit('SCREEN_CHANGE', 'characterSelect');
-    },
+    }
     
     /**
      * Update overall battle state
@@ -155,7 +187,7 @@ export const Battle = {
                 reward: enemy.name === "Dark Guardian" ? 30 : 10 
             });
         }
-    },
+    }
     
     /**
      * Toggle gem selection
@@ -198,6 +230,10 @@ export const Battle = {
             selectedIndices: Array.from(selectedGems) 
         });
     }
-};
+}
 
-export default Battle;
+// Create singleton instance
+export const BattleInstance = new Battle();
+
+// For backwards compatibility
+export default BattleInstance;

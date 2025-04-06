@@ -1,4 +1,4 @@
-// STW/js/ui/baseRenderer.js - Enhanced with screen management
+// STW/js/ui/baseRenderer.js - Enhanced with standardized event handling
 import { EventBus } from '../core/eventbus.js';
 import { GameState } from '../core/state.js';
 
@@ -17,14 +17,76 @@ export const BaseRenderer = {
   activeScreen: null,
   
   /**
+   * Event subscriptions for tracking and cleanup
+   */
+  eventSubscriptions: [],
+  
+  /**
+   * Helper method to subscribe to events using consistent pattern
+   * @param {String} eventName - Event name
+   * @param {Function} handler - Event handler
+   * @returns {Object} Subscription object
+   */
+  subscribe(eventName, handler) {
+    const subscription = EventBus.on(eventName, handler);
+    this.eventSubscriptions.push(subscription);
+    return subscription;
+  },
+  
+  /**
+   * Unsubscribe from all events (useful for cleanup)
+   */
+  unsubscribeAll() {
+    this.eventSubscriptions.forEach(subscription => {
+      if (subscription && typeof subscription.unsubscribe === 'function') {
+        subscription.unsubscribe();
+      }
+    });
+    this.eventSubscriptions = [];
+  },
+  
+  /**
    * Initialize the renderer
    */
   initialize() {
     console.log("Initializing Base Renderer with integrated screen management");
     
-    // Set up event listeners for screen changes
-    EventBus.on('SCREEN_CHANGE', (screenName) => {
+    // Set up event listeners for screen changes using standardized pattern
+    this.subscribe('SCREEN_CHANGE', (screenName) => {
       this.updateActiveScreen(screenName);
+    });
+    
+    // Subscribe to UI-related events
+    this.subscribe('UI_MESSAGE', ({ message, type, duration }) => {
+      this.showMessage(message, type, duration);
+    });
+    
+    this.subscribe('LOADING_START', ({ message }) => {
+      this.showLoading(message);
+    });
+    
+    this.subscribe('LOADING_END', () => {
+      this.hideLoading();
+    });
+    
+    this.subscribe('ERROR_SHOW', ({ message, isFatal }) => {
+      this.showError(message, isFatal);
+    });
+    
+    this.subscribe('ERROR_HIDE', () => {
+      this.hideError();
+    });
+    
+    this.subscribe('SHOW_DAMAGE', (data) => {
+      this.showDamageAnimation(data);
+    });
+    
+    this.subscribe('SHOW_VICTORY', () => {
+      this.showVictoryEffect();
+    });
+    
+    this.subscribe('SHOW_DEFEAT', () => {
+      this.showDefeatEffect();
     });
     
     return true;
@@ -85,6 +147,11 @@ export const BaseRenderer = {
     // Check if the screen exists
     if (!this.screens[screenName]) {
       console.error(`Screen '${screenName}' not found in registered screens`);
+      // Emit error event using consistent pattern
+      EventBus.emit('ERROR_SHOW', {
+        message: `Screen '${screenName}' not found`,
+        isFatal: false
+      });
       return;
     }
     
@@ -123,6 +190,11 @@ export const BaseRenderer = {
       
       if (!screenElement) {
         console.error(`Failed to render screen '${screenName}'`);
+        // Emit error event using consistent pattern
+        EventBus.emit('ERROR_SHOW', {
+          message: `Failed to render screen '${screenName}'`,
+          isFatal: false
+        });
         return;
       }
     }
@@ -375,6 +447,9 @@ export const BaseRenderer = {
       // Add to container
       buffsContainer.appendChild(buffIcon);
     });
+    
+    // Emit buff display updated event with consistent pattern
+    EventBus.emit('BUFFS_DISPLAY_UPDATED', { target, buffs });
   },
   
   /**
@@ -550,7 +625,7 @@ export const BaseRenderer = {
       metaZennyDisplay.textContent = metaZenny;
     }
     
-    // Use GemRenderer for rendering unlocked and available gems
+    // Use GemRenderer for rendering unlocked and available gems if available
     if (typeof GemRenderer !== 'undefined') {
       if (typeof GemRenderer.renderUnlockedGems === 'function') {
         GemRenderer.renderUnlockedGems();
@@ -746,5 +821,5 @@ export const BaseRenderer = {
     if (errorOverlay) {
       errorOverlay.style.display = 'none';
     }
-   }
-}
+  }
+};

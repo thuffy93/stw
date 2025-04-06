@@ -1,15 +1,20 @@
 import { EventBus } from '../core/eventbus.js';
 import { GameState } from '../core/state.js';
 import { Utils } from '../core/utils.js';
-import { Config } from '../core/config.js';  // Add Config import
+import { Config } from '../core/config.js';
 import { Storage } from '../core/storage.js';
 
 /**
  * Integration module - Handles interactions between different game systems
+ * with standardized event handling
  */
 export class Integration {
     constructor() {
         this.initialized = false;
+        this.eventSubscriptions = [];
+        
+        // Initialize the module
+        this.initialize();
     }
 
     /**
@@ -26,52 +31,104 @@ export class Integration {
         this.initialized = true;
         return true;
     }
+    
+    /**
+     * Helper method to subscribe to events and track subscriptions
+     * @param {String} eventName - Event name
+     * @param {Function} handler - Event handler
+     * @returns {Object} Subscription object
+     */
+    subscribe(eventName, handler) {
+        const subscription = EventBus.on(eventName, handler);
+        this.eventSubscriptions.push(subscription);
+        return subscription;
+    }
+    
+    /**
+     * Clear all subscriptions
+     */
+    unsubscribeAll() {
+        this.eventSubscriptions.forEach(subscription => {
+            if (subscription && typeof subscription.unsubscribe === 'function') {
+                subscription.unsubscribe();
+            }
+        });
+        this.eventSubscriptions = [];
+    }
 
     /**
-     * Set up event handlers for system integration
+     * Set up event handlers for system integration with standardized pattern
      */
     setupEventHandlers() {
         // Character selection
-        EventBus.on('CLASS_SELECTED', ({ className }) => {
+        this.subscribe('CLASS_SELECTED', ({ className }) => {
             this.handleClassSelection(className);
         });
 
         // Journey start
-        EventBus.on('JOURNEY_START', () => {
+        this.subscribe('JOURNEY_START', () => {
             this.startJourney();
         });
 
         // Gem unlocking
-        EventBus.on('UNLOCK_GEM', ({ gemKey }) => {
+        this.subscribe('UNLOCK_GEM', ({ gemKey }) => {
             this.unlockGem(gemKey);
         });
 
         // Progression
-        EventBus.on('META_PROGRESSION_RESET', () => {
+        this.subscribe('META_PROGRESSION_RESET', () => {
             this.resetMetaProgression();
         });
 
         // Saving/loading
-        EventBus.on('SAVE_GAME_STATE', () => {
+        this.subscribe('SAVE_GAME_STATE', () => {
             Storage.saveGameState();
         });
 
-        EventBus.on('LOAD_GAME_STATE', () => {
-            Storage.loadGameState();
+        this.subscribe('LOAD_GAME_STATE', () => {
+            const result = Storage.loadGameState();
+            EventBus.emit('LOAD_GAME_STATE_COMPLETE', {
+                success: result,
+                playerState: GameState.get('player'),
+                timestamp: Date.now()
+            });
         });
 
         // Battle transitions
-        EventBus.on('BATTLE_WIN', () => {
+        this.subscribe('BATTLE_WIN', () => {
             this.handleBattleWin();
         });
 
-        EventBus.on('CONTINUE_FROM_SHOP', () => {
+        this.subscribe('CONTINUE_FROM_SHOP', () => {
             this.continueFromShop();
         });
 
-        EventBus.on('START_NEXT_DAY', () => {
+        this.subscribe('START_NEXT_DAY', () => {
             this.startNextDay();
         });
+        
+        // Show confirmation dialog with standardized pattern
+        this.subscribe('SHOW_CONFIRMATION', ({ message, onConfirm, onCancel }) => {
+            this.showConfirmationDialog(message, onConfirm, onCancel);
+        });
+    }
+
+    /**
+     * Show a confirmation dialog
+     * @param {String} message - Message to display
+     * @param {Function} onConfirm - Callback when confirmed
+     * @param {Function} onCancel - Callback when canceled
+     */
+    showConfirmationDialog(message, onConfirm, onCancel) {
+        // Use the browser's confirm dialog for simplicity
+        // In a real implementation, you might want a custom dialog
+        const confirmed = confirm(message);
+        
+        if (confirmed && typeof onConfirm === 'function') {
+            onConfirm();
+        } else if (!confirmed && typeof onCancel === 'function') {
+            onCancel();
+        }
     }
 
     /**
@@ -91,8 +148,14 @@ export class Integration {
             Gems.resetGemBag(true);
         }
         
-        EventBus.emit('SCREEN_CHANGE', 'gemCatalog');
-        EventBus.emit('UI_UPDATE', { target: 'gemCatalog' }); // Ensure renderer.js updates
+        // Emit events with consistent pattern
+        EventBus.emit('PLAYER_CLASS_SET', {
+            className,
+            timestamp: Date.now()
+        });
+        
+        EventBus.emit('SCREEN_CHANGE', { screen: 'gemCatalog' });
+        EventBus.emit('UI_UPDATE', { target: 'gemCatalog' });
     }
 
     /**
@@ -104,6 +167,13 @@ export class Integration {
         
         if (!classConfig) {
             console.error(`Invalid class name: ${className}`);
+            
+            // Emit error event with consistent pattern
+            EventBus.emit('ERROR_SHOW', {
+                message: `Invalid class name: ${className}`,
+                isFatal: false
+            });
+            
             return null;
         }
         
@@ -133,6 +203,14 @@ export class Integration {
         
         console.log("Character created via fallback:", character);
         
+        // Emit event with consistent pattern
+        EventBus.emit('CHARACTER_CREATED', {
+            character,
+            className,
+            creationMethod: 'fallback',
+            timestamp: Date.now()
+        });
+        
         return character;
     }
 
@@ -159,6 +237,13 @@ export class Integration {
         
         // Set up gem proficiency
         this.setupGemProficiency(className);
+        
+        // Emit event with consistent pattern
+        EventBus.emit('GEM_CATALOG_INITIALIZED', {
+            className,
+            catalog: newCatalog,
+            timestamp: Date.now()
+        });
     }
 
     /**
@@ -171,6 +256,13 @@ export class Integration {
         // Set up both the current proficiency and class-specific proficiency
         GameState.set('gemProficiency', Utils.deepClone(initialProficiency));
         GameState.set(`classGemProficiency.${className}`, Utils.deepClone(initialProficiency));
+        
+        // Emit event with consistent pattern
+        EventBus.emit('GEM_PROFICIENCY_INITIALIZED', {
+            className,
+            proficiency: initialProficiency,
+            timestamp: Date.now()
+        });
     }
 
     /**
@@ -179,6 +271,12 @@ export class Integration {
     startJourney() {
         console.log("Integration: Starting journey");
         
+        // Show loading message with consistent pattern
+        EventBus.emit('LOADING_START', {
+            message: "Preparing your adventure..."
+        });
+        
+        // Load existing game state if available
         Storage.loadGameState();
         
         if (!GameState.get('battleCount')) {
@@ -198,7 +296,9 @@ export class Integration {
         window.AssetManager.downloadAll((success, loadedAssets) => {
             if (success) {
                 console.log("All gems loaded:", loadedAssets);
-                EventBus.emit('UI_MESSAGE', { message: "Gems ready, starting battle!" });
+                EventBus.emit('UI_MESSAGE', { 
+                    message: "Gems ready, starting battle!" 
+                });
                 
                 const gemBag = Object.values(loadedAssets).map(gem => ({
                     ...gem,
@@ -215,14 +315,33 @@ export class Integration {
                 console.log("Initial hand:", GameState.get('hand'));
                 console.log("Remaining gemBag:", GameState.get('gemBag'));
                 
+                // Hide loading indicator
+                EventBus.emit('LOADING_END');
+                
+                // Emit events with consistent pattern
+                EventBus.emit('JOURNEY_STARTED', {
+                    player: GameState.get('player'),
+                    initialHand,
+                    gemBagSize: gemBag.length - initialHand.length,
+                    timestamp: Date.now()
+                });
+                
                 setTimeout(() => {
-                    EventBus.emit('SCREEN_CHANGE', 'battle');
+                    EventBus.emit('SCREEN_CHANGE', { screen: 'battle' });
                     EventBus.emit('BATTLE_INIT');
-                    EventBus.emit('HAND_UPDATED');
+                    EventBus.emit('HAND_UPDATED', { hand: initialHand });
                 }, 100);
             } else {
                 console.error("Failed to load gems:", loadedAssets);
-                EventBus.emit('UI_MESSAGE', { message: "Failed to prepare gems.", type: 'error', duration: 5000 });
+                
+                // Emit error with consistent pattern
+                EventBus.emit('ERROR_SHOW', {
+                    message: "Failed to prepare gems. Please try again.",
+                    isFatal: false
+                });
+                
+                // Hide loading indicator
+                EventBus.emit('LOADING_END');
             }
         });
     }
@@ -278,28 +397,70 @@ export class Integration {
             message: `Unlocked ${gem.name}! Available as upgrade in shop.`
         });
         
-        // Emit gem unlocked event for UI updates
-        EventBus.emit('GEM_UNLOCKED', { gemKey, gem });
+        // Emit gem unlocked event with consistent format
+        EventBus.emit('GEM_UNLOCKED', { 
+            gemKey, 
+            gem,
+            cost: 50,
+            playerClass,
+            newMetaZenny: metaZenny - 50,
+            timestamp: Date.now()
+        });
+        
+        // Update UI
+        EventBus.emit('UI_UPDATE', { target: 'gemCatalog' });
     }
 
     /**
      * Reset meta progression
      */
     resetMetaProgression() {
-        if (Storage.resetMetaProgression()) {
-            EventBus.emit('UI_MESSAGE', {
-                message: "Meta progression reset successfully"
-            });
+        // Show loading indicator
+        EventBus.emit('LOADING_START', {
+            message: "Resetting progression..."
+        });
+        
+        try {
+            if (Storage.resetMetaProgression()) {
+                // Hide loading indicator
+                EventBus.emit('LOADING_END');
+                
+                // Show success message
+                EventBus.emit('UI_MESSAGE', {
+                    message: "Meta progression reset successfully"
+                });
+                
+                // Update UI with consistent events
+                EventBus.emit('META_PROGRESSION_RESET_COMPLETE', {
+                    timestamp: Date.now()
+                });
+                
+                // Return to character select
+                EventBus.emit('SCREEN_CHANGE', { screen: 'characterSelect' });
+            } else {
+                // Hide loading indicator
+                EventBus.emit('LOADING_END');
+                
+                // Show error message
+                EventBus.emit('UI_MESSAGE', {
+                    message: "Failed to reset meta progression",
+                    type: 'error'
+                });
+                
+                // Emit error event
+                EventBus.emit('ERROR_SHOW', {
+                    message: "Failed to reset meta progression",
+                    isFatal: false
+                });
+            }
+        } catch (error) {
+            // Hide loading indicator
+            EventBus.emit('LOADING_END');
             
-            // Update UI
-            EventBus.emit('META_PROGRESSION_RESET_COMPLETE');
-            
-            // Return to character select
-            EventBus.emit('SCREEN_CHANGE', 'characterSelect');
-        } else {
-            EventBus.emit('UI_MESSAGE', {
-                message: "Failed to reset meta progression",
-                type: 'error'
+            // Emit error event with consistent pattern
+            EventBus.emit('ERROR_SHOW', {
+                message: "Error resetting progression: " + error.message,
+                isFatal: false
             });
         }
     }
@@ -311,8 +472,16 @@ export class Integration {
         // Logic for progressing after battle win
         console.log("Integration: Handling battle win");
         
-        // Save current game state
-        Storage.saveGameState();
+        // Save current game state with consistent events
+        EventBus.emit('SAVE_GAME_STATE');
+        
+        // Emit win event with consistent format
+        EventBus.emit('BATTLE_WIN_PROCESSED', {
+            player: GameState.get('player'),
+            battleCount: GameState.get('battleCount'),
+            currentDay: GameState.get('currentDay'),
+            timestamp: Date.now()
+        });
     }
 
     /**
@@ -325,12 +494,24 @@ export class Integration {
         try {
             localStorage.setItem(Config.STORAGE_KEYS.TEMP_HAND, JSON.stringify(hand));
             console.log("Saved hand state for next battle:", hand);
+            
+            // Emit event with consistent pattern
+            EventBus.emit('HAND_STATE_SAVED', {
+                handSize: hand.length,
+                timestamp: Date.now()
+            });
         } catch (e) {
             console.error("Error saving hand state:", e);
+            
+            // Emit error event
+            EventBus.emit('ERROR_SHOW', {
+                message: "Could not save hand state: " + e.message,
+                isFatal: false
+            });
         }
         
         // Transition to next battle
-        EventBus.emit('SCREEN_CHANGE', 'battle');
+        EventBus.emit('SCREEN_CHANGE', { screen: 'battle' });
     }
 
     /**
@@ -339,29 +520,60 @@ export class Integration {
     startNextDay() {
         console.log("Integration: Starting next day");
         
-        // Reset player buffs and stamina
-        GameState.set('player.buffs', []);
+        // Show loading indicator
+        EventBus.emit('LOADING_START', {
+            message: "Preparing for the next day..."
+        });
         
-        const player = GameState.get('player');
-        GameState.set('player.stamina', player.baseStamina);
-        GameState.set('player.health', player.maxHealth);
-        
-        // Combine all gems
-        const currentGemBag = GameState.get('gemBag') || [];
-        const currentHand = GameState.get('hand') || [];
-        const currentDiscard = GameState.get('discard') || [];
-        const allGems = [...currentHand, ...currentDiscard, ...currentGemBag];
-        
-        // Reset collections
-        GameState.set('hand', []);
-        GameState.set('discard', []);
-        GameState.set('gemBag', Utils.shuffle(allGems));
-        
-        // Switch to battle screen
-        EventBus.emit('SCREEN_CHANGE', 'battle');
+        try {
+            // Reset player buffs and stamina
+            GameState.set('player.buffs', []);
+            
+            const player = GameState.get('player');
+            GameState.set('player.stamina', player.baseStamina);
+            GameState.set('player.health', player.maxHealth);
+            
+            // Combine all gems
+            const currentGemBag = GameState.get('gemBag') || [];
+            const currentHand = GameState.get('hand') || [];
+            const currentDiscard = GameState.get('discard') || [];
+            const allGems = [...currentHand, ...currentDiscard, ...currentGemBag];
+            
+            // Reset collections
+            GameState.set('hand', []);
+            GameState.set('discard', []);
+            GameState.set('gemBag', Utils.shuffle(allGems));
+            
+            // Hide loading indicator
+            EventBus.emit('LOADING_END');
+            
+            // Emit event with consistent format
+            EventBus.emit('DAY_STARTED', {
+                player: GameState.get('player'),
+                day: GameState.get('currentDay'),
+                gemBagSize: allGems.length,
+                timestamp: Date.now()
+            });
+            
+            // Switch to battle screen
+            EventBus.emit('SCREEN_CHANGE', { screen: 'battle' });
+        } catch (error) {
+            // Hide loading indicator
+            EventBus.emit('LOADING_END');
+            
+            // Emit error event with consistent pattern
+            EventBus.emit('ERROR_SHOW', {
+                message: "Error starting next day: " + error.message,
+                isFatal: false
+            });
+        }
     }
 }
 
+/**
+ * Cleanup component UI before page unload
+ * @returns {Boolean} Cleanup success
+ */
 export function cleanupComponentUI() {
     console.log("Cleaning up component UI");
     
@@ -380,4 +592,9 @@ export function cleanupComponentUI() {
     
     return true;
 }
-export default Integration;
+
+// Create singleton instance
+export const IntegrationInstance = new Integration();
+
+// For backwards compatibility
+export default IntegrationInstance;

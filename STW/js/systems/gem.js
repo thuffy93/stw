@@ -1,4 +1,4 @@
-// Update to gem.js to properly integrate submodules
+// Updated gem.js with standardized EventBus patterns
 
 import { GameState } from '../core/state.js';
 import { EventBus } from '../core/eventbus.js';
@@ -12,12 +12,21 @@ import { GemUpgrades } from './gem-upgrades.js';
 /**
  * Consolidated Gems Module
  * Provides a comprehensive interface for gem-related operations
+ * with standardized event handling
  */
-export const Gems = {
-    // Reference to submodules
-    Generation: GemGeneration,
-    Proficiency: GemProficiency,
-    Upgrades: GemUpgrades,
+export class GemsManager {
+    constructor() {
+        // Reference to submodules
+        this.Generation = GemGeneration;
+        this.Proficiency = GemProficiency;
+        this.Upgrades = GemUpgrades;
+        
+        // Track event subscriptions
+        this.eventSubscriptions = [];
+        
+        // Initialize the gems system
+        this.initialize();
+    }
     
     /**
      * Initialize the gems system and submodules
@@ -43,25 +52,57 @@ export const Gems = {
         this.setupEventHandlers();
         
         return true;
-    },
+    }
     
     /**
-     * Set up gem-related event handlers
+     * Helper method to subscribe to events and track subscriptions
+     * @param {String} eventName - Event name
+     * @param {Function} handler - Event handler
+     * @returns {Object} Subscription object
+     */
+    subscribe(eventName, handler) {
+        const subscription = EventBus.on(eventName, handler);
+        this.eventSubscriptions.push(subscription);
+        return subscription;
+    }
+    
+    /**
+     * Unsubscribe from all events (for cleanup)
+     */
+    unsubscribeAll() {
+        this.eventSubscriptions.forEach(subscription => {
+            if (subscription && typeof subscription.unsubscribe === 'function') {
+                subscription.unsubscribe();
+            }
+        });
+        this.eventSubscriptions = [];
+    }
+    
+    /**
+     * Set up gem-related event handlers with standardized pattern
      */
     setupEventHandlers() {
-        EventBus.on('GEM_UNLOCK_REQUEST', ({ gemKey }) => {
+        this.subscribe('GEM_UNLOCK_REQUEST', ({ gemKey }) => {
             this.addToGemCatalog(gemKey);
         });
         
-        EventBus.on('GENERATE_GEM_POOL', ({ playerClass }) => {
+        this.subscribe('GENERATE_GEM_POOL', ({ playerClass }) => {
             const gemPool = this.createClassAppropriateGemPool(playerClass);
             GameState.set('gemCatalog.gemPool', gemPool);
         });
         
-        EventBus.on('DRAW_CARDS', ({ count }) => {
+        this.subscribe('DRAW_CARDS', ({ count }) => {
             this.drawCards(count);
         });
-    },
+        
+        this.subscribe('GEM_EXECUTE', ({ gemIndex }) => {
+            this.executeGem(gemIndex);
+        });
+        
+        this.subscribe('GEM_DISCARD', ({ gemIndex }) => {
+            this.discardGem(gemIndex);
+        });
+    }
     
     /**
      * Create a class-appropriate gem pool
@@ -102,10 +143,10 @@ export const Gems = {
         });
         
         return gemPool;
-    },
+    }
     
     /**
-     * Draw cards from gem bag to hand
+     * Draw cards from gem bag to hand with standardized event patterns
      * @param {Number} count - Number of cards to draw
      * @returns {Array} Cards drawn
      */
@@ -116,6 +157,10 @@ export const Gems = {
         
         // Check if hand is already full
         if (hand.length >= maxHandSize) {
+            EventBus.emit('UI_MESSAGE', {
+                message: "Hand is full, cannot draw more gems",
+                type: 'info'
+            });
             return [];
         }
         
@@ -123,6 +168,12 @@ export const Gems = {
         const drawCount = Math.min(count, maxHandSize - hand.length, gemBag.length);
         
         if (drawCount <= 0) {
+            if (gemBag.length === 0) {
+                EventBus.emit('UI_MESSAGE', {
+                    message: "Gem bag is empty",
+                    type: 'info'
+                });
+            }
             return [];
         }
         
@@ -134,11 +185,15 @@ export const Gems = {
         GameState.set('hand', [...hand, ...drawnCards]);
         GameState.set('gemBag', newGemBag);
         
-        // Emit hand updated event
-        EventBus.emit('HAND_UPDATED');
+        // Emit hand updated event with consistent data format
+        EventBus.emit('HAND_UPDATED', {
+            hand: [...hand, ...drawnCards],
+            cardsDrawn: drawnCards,
+            drawCount
+        });
         
         return drawnCards;
-    },
+    }
     
     /**
      * Validate a gem's usability
@@ -181,7 +236,7 @@ export const Gems = {
         }
         
         return validationResult;
-    },
+    }
     
     /**
      * Calculate gem effectiveness multiplier
@@ -209,10 +264,10 @@ export const Gems = {
         }
         
         return multiplier;
-    },
+    }
     
     /**
-     * Process a gem's effect
+     * Process a gem's effect using standardized event patterns
      * @param {Object} gem - Gem to process
      * @param {Boolean} fails - Whether the gem fails
      * @param {Number} multiplier - Effectiveness multiplier
@@ -220,6 +275,12 @@ export const Gems = {
      */
     processGemEffect(gem, fails, multiplier = 1) {
         if (fails) {
+            // Emit failure event with consistent pattern
+            EventBus.emit('GEM_EXECUTION_FAILED', {
+                gem,
+                reason: "Low proficiency"
+            });
+            
             return { success: false, reason: "Gem failed due to low proficiency" };
         }
         
@@ -236,10 +297,12 @@ export const Gems = {
                 enemy.health = Math.max(0, enemy.health - damage);
                 GameState.set('battle.enemy', enemy);
                 
-                // Emit damage event
-                EventBus.emit('SHOW_DAMAGE', {
+                // Emit damage event with consistent pattern
+                EventBus.emit('DAMAGE_DEALT', {
                     target: 'enemy',
-                    amount: damage
+                    source: 'gem',
+                    amount: damage,
+                    gem
                 });
                 
                 result.damageDealt = damage;
@@ -258,10 +321,12 @@ export const Gems = {
             const actualHeal = player.health - startHealth;
             result.effects.push({ type: 'heal', amount: actualHeal });
             
-            // Emit heal event
-            EventBus.emit('SHOW_DAMAGE', {
+            // Emit heal event with consistent pattern
+            EventBus.emit('HEALING_APPLIED', {
                 target: 'player',
-                amount: -actualHeal // Negative for healing
+                source: 'gem',
+                amount: actualHeal,
+                gem
             });
             
             result.healingDone = actualHeal;
@@ -282,6 +347,15 @@ export const Gems = {
             }
             
             GameState.set('player.buffs', buffs);
+            
+            // Emit buff event with consistent pattern
+            EventBus.emit('BUFF_APPLIED', {
+                target: 'player',
+                buff: { type: "defense", turns: 2 },
+                source: 'gem',
+                gem
+            });
+            
             result.effects.push({ type: 'shield', duration: 2 });
         }
         
@@ -303,12 +377,94 @@ export const Gems = {
                 }
                 
                 GameState.set('battle.enemy', enemy);
+                
+                // Emit buff event with consistent pattern
+                EventBus.emit('BUFF_APPLIED', {
+                    target: 'enemy',
+                    buff: { type: "poison", turns: 3, damage: poisonDamage },
+                    source: 'gem',
+                    gem
+                });
+                
                 result.effects.push({ type: 'poison', duration: 3, damage: poisonDamage });
             }
         }
         
         return result;
-    },
+    }
+    
+    /**
+     * Execute a specific gem from hand
+     * @param {Number} gemIndex - Index of gem in hand
+     * @returns {Object} Execution result
+     */
+    executeGem(gemIndex) {
+        const hand = GameState.get('hand');
+        const player = GameState.get('player');
+        
+        // Validate index
+        if (gemIndex < 0 || gemIndex >= hand.length) {
+            EventBus.emit('UI_MESSAGE', {
+                message: "Invalid gem selection",
+                type: 'error'
+            });
+            return { success: false, reason: "Invalid gem index" };
+        }
+        
+        const gem = hand[gemIndex];
+        
+        // Validate gem usage
+        const validationResult = this.validateGemUsage(gem, {
+            battleOver: GameState.get('battleOver')
+        });
+        
+        if (!validationResult.usable) {
+            EventBus.emit('UI_MESSAGE', {
+                message: validationResult.reasons[0] || "Cannot use this gem",
+                type: 'error'
+            });
+            return { success: false, reasons: validationResult.reasons };
+        }
+        
+        // Deduct stamina
+        GameState.set('player.stamina', player.stamina - gem.cost);
+        
+        // Process gem effect
+        const multiplier = this.calculateGemEffectiveness(gem);
+        const gemKey = `${gem.color}${gem.name.replace(/\s+/g, '')}`;
+        const proficiency = this.Proficiency.getGemProficiency(gemKey);
+        const gemFails = this.Proficiency.checkGemFails(proficiency);
+        
+        const result = this.processGemEffect(gem, gemFails, multiplier);
+        
+        // Update proficiency
+        this.Proficiency.updateGemProficiency(gemKey, !gemFails);
+        
+        // Remove gem from hand
+        const newHand = [...hand];
+        newHand.splice(gemIndex, 1);
+        GameState.set('hand', newHand);
+        
+        // Add to discard
+        const discard = GameState.get('discard') || [];
+        GameState.set('discard', [...discard, gem]);
+        
+        // Update state flags
+        GameState.set('hasPlayedGemThisTurn', true);
+        
+        // Emit gem played event
+        EventBus.emit('GEM_EXECUTED', {
+            gem,
+            index: gemIndex,
+            success: !gemFails,
+            ...result
+        });
+        
+        // Update hand display
+        EventBus.emit('HAND_UPDATED', { hand: newHand });
+        
+        return result;
+    }
     
     /**
      * Generate upgrade options for a gem
@@ -317,7 +473,7 @@ export const Gems = {
      */
     generateUpgradeOptions(selectedGem) {
         return this.Upgrades.generateUpgradeOptions(selectedGem);
-    },
+    }
     
     /**
      * Create a new gem bag for a player
@@ -336,10 +492,16 @@ export const Gems = {
             GameState.set('hand', initialHand);
             GameState.set('gemBag', remainingGemBag);
             GameState.set('discard', []);
+            
+            // Emit hand updated event
+            EventBus.emit('HAND_UPDATED', { 
+                hand: initialHand,
+                isInitialHand: true
+            });
         }
         
         return gemBag;
-    },
+    }
     
     /**
      * Add a new gem to the player's gem catalog
@@ -393,10 +555,14 @@ export const Gems = {
         
         GameState.set('classGemCatalogs', classGemCatalogs);
         
-        // Emit events
+        // Emit events - use consistent event data format
         EventBus.emit('GEM_ADDED_TO_CATALOG', { 
             gemKey, 
-            gem: Config.BASE_GEMS[gemKey] 
+            gem: Config.BASE_GEMS[gemKey],
+            catalog: {
+                unlocked: updatedUnlocked,
+                available: updatedAvailable
+            }
         });
         
         EventBus.emit('UI_MESSAGE', {
@@ -405,6 +571,54 @@ export const Gems = {
         
         return true;
     }
-};
+    
+    /**
+     * Discard a gem from hand to gem bag
+     * @param {Number} gemIndex - Index of gem in hand
+     * @returns {Boolean} Success
+     */
+    discardGem(gemIndex) {
+        const hand = GameState.get('hand');
+        const gemBag = GameState.get('gemBag');
+        
+        // Validate index
+        if (gemIndex < 0 || gemIndex >= hand.length) {
+            EventBus.emit('UI_MESSAGE', {
+                message: "Invalid gem selection",
+                type: 'error'
+            });
+            return false;
+        }
+        
+        // Get the gem to discard
+        const discardedGem = hand[gemIndex];
+        
+        // Remove from hand
+        const newHand = [...hand];
+        newHand.splice(gemIndex, 1);
+        GameState.set('hand', newHand);
+        
+        // Add to gem bag
+        const newGemBag = [...gemBag, discardedGem];
+        
+        // Shuffle gem bag
+        const shuffledBag = Utils.shuffle(newGemBag);
+        GameState.set('gemBag', shuffledBag);
+        
+        // Emit events
+        EventBus.emit('GEM_DISCARDED', {
+            gem: discardedGem,
+            index: gemIndex
+        });
+        
+        EventBus.emit('HAND_UPDATED', { hand: newHand });
+        
+        return true;
+    }
+}
 
+// Create singleton instance
+export const Gems = new GemsManager();
+
+// For backwards compatibility
 export default Gems;

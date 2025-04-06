@@ -2,91 +2,114 @@ import { EventBus } from '../core/eventbus.js';
 import { GameState } from '../core/state.js';
 import { Utils } from '../core/utils.js';
 import { Config } from '../core/config.js';
-import { Renderer } from '../ui/renderer.js';
+import { Storage } from '../core/storage.js';
 
 /**
  * EventHandler module - Handles user interactions and button events
  */
-export const EventHandler = (() => {
+export class EventHandler {
+    constructor() {
+        this.initialized = false;
+        this.eventSubscriptions = [];
+    }
+
     /**
      * Initialize button handlers and event listeners
      */
-    function initialize() {
+    initialize() {
+        if (this.initialized) {
+            console.warn("EventHandler already initialized, skipping");
+            return true;
+        }
+
         console.log("Initializing EventHandler");
-        setupButtonHandlers();
-        setupKeyboardHandlers();
-        setupAutoSave();
-        setupUIEvents();
+        this.setupButtonHandlers();
+        this.setupKeyboardHandlers();
+        this.setupAutoSave();
+        this.setupUIEvents();
+        
+        this.initialized = true;
         return true;
     }
 
     /**
-     * Set up button event handlers for all screens
+     * Helper method to subscribe to events and track subscriptions
+     * @param {String} eventName - Event name
+     * @param {Function} handler - Event handler
      */
+    subscribe(eventName, handler) {
+        const subscription = EventBus.on(eventName, handler);
+        this.eventSubscriptions.push(subscription);
+        return subscription;
+    }
+
     /**
      * Set up UI event listeners for rendering updates
      */
-    function setupUIEvents() {
+    setupUIEvents() {
         // Listen for UI update events
-        EventBus.on('UI_UPDATE', ({ target }) => {
+        this.subscribe('UI_UPDATE', ({ target }) => {
             switch (target) {
                 case 'battle':
-                    Renderer.updateBattleUI();
+                    this.updateBattleUI();
                     break;
                 case 'shop':
-                    Renderer.updateShopUI();
+                    this.updateShopUI();
                     break;
                 case 'gemCatalog':
-                    Renderer.updateGemCatalogUI();
+                    this.updateGemCatalogUI();
                     break;
                 case 'camp':
-                    Renderer.updateCampUI();
+                    this.updateCampUI();
                     break;
             }
         });
         
         // Hand updates
-        EventBus.on('HAND_UPDATED', () => {
-            Renderer.renderHand();
+        this.subscribe('HAND_UPDATED', () => {
+            this.renderHand();
         });
         
         // Gem selection
-        EventBus.on('GEM_SELECTION_CHANGED', ({ selectedIndices }) => {
-            Renderer.updateGemSelection(selectedIndices);
+        this.subscribe('GEM_SELECTION_CHANGED', ({ selectedIndices }) => {
+            this.updateGemSelection(selectedIndices);
         });
     }
 
-    function setupButtonHandlers() {
+    /**
+     * Set up button event handlers for all screens
+     */
+    setupButtonHandlers() {
         console.log("Setting up button handlers");
         
         // For character selection screen
-        bindButton('knight-btn', 'click', () => selectClass('Knight'));
-        bindButton('mage-btn', 'click', () => selectClass('Mage'));
-        bindButton('rogue-btn', 'click', () => selectClass('Rogue'));
-        bindButton('reset-btn', 'click', resetMetaProgression);
+        this.bindButton('knight-btn', 'click', () => this.selectClass('Knight'));
+        this.bindButton('mage-btn', 'click', () => this.selectClass('Mage'));
+        this.bindButton('rogue-btn', 'click', () => this.selectClass('Rogue'));
+        this.bindButton('reset-btn', 'click', () => this.resetMetaProgression());
         
         // For gem catalog screen
-        bindButton('continue-journey-btn', 'click', startJourney);
+        this.bindButton('continue-journey-btn', 'click', () => this.startJourney());
         
         // For battle screen
-        bindButton('execute-btn', 'click', () => EventBus.emit('EXECUTE_GEMS'));
-        bindButton('wait-btn', 'click', () => EventBus.emit('WAIT_TURN'));
-        bindButton('discard-end-btn', 'click', () => EventBus.emit('DISCARD_AND_END'));
-        bindButton('end-turn-btn', 'click', () => EventBus.emit('END_TURN'));
-        bindButton('flee-btn', 'click', () => EventBus.emit('FLEE_BATTLE'));
+        this.bindButton('execute-btn', 'click', () => EventBus.emit('EXECUTE_GEMS'));
+        this.bindButton('wait-btn', 'click', () => EventBus.emit('WAIT_TURN'));
+        this.bindButton('discard-end-btn', 'click', () => EventBus.emit('DISCARD_AND_END'));
+        this.bindButton('end-turn-btn', 'click', () => EventBus.emit('END_TURN'));
+        this.bindButton('flee-btn', 'click', () => EventBus.emit('FLEE_BATTLE'));
         
         // For shop screen
-        bindButton('buy-random-gem', 'click', () => EventBus.emit('BUY_RANDOM_GEM'));
-        bindButton('discard-gem', 'click', () => EventBus.emit('DISCARD_GEM'));
-        bindButton('upgrade-gem', 'click', () => EventBus.emit('INITIATE_UPGRADE'));
-        bindButton('cancel-upgrade', 'click', () => EventBus.emit('CANCEL_UPGRADE'));
-        bindButton('heal-10', 'click', () => EventBus.emit('HEAL_IN_SHOP'));
-        bindButton('continue-btn', 'click', () => EventBus.emit('CONTINUE_FROM_SHOP'));
+        this.bindButton('buy-random-gem', 'click', () => EventBus.emit('BUY_RANDOM_GEM'));
+        this.bindButton('discard-gem', 'click', () => EventBus.emit('DISCARD_GEM'));
+        this.bindButton('upgrade-gem', 'click', () => EventBus.emit('INITIATE_UPGRADE'));
+        this.bindButton('cancel-upgrade', 'click', () => EventBus.emit('CANCEL_UPGRADE'));
+        this.bindButton('heal-10', 'click', () => EventBus.emit('HEAL_IN_SHOP'));
+        this.bindButton('continue-btn', 'click', () => EventBus.emit('CONTINUE_FROM_SHOP'));
         
         // For camp screen
-        bindButton('withdraw-btn', 'click', withdrawZenny);
-        bindButton('deposit-btn', 'click', depositZenny);
-        bindButton('next-day-btn', 'click', startNextDay);
+        this.bindButton('withdraw-btn', 'click', () => this.withdrawZenny());
+        this.bindButton('deposit-btn', 'click', () => this.depositZenny());
+        this.bindButton('next-day-btn', 'click', () => this.startNextDay());
     }
 
     /**
@@ -96,7 +119,7 @@ export const EventHandler = (() => {
      * @param {Function} handler - Event handler function
      * @returns {Boolean} Whether binding was successful
      */
-    function bindButton(buttonId, eventType, handler) {
+    bindButton(buttonId, eventType, handler) {
         const button = document.getElementById(buttonId);
         if (!button) {
             console.warn(`Button ${buttonId} not found`);
@@ -115,8 +138,8 @@ export const EventHandler = (() => {
     /**
      * Set up keyboard event handlers
      */
-    function setupKeyboardHandlers() {
-        document.addEventListener('keydown', function(event) {
+    setupKeyboardHandlers() {
+        document.addEventListener('keydown', (event) => {
             const currentScreen = GameState.get('currentScreen');
             
             if (currentScreen === 'battle') {
@@ -155,7 +178,7 @@ export const EventHandler = (() => {
     /**
      * Set up auto-save functionality
      */
-    function setupAutoSave() {
+    setupAutoSave() {
         // Save every 30 seconds
         setInterval(() => {
             // Only auto-save if player has a class set
@@ -177,7 +200,7 @@ export const EventHandler = (() => {
      * Handle class selection
      * @param {String} className - Name of the selected class
      */
-    function selectClass(className) {
+    selectClass(className) {
         console.log(`Selecting class: ${className}`);
         
         // Emit class selection event
@@ -190,7 +213,7 @@ export const EventHandler = (() => {
     /**
      * Start the journey from gem catalog to battle
      */
-    function startJourney() {
+    startJourney() {
         console.log("Starting journey");
         
         // Show loading message
@@ -209,11 +232,11 @@ export const EventHandler = (() => {
     }
 
     /**
-     * Handle gem selection toggle
+     * Toggle gem selection
      * @param {Number} index - Index of the gem in the hand
      * @param {Boolean} isShop - Whether this is in the shop context
      */
-    function toggleGemSelection(index, isShop = false) {
+    toggleGemSelection(index, isShop = false) {
         const hand = GameState.get('hand');
         let selectedGems = GameState.get('selectedGems');
         
@@ -251,65 +274,12 @@ export const EventHandler = (() => {
     }
 
     /**
-     * Unlock a gem in the catalog
-     * @param {String} gemKey - Key of the gem to unlock
-     */
-    function unlockGem(gemKey) {
-        const metaZenny = GameState.get('metaZenny');
-        const gemCatalog = GameState.get('gemCatalog');
-        const playerClass = GameState.get('player.class');
-        
-        // Check if player can afford it
-        if (metaZenny < 50) {
-            EventBus.emit('UI_MESSAGE', {
-                message: "Not enough Meta $ZENNY!",
-                type: 'error'
-            });
-            return;
-        }
-        
-        // Check if gem is valid
-        const gem = Config.BASE_GEMS[gemKey];
-        if (!gem) {
-            EventBus.emit('UI_MESSAGE', {
-                message: "Invalid gem!",
-                type: 'error'
-            });
-            return;
-        }
-        
-        // Deduct zenny
-        GameState.set('metaZenny', metaZenny - 50);
-        
-        // Add to unlocked gems and remove from available
-        const unlocked = [...gemCatalog.unlocked, gemKey];
-        const available = gemCatalog.available.filter(key => key !== gemKey);
-        
-        // Update gem catalog
-        GameState.set('gemCatalog.unlocked', unlocked);
-        GameState.set('gemCatalog.available', available);
-        
-        // Update class-specific catalog
-        GameState.set(`classGemCatalogs.${playerClass}.unlocked`, unlocked);
-        GameState.set(`classGemCatalogs.${playerClass}.available`, available);
-        
-        // Emit unlock event
-        EventBus.emit('GEM_UNLOCKED', { gemKey, gem });
-        
-        // Show success message
-        EventBus.emit('UI_MESSAGE', {
-            message: `Unlocked ${gem.name}! Available as upgrade in shop.`
-        });
-        
-        // Update UI
-        EventBus.emit('UI_UPDATE', { target: 'gemCatalog' });
-    }
-
-    /**
      * Withdraw zenny to meta wallet
      */
-    function withdrawZenny() {
+    withdrawZenny() {
         const withdrawAmount = document.getElementById('withdraw-amount');
+        if (!withdrawAmount) return;
+
         const amount = parseInt(withdrawAmount.value);
         const player = GameState.get('player');
         
@@ -344,13 +314,18 @@ export const EventHandler = (() => {
         
         // Update UI
         EventBus.emit('UI_UPDATE', { target: 'camp' });
+        
+        // Clear input
+        withdrawAmount.value = '';
     }
 
     /**
      * Deposit zenny from meta wallet
      */
-    function depositZenny() {
+    depositZenny() {
         const depositAmount = document.getElementById('deposit-amount');
+        if (!depositAmount) return;
+
         const amount = parseInt(depositAmount.value);
         const metaZenny = GameState.get('metaZenny');
         
@@ -385,60 +360,71 @@ export const EventHandler = (() => {
         
         // Update UI
         EventBus.emit('UI_UPDATE', { target: 'camp' });
+        
+        // Clear input
+        depositAmount.value = '';
     }
 
     /**
      * Start the next day
      */
-    function startNextDay() {
+    startNextDay() {
         // Emit next day event
         EventBus.emit('START_NEXT_DAY');
-        
-        // Reset player buffs and stamina
-        GameState.set('player.buffs', []);
-        GameState.set('player.stamina', GameState.get('player.baseStamina'));
-        GameState.set('player.health', GameState.get('player.maxHealth'));
-        
-        // Combine all gems
-        const currentGemBag = GameState.get('gemBag');
-        const currentHand = GameState.get('hand');
-        const currentDiscard = GameState.get('discard');
-        const allGems = [...currentHand, ...currentDiscard, ...currentGemBag];
-        
-        // Reset hand and discard
-        GameState.set('hand', []);
-        GameState.set('discard', []);
-        GameState.set('gemBag', Utils.shuffle(allGems));
-        
-        // Start battle
-        EventBus.emit('JOURNEY_START');
-        
-        // Switch to battle screen
-        EventBus.emit('SCREEN_CHANGE', 'battle');
     }
 
     /**
      * Reset meta progression
      */
-    function resetMetaProgression() {
+    resetMetaProgression() {
         if (confirm("Are you sure you want to reset all meta-progression? This will clear Meta $ZENNY, unlocked gems, and proficiency.")) {
-            EventBus.emit('RESET_META_PROGRESSION');
+            EventBus.emit('META_PROGRESSION_RESET');
         }
     }
 
-    // Public API
-    return {
-        initialize,
-        setupButtonHandlers,
-        selectClass,
-        startJourney,
-        toggleGemSelection,
-        unlockGem,
-        withdrawZenny,
-        depositZenny,
-        startNextDay,
-        resetMetaProgression
-    };
-})();
+    /**
+     * For compatibility with the renderer
+     */
+    updateBattleUI() {
+        EventBus.emit('UI_UPDATE', { target: 'battle' });
+    }
 
-export default EventHandler;
+    updateShopUI() {
+        EventBus.emit('UI_UPDATE', { target: 'shop' });
+    }
+
+    updateGemCatalogUI() {
+        EventBus.emit('UI_UPDATE', { target: 'gemCatalog' });
+    }
+
+    updateCampUI() {
+        EventBus.emit('UI_UPDATE', { target: 'camp' });
+    }
+
+    renderHand() {
+        EventBus.emit('HAND_UPDATED');
+    }
+
+    updateGemSelection(selectedIndices) {
+        EventBus.emit('GEM_SELECTION_CHANGED', { selectedIndices });
+    }
+
+    /**
+     * Cleanup subscription when needed
+     */
+    cleanup() {
+        this.eventSubscriptions.forEach(subscription => {
+            if (subscription && typeof subscription.unsubscribe === 'function') {
+                subscription.unsubscribe();
+            }
+        });
+        this.eventSubscriptions = [];
+        this.initialized = false;
+    }
+}
+
+// Create a singleton instance
+export const EventHandlerInstance = new EventHandler();
+
+// For backwards compatibility
+export default EventHandlerInstance;

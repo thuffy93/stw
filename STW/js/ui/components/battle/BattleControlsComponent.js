@@ -61,8 +61,11 @@ export class BattleControlsComponent extends Component {
         .addChild(this.fleeButton);
     
     // Subscribe to events for updating controls
-    this.subscribeToEvent('GEM_SELECTION_CHANGED', this.updateButtonStates);
-    this.subscribeToEvent('BATTLE_STATE_UPDATE', this.updateButtonStates);
+    this.subscribeToEvent('GEM_SELECTION_CHANGED', this.updateButtonStates.bind(this));
+    this.subscribeToEvent('BATTLE_STATE_UPDATE', this.updateButtonStates.bind(this));
+    this.subscribeToEvent('TURN_START', this.updateButtonStates.bind(this));
+    this.subscribeToEvent('TURN_END', this.updateButtonStates.bind(this));
+    this.subscribeToEvent('PLAYER_BUFF_CHANGED', this.updateButtonStates.bind(this));
   }
   
   /**
@@ -87,28 +90,54 @@ export class BattleControlsComponent extends Component {
     
     // Update button states
     this.executeButton.update({
-      disabled: battleOver || !canPlayGems || isEnemyTurnPending || isStunned
+      disabled: battleOver || !canPlayGems || isEnemyTurnPending || isStunned,
+      tooltip: isStunned ? "You are stunned and cannot act" :
+              !canPlayGems ? "Select gems with enough stamina" :
+              isEnemyTurnPending ? "Wait for enemy turn to complete" :
+              battleOver ? "Battle is over" : "Play selected gems"
     });
     
     this.waitButton.update({
-      disabled: battleOver || isEnemyTurnPending || hasActedThisTurn || hasPlayedGemThisTurn || isStunned
+      disabled: battleOver || isEnemyTurnPending || hasActedThisTurn || hasPlayedGemThisTurn || isStunned,
+      tooltip: hasActedThisTurn || hasPlayedGemThisTurn ? "Already acted this turn" :
+              isStunned ? "You are stunned and cannot act" :
+              isEnemyTurnPending ? "Wait for enemy turn to complete" :
+              battleOver ? "Battle is over" : "Wait to gain Focus (+20% damage/healing next turn)"
     });
     
     this.discardEndButton.update({
-      disabled: battleOver || !selectedGems.size || isEnemyTurnPending || hasActedThisTurn || isStunned
+      disabled: battleOver || !selectedGems.size || isEnemyTurnPending || hasActedThisTurn || isStunned,
+      tooltip: !selectedGems.size ? "Select gems to discard" :
+              hasActedThisTurn ? "Already acted this turn" :
+              isStunned ? "You are stunned and cannot act" :
+              isEnemyTurnPending ? "Wait for enemy turn to complete" :
+              battleOver ? "Battle is over" : "Discard selected gems and end your turn"
     });
     
     this.endTurnButton.update({
-      disabled: battleOver || isEnemyTurnPending || isStunned
+      disabled: battleOver || isEnemyTurnPending || isStunned,
+      tooltip: isStunned ? "You are stunned and cannot act" :
+              isEnemyTurnPending ? "Wait for enemy turn to complete" :
+              battleOver ? "Battle is over" : "End your turn without playing gems"
     });
     
     // Show/hide flee button based on phase
     const currentPhaseIndex = GameState.get('currentPhaseIndex') || 0;
     if (currentPhaseIndex < 2 && !battleOver && !isEnemyTurnPending && !isStunned) {
       this.fleeButton.show();
+      this.fleeButton.update({
+        tooltip: "Flee from battle (only available in first two phases)"
+      });
     } else {
       this.fleeButton.hide();
     }
+  }
+  
+  /**
+   * After the component is rendered, update button states
+   */
+  afterRender() {
+    this.updateButtonStates();
   }
   
   /**
@@ -120,5 +149,3 @@ export class BattleControlsComponent extends Component {
     this.updateButtonStates();
   }
 }
-
-export default BattleControlsComponent;

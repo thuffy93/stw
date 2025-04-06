@@ -3,7 +3,7 @@ import { Component } from '../Component.js';
 import { EventBus } from '../../../core/eventbus.js';
 
 /**
- * Reusable button component
+ * Reusable button component with standardized event handling
  */
 export class ButtonComponent extends Component {
   /**
@@ -58,7 +58,7 @@ export class ButtonComponent extends Component {
   }
   
   /**
-   * Handle button click
+   * Handle button click with standardized event emission
    * @param {Event} event - Click event
    */
   handleClick(event) {
@@ -68,7 +68,7 @@ export class ButtonComponent extends Component {
     // Skip if disabled
     if (this.disabled) return;
     
-    // Play sound effect
+    // Play sound effect with consistent event format
     EventBus.emit('PLAY_SOUND', { sound: 'BUTTON_CLICK' });
     
     // Call custom handler if provided
@@ -78,7 +78,13 @@ export class ButtonComponent extends Component {
     
     // Emit event if specified
     if (this.eventName) {
-      EventBus.emit(this.eventName, this.eventData);
+      // Always use the consistent object pattern for event data
+      if (typeof this.eventData === 'object' && this.eventData !== null) {
+        EventBus.emit(this.eventName, this.eventData);
+      } else {
+        // Handle primitive event data by wrapping it in an object
+        EventBus.emit(this.eventName, { value: this.eventData });
+      }
     }
   }
   
@@ -129,7 +135,23 @@ export class ButtonComponent extends Component {
   }
   
   /**
-   * Update button with new data
+   * Set event data for emission
+   * @param {Object} eventData - New event data
+   */
+  setEventData(eventData) {
+    this.eventData = eventData;
+  }
+  
+  /**
+   * Set event name for emission
+   * @param {String} eventName - New event name
+   */
+  setEventName(eventName) {
+    this.eventName = eventName;
+  }
+  
+  /**
+   * Update button with new data using consistent pattern
    * @param {Object} data - Button update data
    */
   update(data) {
@@ -154,7 +176,22 @@ export class ButtonComponent extends Component {
     
     // Update event data if provided
     if (data.eventData !== undefined) {
-      this.eventData = data.eventData;
+      this.setEventData(data.eventData);
+    }
+    
+    // Update event name if provided
+    if (data.eventName !== undefined) {
+      this.setEventName(data.eventName);
+    }
+    
+    // Update class name if provided
+    if (data.className !== undefined && this.element) {
+      // Remove existing btn class
+      this.element.className = 'btn';
+      // Add new classes
+      data.className.split(' ').forEach(cls => {
+        if (cls) this.element.classList.add(cls);
+      });
     }
   }
 }

@@ -1,4 +1,4 @@
-// main.js - Consolidated with simplified screen management approach
+// main.js - Consolidated with standardized event handling
 
 // Core imports
 import { EventBus } from './core/eventbus.js';
@@ -39,6 +39,33 @@ const Game = (() => {
     // Track initialization status
     let initialized = false;
     
+    // Track event subscriptions
+    let eventSubscriptions = [];
+    
+    /**
+     * Helper method to subscribe to events and track subscriptions
+     * @param {String} eventName - Event name
+     * @param {Function} handler - Event handler
+     * @returns {Object} Subscription object
+     */
+    function subscribe(eventName, handler) {
+        const subscription = EventBus.on(eventName, handler);
+        eventSubscriptions.push(subscription);
+        return subscription;
+    }
+    
+    /**
+     * Clear all subscriptions
+     */
+    function unsubscribeAll() {
+        eventSubscriptions.forEach(subscription => {
+            if (subscription && typeof subscription.unsubscribe === 'function') {
+                subscription.unsubscribe();
+            }
+        });
+        eventSubscriptions = [];
+    }
+    
     /**
      * Initialize the game
      */
@@ -74,7 +101,7 @@ const Game = (() => {
             console.log("Game initialized successfully");
             
             // Start at character selection screen
-            EventBus.emit('SCREEN_CHANGE', 'characterSelect');
+            EventBus.emit('SCREEN_CHANGE', { screen: 'characterSelect' });
             
             return true;
         } catch (error) {
@@ -85,23 +112,34 @@ const Game = (() => {
     }
     
     /**
-     * Set up core EventBus listeners
+     * Set up core EventBus listeners with standardized subscription pattern
      */
     function setupEventBusListeners() {
         // Core system events
-        EventBus.on('SAVE_GAME_STATE', () => Storage.saveGameState());
-        EventBus.on('LOAD_GAME_STATE', () => Storage.loadGameState());
-        EventBus.on('SAVE_META_ZENNY', () => Storage.saveMetaZenny());
+        subscribe('SAVE_GAME_STATE', () => Storage.saveGameState());
+        subscribe('LOAD_GAME_STATE', () => Storage.loadGameState());
+        subscribe('SAVE_META_ZENNY', () => Storage.saveMetaZenny());
         
         // Selection events
-        EventBus.on('GEM_SELECT', ({ index, context }) => {
+        subscribe('GEM_SELECT', ({ index, context }) => {
             if (typeof Battle.toggleGemSelection === 'function') {
                 Battle.toggleGemSelection(index, context === 'shop');
             }
         });
         
         // Debug events
-        EventBus.on('DEBUG_LOG', (data) => console.log('[DEBUG]', data));
+        subscribe('DEBUG_LOG', (data) => console.log('[DEBUG]', data));
+        
+        // Error handling
+        subscribe('ERROR_OCCURRED', ({ error, source, isFatal = false }) => {
+            console.error(`[ERROR] in ${source}:`, error);
+            
+            // Show error message
+            EventBus.emit('ERROR_SHOW', {
+                message: error.message || String(error),
+                isFatal
+            });
+        });
     }
     
     /**
@@ -124,7 +162,9 @@ const Game = (() => {
         AssetManager.initialize();
         
         // Emit event for successful initialization
-        EventBus.emit('ALL_MODULES_INITIALIZED');
+        EventBus.emit('ALL_MODULES_INITIALIZED', {
+            timestamp: Date.now()
+        });
     }
     
     /**
@@ -149,9 +189,24 @@ const Game = (() => {
             });
             
             console.log("Screens registered successfully");
+            
+            // Emit event for successful screen initialization
+            EventBus.emit('SCREENS_INITIALIZED', {
+                screens: Object.keys(screens),
+                timestamp: Date.now()
+            });
+            
             return true;
         } catch (error) {
             console.error("Error initializing screens:", error);
+            
+            // Emit error event with consistent format
+            EventBus.emit('ERROR_OCCURRED', {
+                error,
+                source: 'screen_initialization',
+                isFatal: false
+            });
+            
             // Continue anyway with what we have
             return false;
         }
@@ -164,6 +219,12 @@ const Game = (() => {
         // Queue up gem assets in AssetManager
         Object.entries(Config.BASE_GEMS).forEach(([key, gem]) => {
             AssetManager.queue(key, gem, 'data');
+        });
+        
+        // Emit event for successful asset initialization
+        EventBus.emit('ASSETS_INITIALIZED', {
+            gemCount: Object.keys(Config.BASE_GEMS).length,
+            timestamp: Date.now()
         });
     }
     
@@ -182,21 +243,54 @@ const Game = (() => {
         GameState.set('selectedGems', new Set());
         
         // Reset UI
-        EventBus.emit('SCREEN_CHANGE', 'characterSelect');
+        EventBus.emit('SCREEN_CHANGE', { screen: 'characterSelect' });
         
         console.log("Game reset complete");
+        
+        // Emit reset complete event
+        EventBus.emit('GAME_RESET_COMPLETE', {
+            timestamp: Date.now()
+        });
+    }
+    
+    /**
+     * Clean up resources on unload
+     */
+    function cleanup() {
+        // Unsubscribe from all events
+        unsubscribeAll();
+        
+        // Cleanup all module subscriptions if they have cleanup methods
+        [BaseRenderer, Battle, Shop, Gems, Character, EventHandler].forEach(module => {
+            if (module && typeof module.unsubscribeAll === 'function') {
+                module.unsubscribeAll();
+            }
+        });
+        
+        // Save state
+        if (initialized && GameState.get('player.class')) {
+            Storage.saveGameState();
+        }
+        
+        initialized = false;
+        
+        console.log("Game cleanup complete");
     }
     
     // Public interface
     return {
         initialize,
-        reset
+        reset,
+        cleanup
     };
 })();
 
 // Single initialization function
 function initializeGame() {
     console.log("Initializing game");
+    EventBus.emit('GAME_INITIALIZATION_STARTED', {
+        timestamp: Date.now()
+    });
     Game.initialize();
 }
 
@@ -209,5 +303,10 @@ if (document.readyState === 'loading') {
     console.log("Document already loaded, initializing game");
     initializeGame();
 }
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    Game.cleanup();
+});
 
 export default Game;

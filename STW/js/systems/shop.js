@@ -7,11 +7,67 @@ import { Gems } from './gem.js';
 /**
  * Shop module - Handles shop interactions and gem upgrades
  */
-export const Shop = (() => {
+export class Shop {
+    constructor() {
+        // Store event subscriptions for potential cleanup
+        this.eventSubscriptions = [];
+        this.initialize();
+    }
+
+    /**
+     * Initialize the Shop module and register event handlers
+     */
+    initialize() {
+        console.log("Initializing Shop module");
+        
+        // Register event handlers with consistent pattern
+        this.subscribeToEvents();
+        
+        return true;
+    }
+
+    /**
+     * Subscribe to all shop-related events
+     */
+    subscribeToEvents() {
+        // Using consistent event subscription pattern
+        this.subscribe('SHOP_PREPARE', this.prepareShop.bind(this));
+        this.subscribe('BUY_RANDOM_GEM', this.buyRandomGem.bind(this));
+        this.subscribe('DISCARD_GEM', this.discardSelectedGem.bind(this));
+        this.subscribe('HEAL_IN_SHOP', this.healTen.bind(this));
+        this.subscribe('INITIATE_UPGRADE', this.initiateGemUpgrade.bind(this));
+        this.subscribe('UPGRADE_OPTION_SELECTED', ({ poolIndex }) => this.selectUpgradeOption(poolIndex));
+        this.subscribe('CANCEL_UPGRADE', this.cancelUpgrade.bind(this));
+        this.subscribe('CONTINUE_FROM_SHOP', this.continueFromShop.bind(this));
+    }
+
+    /**
+     * Helper method to subscribe to events and track subscriptions
+     * @param {String} eventName - Event name
+     * @param {Function} handler - Event handler
+     */
+    subscribe(eventName, handler) {
+        const subscription = EventBus.on(eventName, handler);
+        this.eventSubscriptions.push(subscription);
+        return subscription;
+    }
+
+    /**
+     * Unsubscribe from all events (useful for cleanup/testing)
+     */
+    unsubscribeAll() {
+        this.eventSubscriptions.forEach(subscription => {
+            if (subscription && typeof subscription.unsubscribe === 'function') {
+                subscription.unsubscribe();
+            }
+        });
+        this.eventSubscriptions = [];
+    }
+
     /**
      * Prepare the shop for a visit
      */
-    function prepareShop() {
+    prepareShop() {
         console.log("Preparing shop");
         
         // Reset shop-specific state
@@ -34,14 +90,14 @@ export const Shop = (() => {
             }
         }
         
-        // Emit shop prepared event
+        // Emit shop prepared event with consistent pattern
         EventBus.emit('SHOP_PREPARED');
     }
     
     /**
      * Buy a random gem for the gem bag
      */
-    function buyRandomGem() {
+    buyRandomGem() {
         const player = GameState.get('player');
         const gemBag = GameState.get('gemBag');
         
@@ -79,7 +135,7 @@ export const Shop = (() => {
         GameState.set('player.zenny', player.zenny - 3);
         
         // Get a random gem from unlocked ones, weighted toward class-appropriate
-        const randomGemKey = getRandomWeightedGem(unlockedGemKeys);
+        const randomGemKey = this.getRandomWeightedGem(unlockedGemKeys);
         
         // Create the new gem
         const newGem = { 
@@ -114,7 +170,7 @@ export const Shop = (() => {
      * @param {Array} gemKeys - Array of gem keys
      * @returns {String} Selected gem key
      */
-    function getRandomWeightedGem(gemKeys) {
+    getRandomWeightedGem(gemKeys) {
         const playerClass = GameState.get('player.class');
         
         // Define weights for different gem types
@@ -160,7 +216,7 @@ export const Shop = (() => {
     /**
      * Discard a selected gem
      */
-    function discardSelectedGem() {
+    discardSelectedGem() {
         const selectedGems = GameState.get('selectedGems');
         const hand = GameState.get('hand');
         const player = GameState.get('player');
@@ -225,7 +281,7 @@ export const Shop = (() => {
     /**
      * Heal player in the shop
      */
-    function healTen() {
+    healTen() {
         const player = GameState.get('player');
         
         // Validation
@@ -273,7 +329,7 @@ export const Shop = (() => {
     /**
      * Initiate gem upgrade process
      */
-    function initiateGemUpgrade() {
+    initiateGemUpgrade() {
         const selectedGems = GameState.get('selectedGems');
         const player = GameState.get('player');
         const hand = GameState.get('hand');
@@ -370,7 +426,7 @@ export const Shop = (() => {
      * Select an upgrade option
      * @param {Number} poolIndex - Index of the selected option in the pool
      */
-    function selectUpgradeOption(poolIndex) {
+    selectUpgradeOption(poolIndex) {
         const selectedGems = GameState.get('selectedGems');
         const gemCatalog = GameState.get('gemCatalog');
         const hand = GameState.get('hand');
@@ -504,7 +560,7 @@ export const Shop = (() => {
     /**
      * Cancel gem upgrade in the shop
      */
-    function cancelUpgrade() {
+    cancelUpgrade() {
         // Refund the cost
         const player = GameState.get('player');
         GameState.set('player.zenny', player.zenny + 5);
@@ -528,7 +584,7 @@ export const Shop = (() => {
     /**
      * Continue from shop to next battle
      */
-    function continueFromShop() {
+    continueFromShop() {
         // Save hand state to localStorage
         const hand = GameState.get('hand');
         try {
@@ -543,60 +599,10 @@ export const Shop = (() => {
         
         return true;
     }
-    
-    /**
-     * Initialize the Shop module
-     */
-    function initialize() {
-        // Register event handlers
-        EventBus.on('SHOP_PREPARE', () => {
-            prepareShop();
-        });
-        
-        EventBus.on('BUY_RANDOM_GEM', () => {
-            buyRandomGem();
-        });
-        
-        EventBus.on('DISCARD_GEM', () => {
-            discardSelectedGem();
-        });
-        
-        EventBus.on('HEAL_IN_SHOP', () => {
-            healTen();
-        });
-        
-        EventBus.on('INITIATE_UPGRADE', () => {
-            initiateGemUpgrade();
-        });
-        
-        EventBus.on('UPGRADE_OPTION_SELECTED', ({ poolIndex }) => {
-            selectUpgradeOption(poolIndex);
-        });
-        
-        EventBus.on('CANCEL_UPGRADE', () => {
-            cancelUpgrade();
-        });
-        
-        EventBus.on('CONTINUE_FROM_SHOP', () => {
-            continueFromShop();
-        });
-        
-        console.log("Shop module initialized");
-        return true;
-    }
-    
-    // Public API
-    return {
-        initialize,
-        prepareShop,
-        buyRandomGem,
-        discardSelectedGem,
-        healTen,
-        initiateGemUpgrade,
-        selectUpgradeOption,
-        cancelUpgrade,
-        continueFromShop
-    };
-})();
+}
 
-export default Shop;
+// Create and export singleton instance
+export const ShopInstance = new Shop();
+
+// For backwards compatibility
+export default ShopInstance;

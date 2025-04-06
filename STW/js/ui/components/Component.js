@@ -16,6 +16,7 @@ export class Component {
     this.element = null;
     this.children = [];
     this.eventHandlers = [];
+    this._eventSubscriptions = []; // Track EventBus subscriptions
   }
   
   /**
@@ -116,17 +117,28 @@ export class Component {
    * Subscribe to an event on the EventBus
    * @param {String} eventName - Name of the event
    * @param {Function} handler - Event handler function
-   * @returns {Component} This component for chaining
+   * @returns {Object} Subscription object with unsubscribe method
    */
   subscribeToEvent(eventName, handler) {
     // Must be imported in the component implementation
-    if (typeof EventBus !== 'undefined') {
-      EventBus.on(eventName, handler.bind(this));
-    } else {
-      console.warn('EventBus not available for subscription in component:', this.id);
+    if (typeof EventBus === 'undefined') {
+      console.warn(`EventBus not available for subscription to ${eventName} in component: ${this.id}`);
+      return { unsubscribe: () => {} };
     }
     
-    return this;
+    // Bind the handler to this component instance
+    const boundHandler = handler.bind(this);
+    
+    // Create subscription
+    const subscription = EventBus.on(eventName, boundHandler);
+    
+    // Store the subscription for cleanup
+    if (!this._eventSubscriptions) {
+      this._eventSubscriptions = [];
+    }
+    this._eventSubscriptions.push(subscription);
+    
+    return subscription;
   }
   
   /**
@@ -148,6 +160,16 @@ export class Component {
       this._eventBindings.forEach(({ element, event, handler }) => {
         element.removeEventListener(event, handler);
       });
+    }
+    
+    // Unsubscribe from all EventBus events
+    if (this._eventSubscriptions) {
+      this._eventSubscriptions.forEach(subscription => {
+        if (subscription && typeof subscription.unsubscribe === 'function') {
+          subscription.unsubscribe();
+        }
+      });
+      this._eventSubscriptions = [];
     }
     
     // Remove children
