@@ -41,38 +41,104 @@ export class GemCatalogScreen extends Component {
     // Add child components
     this.addChild(this.continueButton);
     
-    // Subscribe to events
-    this.subscribeToEvent('GEM_UNLOCKED', this.updateGemCatalog);
-    this.subscribeToEvent('META_ZENNY_UPDATED', this.updateGemCatalog);
+    // Additional subscriptions to ensure catalog updates
+    this.subscribeToEvent('GEM_UNLOCKED', this.updateGemCatalog.bind(this));
+    this.subscribeToEvent('META_ZENNY_UPDATED', this.updateGemCatalog.bind(this));
+    this.subscribeToEvent('CLASS_SELECTED', this.updateGemCatalog.bind(this));
+    this.subscribeToEvent('GEM_CATALOG_INITIALIZED', this.updateGemCatalog.bind(this));
+    this.subscribeToEvent('SCREEN_CHANGED', (data) => {
+      if (data.screen === 'gemCatalog') {
+        this.updateGemCatalog();
+      }
+    });
   }
-  
   /**
    * Start the journey
    */
   startJourney() {
-    console.log("Starting journey");
+    console.log("GemCatalog: Starting journey");
     
     // Show loading message
     EventBus.emit('UI_MESSAGE', {
       message: "Starting your adventure..."
     });
     
-    // Emit journey start event
-    EventBus.emit('JOURNEY_START');
-    
-    // Switch to battle screen
-    setTimeout(() => {
-      EventBus.emit('SCREEN_CHANGE', 'battle');
-    }, 100);
+    try {
+      // Direct emit of JOURNEY_START event
+      EventBus.emit('JOURNEY_START');
+      
+      // Force transition after a delay to ensure event processing completes
+      setTimeout(() => {
+        console.log("GemCatalog: Transitioning to battle screen");
+        
+        // Need to make sure battle screen is initialized properly
+        // First prepare player data if needed
+        const player = GameState.get('player');
+        if (player) {
+          // Reset necessary player state for battle
+          GameState.set('player.buffs', []);
+          GameState.set('player.stamina', player.baseStamina);
+          
+          // Create gem bag if not already created
+          if (!GameState.get('gemBag') || GameState.get('gemBag').length === 0) {
+            const baseGems = Object.entries(Config.BASE_GEMS).map(([key, gem]) => ({
+              ...gem,
+              id: `${gem.name}-${Utils.generateId()}`
+            }));
+            
+            const gemBag = Utils.shuffle(baseGems);
+            GameState.set('gemBag', gemBag);
+            
+            // Set up initial hand
+            const initialHand = gemBag.slice(0, Config.MAX_HAND_SIZE);
+            GameState.set('hand', initialHand);
+            GameState.set('gemBag', gemBag.slice(Config.MAX_HAND_SIZE));
+            GameState.set('discard', []);
+          }
+        }
+        
+        // Now change to battle screen
+        EventBus.emit('SCREEN_CHANGE', { screen: 'battle' });
+        
+        // After screen change, initialize battle
+        setTimeout(() => {
+          console.log("GemCatalog: Initializing battle");
+          EventBus.emit('BATTLE_INIT');
+        }, 100);
+      }, 200);
+    } catch (error) {
+      console.error("Error starting journey:", error);
+      EventBus.emit('UI_MESSAGE', {
+        message: "Failed to start journey. Please try again.",
+        type: 'error'
+      });
+      EventBus.emit('LOADING_END');
+    }
   }
   
   /**
    * Update gem catalog display
    */
   updateGemCatalog() {
+    // Check if the component has been rendered
+    // If this.element is null, the component hasn't been rendered yet
+    if (!this.element) {
+      console.log("GemCatalog: Component not yet rendered, deferring update");
+      return; // Exit early, we'll update when the component renders
+    }
+  
     const metaZenny = GameState.get('metaZenny');
     const gemCatalog = GameState.get('gemCatalog');
     const playerClass = GameState.get('player.class');
+    
+    console.log("GemCatalog: Updating catalog with:", {
+      metaZenny,
+      playerClass,
+      gemCatalog: gemCatalog ? {
+        unlocked: gemCatalog.unlocked,
+        available: gemCatalog.available
+      } : 'Not found'
+    });
     
     // Update meta zenny display
     const metaZennyDisplay = this.element.querySelector('#meta-zenny-display');
@@ -85,7 +151,7 @@ export class GemCatalogScreen extends Component {
     
     // Update available gems
     this.renderAvailableGems(gemCatalog, playerClass, metaZenny);
-  }
+  }  
   
   /**
    * Render unlocked gems
@@ -93,9 +159,14 @@ export class GemCatalogScreen extends Component {
    * @param {String} playerClass - Player class
    */
   renderUnlockedGems(gemCatalog, playerClass) {
-    const unlockedGemsContainer = this.element.querySelector('#unlocked-gems');
-    if (!unlockedGemsContainer) return;
+    // Exit early if component not rendered
+    if (!this.element) return;
     
+    const unlockedGemsContainer = this.element.querySelector('#unlocked-gems');
+    if (!unlockedGemsContainer) {
+      console.warn("GemCatalog: #unlocked-gems container not found");
+      return;
+    }
     unlockedGemsContainer.innerHTML = '';
     
     if (!gemCatalog || !gemCatalog.unlocked || !Array.isArray(gemCatalog.unlocked)) {
@@ -142,6 +213,9 @@ export class GemCatalogScreen extends Component {
    * @param {Number} metaZenny - Available meta zenny
    */
   renderAvailableGems(gemCatalog, playerClass, metaZenny) {
+    // Exit early if component not rendered
+    if (!this.element) return;
+    
     const availableGemsContainer = this.element.querySelector('#available-gems');
     if (!availableGemsContainer) return;
     
@@ -364,6 +438,13 @@ export class GemCatalogScreen extends Component {
   update(data) {
     this.updateGemCatalog();
   }
+  afterRender() {
+    console.log("GemCatalog: afterRender called");
+    // Update the catalog after rendering
+    this.updateGemCatalog();
+  }
+  
 }
+
 
 export default GemCatalogScreen;
