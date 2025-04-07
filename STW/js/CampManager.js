@@ -133,6 +133,9 @@ export default class CampManager {
             type: 'success'
         });
         
+        // The gem bag has already been reset by the 'day:ended' event
+        // which was triggered in BattleManager.continueJourney()
+        
         // Proceed to next battle
         this.stateManager.changeScreen('battle-screen');
         

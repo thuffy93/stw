@@ -176,7 +176,19 @@ export default class BattleManager {
             }
         });
         
-        // Draw initial hand
+        // Clear any existing hand to start fresh
+        this.stateManager.updateState({
+            gems: {
+                hand: [],
+                discarded: state.gems.discarded,
+                bag: state.gems.bag,
+                played: state.gems.played
+            }
+        });
+        
+        console.log("Starting battle with fresh hand");
+        
+        // Draw initial hand with a full set of 3 gems
         this.gemManager.drawGems(3);
         
         // Emit battle started event
@@ -1225,8 +1237,8 @@ export default class BattleManager {
                 }
             });
             
-            // Reset gems for next battle
-            this.gemManager.resetBattleGems();
+            // Note: We DO NOT reset gems to allow persistence between battles
+            // We keep the used gems in the "played" collection
             
             // Emit victory event
             this.eventBus.emit('battle:victory', {
@@ -1278,7 +1290,9 @@ export default class BattleManager {
         } else if (phase === 'DUSK') {
             nextPhase = 'DARK';
         } else if (phase === 'DARK') {
-            // End of day, go to camp
+            // Should not happen - Dark phase should go directly to camp
+            // But handle it gracefully as a fallback
+            console.warn("Unexpected: continueJourney called after Dark phase");
             nextPhase = 'DAWN';
             nextDay = day + 1;
             
@@ -1288,6 +1302,12 @@ export default class BattleManager {
                     day: nextDay,
                     phase: nextPhase
                 }
+            });
+            
+            // Emit day end event
+            this.eventBus.emit('day:ended', {
+                oldDay: day,
+                newDay: nextDay
             });
             
             // Go to camp screen
@@ -1331,8 +1351,8 @@ export default class BattleManager {
             }
         });
         
-        // Reset gems
-        this.gemManager.resetBattleGems();
+        // Reset gems specifically for fleeing - don't recycle played gems
+        this.gemManager.resetGemsAfterFleeing();
         
         // Emit flee event
         this.eventBus.emit('battle:fled', {
@@ -1343,5 +1363,47 @@ export default class BattleManager {
         this.progressJourney();
         
         return true;
+    }
+    progressGameState() {
+        const state = this.stateManager.getState();
+        const { day, phase } = state.journey;
+        
+        console.log(`Progressing game state after battle: Day ${day}, Phase ${phase}`);
+        
+        // Check if the just completed battle was a Dark phase (boss) battle
+        if (phase === 'DARK') {
+            console.log("Completed boss battle, going directly to camp");
+            
+            // End of day, go directly to camp
+            const nextDay = day + 1;
+            const nextPhase = 'DAWN';
+            
+            // Update state
+            this.stateManager.updateState({
+                journey: {
+                    day: nextDay,
+                    phase: nextPhase
+                }
+            });
+            
+            // Emit day end event to trigger gem bag reset
+            this.eventBus.emit('day:ended', {
+                oldDay: day,
+                newDay: nextDay
+            });
+            
+            // Go directly to camp screen with a delay
+            setTimeout(() => {
+                this.stateManager.changeScreen('camp-screen');
+            }, 1500);
+            
+            return;
+        }
+        
+        // For Dawn and Dusk phases, go to shop as normal
+        console.log("Going to shop after non-boss battle");
+        setTimeout(() => {
+            this.stateManager.changeScreen('shop-screen');
+        }, 1500);
     }
 }
