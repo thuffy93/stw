@@ -216,14 +216,20 @@ export default class BattleManager {
             this.processGemFailure(gem);
             return;
         }
-        
+
         const state = this.stateManager.getState();
         const { enemy } = state.battle;
         const { player } = state;
-        
+
+        // Prepare updates
+        const playerUpdates = {};
+        const enemyUpdates = {};
+        const newBuffs = [...player.buffs];
+        const updatedEnemyBuffs = [...enemy.buffs];
+
         // Get player class for bonus calculation
         const playerClass = player.class;
-        
+
         switch(gem.type) {
             case 'attack':
                 let damageAmount = gem.value;
@@ -248,17 +254,7 @@ export default class BattleManager {
                 
                 // Apply damage to enemy
                 const newEnemyHealth = Math.max(0, enemy.health - damageAmount);
-                const updatedEnemy = {
-                    ...enemy,
-                    health: newEnemyHealth
-                };
-                
-                // Update state
-                this.stateManager.updateState({
-                    battle: {
-                        enemy: updatedEnemy
-                    }
-                });
+                enemyUpdates.health = newEnemyHealth;
                 
                 // Emit damage event
                 this.eventBus.emit('enemy:damaged', {
@@ -269,6 +265,7 @@ export default class BattleManager {
                 // Check for victory
                 if (newEnemyHealth <= 0) {
                     this.endBattle(true);
+                    return;
                 }
                 
                 // Special case for green-quick
@@ -289,15 +286,10 @@ export default class BattleManager {
                 if (player.buffs.some(buff => buff.type === 'focus')) {
                     healAmount = Math.floor(healAmount * 1.2); // 20% bonus from focus
                 }
+                
                 // Apply healing (cap at max health)
                 const updatedHealth = Math.min(player.maxHealth, player.health + healAmount);
-                
-                // Update state
-                this.stateManager.updateState({
-                    player: {
-                        health: updatedHealth
-                    }
-                });
+                playerUpdates.health = updatedHealth;
                 
                 // Emit healing event
                 this.eventBus.emit('player:healed', {
@@ -314,6 +306,9 @@ export default class BattleManager {
                     defenseAmount = Math.floor(defenseAmount * 1.5); // 50% bonus
                 }
                 
+                // Remove existing defense buff
+                const updatedBuffs = player.buffs.filter(b => b.type !== 'defense');
+                
                 // Add defense buff
                 const defenseBuff = {
                     type: 'defense',
@@ -321,14 +316,7 @@ export default class BattleManager {
                     duration: gem.duration || 2
                 };
                 
-                const newBuffs = [...player.buffs.filter(b => b.type !== 'defense'), defenseBuff];
-                
-                // Update state
-                this.stateManager.updateState({
-                    player: {
-                        buffs: newBuffs
-                    }
-                });
+                newBuffs.push(defenseBuff);
                 
                 // Emit shield event
                 this.eventBus.emit('player:shielded', {
@@ -347,6 +335,231 @@ export default class BattleManager {
                 }
                 
                 // Add poison debuff to enemy
+                const poisonBuff = {
+                    type: 'poison',
+                    value: poisonAmount,
+                    duration: gem.duration || 3
+                };
+                
+                updatedEnemyBuffs.push(poisonBuff);
+                
+                // Emit poison event
+                this.eventBus.emit('enemy:poisoned', {
+                    amount: poisonAmount,
+                    duration: gem.duration || 3
+                });
+                break;
+        }
+        
+        // Update state
+        this.stateManager.updateState({
+            player: {
+                ...player,
+                ...playerUpdates,
+                buffs: newBuffs
+            },
+            battle: {
+                enemy: {
+                    ...enemy,
+                    ...enemyUpdates,
+                    buffs: updatedEnemyBuffs
+                }
+            }
+        });
+    }
+
+    // Process gem failure - add this method if it doesn't exist
+    processGemFailure(gem) {
+        const state = this.stateManager.getState();
+        const { player } = state;
+
+        // Default failure effects based on gem type
+        switch(gem.type) {
+            case 'attack':
+                // Deal half damage to self
+                const selfDamage = Math.floor(gem.value / 2);
+                const newHealth = Math.max(0, player.health - selfDamage);
+                
+                // Potentially become stunned
+                const stunBuff = {
+                    type: 'stunned',
+                    duration: 1
+                };
+                
+                this.stateManager.updateState({
+                    player: {
+                        health: newHealth,
+                        buffs: [...player.buffs, stunBuff]
+                    }
+                });
+                
+                this.eventBus.emit('player:damaged', {
+                    amount: selfDamage,
+                    source: 'gem-failure'
+                });
+                break;
+                
+            case 'heal':
+                // Lose HP instead of healing
+                const healFailureDamage = 5;
+                const failureHealth = Math.max(0, player.health - healFailureDamage);
+                
+                this.stateManager.updateState({
+                    player: {
+                        health: failureHealth
+                    }
+                });
+                
+                this.eventBus.emit('player:damaged', {
+                    amount: healFailureDamage,
+                    source: 'heal-failure'
+                });
+                break;
+                
+            case 'poison':
+                // Deal half damage to self
+                const poisonSelfDamage = Math.floor(gem.value / 2);
+                const poisonHealth = Math.max(0, player.health - poisonSelfDamage);
+                
+                this.stateManager.updateState({
+                    player: {
+                        health: poisonHealth
+                    }
+                });
+                
+                this.eventBus.emit('player:damaged', {
+                    amount: poisonSelfDamage,
+                    source: 'poison-failure'
+                });
+                break;
+                
+            // For shield and other types, do nothing or minimal penalty
+            default:
+                break;
+        }
+
+        // Check for player defeat
+        const updatedState = this.stateManager.getState();
+        if (updatedState.player.health <= 0) {
+            this.endBattle(false);
+        }
+    }
+    
+    // Process end of turn effects
+    processEndOfTurn() {
+        const state = this.stateManager.getState();
+        const { battle, player } = state;
+        
+        if (!battle.inProgress) {
+            return;
+        }
+        
+        if (battle.currentTurn === 'PLAYER') {
+            // Switch to enemy turn
+            this.stateManager.updateState({
+                battle: {
+                    currentTurn: 'ENEMY'
+                }
+            });
+            
+            // Enemy makes its move after a short delay
+            setTimeout(() => {
+                this.processEnemyTurn();
+            }, 1000);
+        } else {
+            // Switch to player turn
+            this.stateManager.updateState({
+                battle: {
+                    currentTurn: 'PLAYER'
+                }
+            });
+            
+            // Process buffs and debuffs at end of round
+            this.processStatusEffects();
+            
+            // Refill player stamina
+            this.stateManager.updateState({
+                player: {
+                    stamina: player.maxStamina
+                }
+            });
+            
+            // Draw gems to fill hand
+            const handSize = state.gems.hand.length;
+            if (handSize < 3) {
+                this.gemManager.drawGems(3 - handSize);
+            }
+        }
+    }
+    
+    // Process status effects at end of round
+    processStatusEffects() {
+        const state = this.stateManager.getState();
+        const { battle, player } = state;
+        const { enemy } = battle;
+        
+        // Process player buffs
+        let updatedPlayerBuffs = [];
+        let playerUpdates = {};
+        
+        player.buffs.forEach(buff => {
+            // Reduce duration
+            const newDuration = buff.duration - 1;
+            
+            if (newDuration <= 0) {
+                // Buff expired
+                this.eventBus.emit('player:buff-expired', {
+                    type: buff.type
+                });
+            } else {
+                // Keep buff with reduced duration
+                updatedPlayerBuffs.push({
+                    ...buff,
+                    duration: newDuration
+                });
+            }
+            
+            // Process active poison damage
+            if (buff.type === 'poison') {
+                const poisonDamage = buff.value;
+                const newHealth = Math.max(0, player.health - poisonDamage);
+                
+                playerUpdates.health = newHealth;
+                
+                this.eventBus.emit('player:poisoned-damage', {
+                    amount: poisonDamage
+                });
+                
+                // Check for defeat
+                if (newHealth <= 0) {
+                    this.endBattle(false);
+                }
+            }
+        });
+        
+        // Process enemy buffs
+        let updatedEnemyBuffs = [];
+        let enemyUpdates = {};
+        
+        enemy.buffs.forEach(buff => {
+            // Reduce duration
+            const newDuration = buff.duration - 1;
+            
+            if (newDuration <= 0) {
+                // Buff expired
+                this.eventBus.emit('enemy:buff-expired', {
+                    type: buff.type
+                });
+            } else {
+                // Keep buff with reduced duration
+                updatedEnemyBuffs.push({
+                    ...buff,
+                    duration: newDuration
+                });
+            }
+            
+            // Process active poison damage
+            if (buff.type === 'poison') {
                 const poisonDamage = buff.value;
                 const newHealth = Math.max(0, enemy.health - poisonDamage);
                 
@@ -361,12 +574,570 @@ export default class BattleManager {
                     this.endBattle(true);
                 }
             }
-        }
+        });
+        
         // Update state
         this.stateManager.updateState({
             player: {
                 ...playerUpdates,
+                buffs: updatedPlayerBuffs
+            },
+            battle: {
+                enemy: {
+                    ...enemy,
+                    ...enemyUpdates,
+                    buffs: updatedEnemyBuffs
+                }
+            }
+        });
+    }
+    
+    // Execute enemy's turn
+    // Execute enemy's turn
+    processEnemyTurn() {
+        const state = this.stateManager.getState();
+        const { battle, player } = state;
+        const { enemy } = battle;
+        
+        if (!battle.inProgress) {
+            return;
+        }
+        
+        // Check if enemy is stunned
+        if (enemy.buffs.some(buff => buff.type === 'stunned')) {
+            // Skip turn
+            this.eventBus.emit('enemy:stunned', { enemy });
+            this.processEndOfTurn(); // End enemy turn
+            return;
+        }
+        
+        // Determine and execute enemy action
+        const action = enemy.nextAction || 'attack';
+        
+        switch(action) {
+            case 'attack':
+                this.executeEnemyAttack(enemy, player);
+                break;
+                
+            case 'defend':
+                this.executeEnemyDefend(enemy);
+                break;
+                
+            case 'howl':
+                this.executeEnemyHowl(enemy);
+                break;
+                
+            case 'enrage':
+                this.executeEnemyEnrage(enemy);
+                break;
+                
+            case 'steal':
+                this.executeEnemySteal(enemy, player);
+                break;
+                
+            case 'summon':
+                this.executeEnemySummon(enemy);
+                break;
+                
+            case 'poison':
+                this.executeEnemyPoison(enemy, player);
+                break;
+                
+            case 'curse':
+                this.executeEnemyCurse(enemy, player);
+                break;
+                
+            case 'heal':
+                this.executeEnemyHeal(enemy);
+                break;
+                
+            case 'harden':
+                this.executeEnemyHarden(enemy);
+                break;
+                
+            case 'breathe':
+                this.executeEnemyBreathe(enemy, player);
+                break;
+                
+            case 'tail':
+                this.executeEnemyTail(enemy, player);
+                break;
+                
+            default:
+                console.warn(`Unknown enemy action: ${action}`);
+                this.executeEnemyAttack(enemy, player); // Default to attack
+        }
+        
+        // Determine next action
+        const updatedEnemy = this.stateManager.getState().battle.enemy;
+        const nextAction = this.determineEnemyAction(updatedEnemy);
+        
+        // Update enemy's next action
+        this.stateManager.updateState({
+            battle: {
+                enemy: {
+                    ...updatedEnemy,
+                    nextAction
+                }
+            }
+        });
+        
+        // End enemy turn after a short delay
+        setTimeout(() => {
+            this.processEndOfTurn();
+        }, 1000);
+    }
+    
+    // Enemy attack action
+    executeEnemyAttack(enemy, player) {
+        // Calculate damage, accounting for player defense
+        let damage = enemy.attack;
+        let actualDamage = damage;
+        
+        // Check for defense buff
+        const defenseBuff = player.buffs.find(buff => buff.type === 'defense');
+        if (defenseBuff) {
+            actualDamage = Math.max(1, damage - defenseBuff.value);
+        }
+        
+        // Apply damage to player
+        const newHealth = Math.max(0, player.health - actualDamage);
+        
+        // Update state
+        this.stateManager.updateState({
+            player: {
+                health: newHealth
+            }
+        });
+        
+        // Emit event
+        this.eventBus.emit('player:damaged', {
+            amount: actualDamage,
+            blocked: damage - actualDamage,
+            source: 'enemy-attack',
+            enemy
+        });
+        
+        // Check for defeat
+        if (newHealth <= 0) {
+            this.endBattle(false);
+        }
+    }
+    
+    // Enemy defend action
+    executeEnemyDefend(enemy) {
+        // Add defense buff to enemy
+        const defenseBuff = {
+            type: 'defense',
+            value: Math.floor(enemy.attack * 0.8),
+            duration: 2
+        };
+        
+        const newBuffs = [...enemy.buffs.filter(b => b.type !== 'defense'), defenseBuff];
+        
+        // Update state
+        this.stateManager.updateState({
+            battle: {
+                enemy: {
+                    ...enemy,
+                    buffs: newBuffs
+                }
+            }
+        });
+        
+        // Emit event
+        this.eventBus.emit('enemy:defended', {
+            defense: defenseBuff.value,
+            duration: defenseBuff.duration,
+            enemy
+        });
+    }
+    
+    // Enemy howl action (wolf)
+    executeEnemyHowl(enemy) {
+        // Add attack buff for next turn
+        const attackBuff = {
+            type: 'attack-boost',
+            value: Math.floor(enemy.attack * 0.5),
+            duration: 1
+        };
+        
+        const newBuffs = [...enemy.buffs.filter(b => b.type !== 'attack-boost'), attackBuff];
+        
+        // Update state
+        this.stateManager.updateState({
+            battle: {
+                enemy: {
+                    ...enemy,
+                    buffs: newBuffs
+                }
+            }
+        });
+        
+        // Emit event
+        this.eventBus.emit('enemy:howled', {
+            boost: attackBuff.value,
+            enemy
+        });
+    }
+    
+    // Enemy enrage action
+    executeEnemyEnrage(enemy) {
+        // Permanently increase attack
+        const attackIncrease = Math.floor(enemy.attack * 0.3);
+        const newAttack = enemy.attack + attackIncrease;
+        
+        // Update state
+        this.stateManager.updateState({
+            battle: {
+                enemy: {
+                    ...enemy,
+                    attack: newAttack
+                }
+            }
+        });
+        
+        // Emit event
+        this.eventBus.emit('enemy:enraged', {
+            increase: attackIncrease,
+            newAttack,
+            enemy
+        });
+    }
+    
+    // Enemy steal action (bandit)
+    executeEnemySteal(enemy, player) {
+        // Steal some zenny
+        const stealAmount = Math.min(player.zenny, Math.floor(Math.random() * 3) + 1);
+        
+        if (stealAmount <= 0) {
+            // Nothing to steal, do a normal attack instead
+            this.executeEnemyAttack(enemy, player);
+            return;
+        }
+        
+        // Update state
+        this.stateManager.updateState({
+            player: {
+                zenny: player.zenny - stealAmount
+            }
+        });
+        
+        // Emit event
+        this.eventBus.emit('enemy:stole', {
+            amount: stealAmount,
+            enemy
+        });
+    }
+    
+    // Enemy summon action (goblin)
+    executeEnemySummon(enemy) {
+        // Add minion buff which adds extra damage
+        const minionBuff = {
+            type: 'minion',
+            value: Math.floor(enemy.attack * 0.3),
+            duration: 3
+        };
+        
+        const newBuffs = [...enemy.buffs.filter(b => b.type !== 'minion'), minionBuff];
+        
+        // Update state
+        this.stateManager.updateState({
+            battle: {
+                enemy: {
+                    ...enemy,
+                    buffs: newBuffs
+                }
+            }
+        });
+        
+        // Emit event
+        this.eventBus.emit('enemy:summoned', {
+            damage: minionBuff.value,
+            duration: minionBuff.duration,
+            enemy
+        });
+    }
+    
+    // Enemy poison action
+    executeEnemyPoison(enemy, player) {
+        // Apply poison to player
+        const poisonDebuff = {
+            type: 'poison',
+            value: Math.floor(enemy.attack * 0.3),
+            duration: 3
+        };
+        
+        const newBuffs = [...player.buffs.filter(b => b.type !== 'poison'), poisonDebuff];
+        
+        // Update state
+        this.stateManager.updateState({
+            player: {
                 buffs: newBuffs
+            }
+        });
+        
+        // Emit event
+        this.eventBus.emit('player:poisoned', {
+            poison: poisonDebuff.value,
+            duration: poisonDebuff.duration,
+            enemy
+        });
+    }
+    
+    // Enemy curse action (witch)
+    executeEnemyCurse(enemy, player) {
+        // Reduce player damage
+        const curseBuff = {
+            type: 'curse',
+            value: 0.3, // 30% damage reduction
+            duration: 2
+        };
+        
+        const newBuffs = [...player.buffs.filter(b => b.type !== 'curse'), curseBuff];
+        
+        // Update state
+        this.stateManager.updateState({
+            player: {
+                buffs: newBuffs
+            }
+        });
+        
+        // Emit event
+        this.eventBus.emit('player:cursed', {
+            reduction: curseBuff.value * 100,
+            duration: curseBuff.duration,
+            enemy
+        });
+    }
+    
+    // Enemy heal action (witch)
+    executeEnemyHeal(enemy) {
+        // Heal the enemy
+        const healAmount = Math.floor(enemy.maxHealth * 0.2);
+        const newHealth = Math.min(enemy.maxHealth, enemy.health + healAmount);
+        
+        // Update state
+        this.stateManager.updateState({
+            battle: {
+                enemy: {
+                    ...enemy,
+                    health: newHealth
+                }
+            }
+        });
+        
+        // Emit event
+        this.eventBus.emit('enemy:healed', {
+            amount: healAmount,
+            enemy
+        });
+    }
+    
+    // Enemy harden action (golem)
+    executeEnemyHarden(enemy) {
+        // Increase defense significantly
+        const defenseBuff = {
+            type: 'defense',
+            value: enemy.attack * 2,
+            duration: 2
+        };
+        
+        const newBuffs = [...enemy.buffs.filter(b => b.type !== 'defense'), defenseBuff];
+        
+        // Update state
+        this.stateManager.updateState({
+            battle: {
+                enemy: {
+                    ...enemy,
+                    buffs: newBuffs
+                }
+            }
+        });
+        
+        // Emit event
+        this.eventBus.emit('enemy:hardened', {
+            defense: defenseBuff.value,
+            duration: defenseBuff.duration,
+            enemy
+        });
+    }
+    
+    // Enemy breathe action (dragon)
+    executeEnemyBreathe(enemy, player) {
+        // Deal high damage
+        const breathDamage = Math.floor(enemy.attack * 1.5);
+        let actualDamage = breathDamage;
+        
+        // Check for defense buff
+        const defenseBuff = player.buffs.find(buff => buff.type === 'defense');
+        if (defenseBuff) {
+            actualDamage = Math.max(1, breathDamage - defenseBuff.value);
+        }
+        
+        // Apply damage to player
+        const newHealth = Math.max(0, player.health - actualDamage);
+        
+        // Update state
+        this.stateManager.updateState({
+            player: {
+                health: newHealth
+            }
+        });
+        
+        // Emit event
+        this.eventBus.emit('player:damaged', {
+            amount: actualDamage,
+            blocked: breathDamage - actualDamage,
+            source: 'enemy-breathe',
+            enemy
+        });
+        
+        // Check for defeat
+        if (newHealth <= 0) {
+            this.endBattle(false);
+        }
+    }
+    
+    // Enemy tail action (dragon)
+    executeEnemyTail(enemy, player) {
+        // Deal damage and apply stun
+        const tailDamage = Math.floor(enemy.attack * 0.7);
+        let actualDamage = tailDamage;
+        
+        // Check for defense buff
+        const defenseBuff = player.buffs.find(buff => buff.type === 'defense');
+        if (defenseBuff) {
+            actualDamage = Math.max(1, tailDamage - defenseBuff.value);
+        }
+        
+        // Apply damage to player
+        const newHealth = Math.max(0, player.health - actualDamage);
+        
+        // Add stunned effect
+        const stunnedBuff = {
+            type: 'stunned',
+            duration: 1
+        };
+        
+        const newBuffs = [...player.buffs.filter(b => b.type !== 'stunned'), stunnedBuff];
+        
+        // Update state
+        this.stateManager.updateState({
+            player: {
+                health: newHealth,
+                buffs: newBuffs
+            }
+        });
+        
+        // Emit events
+        this.eventBus.emit('player:damaged', {
+            amount: actualDamage,
+            blocked: tailDamage - actualDamage,
+            source: 'enemy-tail',
+            enemy
+        });
+        
+        this.eventBus.emit('player:stunned', {
+            duration: stunnedBuff.duration,
+            enemy
+        });
+        
+        // Check for defeat
+        if (newHealth <= 0) {
+            this.endBattle(false);
+        }
+    }
+    
+    // Process status effects at end of round
+    processStatusEffects() {
+        const state = this.stateManager.getState();
+        const { battle, player } = state;
+        const { enemy } = battle;
+        
+        // Process player buffs
+        let updatedPlayerBuffs = [];
+        let playerUpdates = {};
+        
+        player.buffs.forEach(buff => {
+            // Reduce duration
+            const newDuration = buff.duration - 1;
+            
+            if (newDuration <= 0) {
+                // Buff expired
+                this.eventBus.emit('player:buff-expired', {
+                    type: buff.type
+                });
+            } else {
+                // Keep buff with reduced duration
+                updatedPlayerBuffs.push({
+                    ...buff,
+                    duration: newDuration
+                });
+            }
+            
+            // Process active poison damage
+            if (buff.type === 'poison') {
+                const poisonDamage = buff.value;
+                const newHealth = Math.max(0, player.health - poisonDamage);
+                
+                playerUpdates.health = newHealth;
+                
+                this.eventBus.emit('player:poisoned-damage', {
+                    amount: poisonDamage
+                });
+                
+                // Check for defeat
+                if (newHealth <= 0) {
+                    this.endBattle(false);
+                }
+            }
+        });
+        
+        // Process enemy buffs
+        let updatedEnemyBuffs = [];
+        let enemyUpdates = {};
+        
+        enemy.buffs.forEach(buff => {
+            // Reduce duration
+            const newDuration = buff.duration - 1;
+            
+            if (newDuration <= 0) {
+                // Buff expired
+                this.eventBus.emit('enemy:buff-expired', {
+                    type: buff.type
+                });
+            } else {
+                // Keep buff with reduced duration
+                updatedEnemyBuffs.push({
+                    ...buff,
+                    duration: newDuration
+                });
+            }
+            
+            // Process active poison damage
+            if (buff.type === 'poison') {
+                const poisonDamage = buff.value;
+                const newHealth = Math.max(0, enemy.health - poisonDamage);
+                
+                enemyUpdates.health = newHealth;
+                
+                this.eventBus.emit('enemy:poisoned-damage', {
+                    amount: poisonDamage
+                });
+                
+                // Check for victory
+                if (newHealth <= 0) {
+                    this.endBattle(true);
+                }
+            }
+        });
+        
+        // Update state
+        this.stateManager.updateState({
+            player: {
+                ...playerUpdates,
+                buffs: updatedPlayerBuffs
             },
             battle: {
                 enemy: {

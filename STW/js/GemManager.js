@@ -213,7 +213,7 @@ export default class GemManager {
     }
     
     // Draw gems from the bag to the hand
-    drawGems(count = 1) {
+    drawGems(count = 3) {
         const state = this.stateManager.getState();
         const { bag, hand } = state.gems;
         
@@ -237,9 +237,66 @@ export default class GemManager {
         const newBag = shuffledBag.slice(drawCount);
         const newHand = [...hand, ...drawnGems];
         
+        // Fill the bag with random gems if it's not full
+        const maxBagSize = 20;
+        let finalBag = newBag;
+        
+        if (finalBag.length < maxBagSize) {
+            // Determine how many gems to add
+            const gemsToAdd = maxBagSize - finalBag.length;
+            
+            // Get list of unlocked gems
+            const unlockedGems = state.meta.unlockedGems || [];
+            const playerClass = state.player.class;
+            
+            // Add random gems to fill the bag
+            for (let i = 0; i < gemsToAdd; i++) {
+                // Similar logic to addRandomGem, but without state updates
+                const availableGems = Object.values(this.gemDefinitions)
+                    .filter(gem => unlockedGems.includes(gem.id));
+                
+                if (availableGems.length > 0) {
+                    // Determine gem color probability based on class
+                    let colorProbability = {
+                        red: 0.25,
+                        blue: 0.25,
+                        green: 0.25,
+                        grey: 0.25
+                    };
+                    
+                    if (playerClass === 'knight') colorProbability.red = 0.55;
+                    else if (playerClass === 'mage') colorProbability.blue = 0.55;
+                    else if (playerClass === 'rogue') colorProbability.green = 0.55;
+                    
+                    // Select color based on probability
+                    const rand = Math.random();
+                    let selectedColor = 'grey'; // default
+                    let cumulativeProbability = 0;
+                    
+                    for (const [color, probability] of Object.entries(colorProbability)) {
+                        cumulativeProbability += probability;
+                        if (rand <= cumulativeProbability) {
+                            selectedColor = color;
+                            break;
+                        }
+                    }
+                    
+                    // Filter gems by selected color
+                    const gemsOfColor = availableGems.filter(gem => gem.color === selectedColor);
+                    
+                    if (gemsOfColor.length > 0) {
+                        const randomGemDef = gemsOfColor[Math.floor(Math.random() * gemsOfColor.length)];
+                        const newGem = this.createGem(randomGemDef.id);
+                        finalBag.push(newGem);
+                    }
+                }
+            }
+        }
+        
+        // Update state
         this.stateManager.updateState({
             gems: {
-                bag: newBag,
+                bag: finalBag,
                 hand: newHand
             }
         });
