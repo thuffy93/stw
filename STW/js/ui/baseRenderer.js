@@ -48,9 +48,17 @@ export const BaseRenderer = {
   /**
    * Initialize the renderer
    */
+  // Add to the initialize method of BaseRenderer
   initialize() {
     console.log("Initializing Base Renderer with integrated screen management");
     
+    // Set up event listeners for screen changes using standardized pattern
+    this.subscribe('SCREEN_CHANGE', (screenName) => {
+      // Small delay to ensure all event processing is complete
+      setTimeout(() => {
+        this.updateActiveScreen(screenName);
+      }, 10);
+    });
     // Set up event listeners for screen changes using standardized pattern
     this.subscribe('SCREEN_CHANGE', (screenName) => {
       this.updateActiveScreen(screenName);
@@ -142,7 +150,7 @@ export const BaseRenderer = {
       screenName = screenName.screen;
     }
     
-    console.log(`Switching to screen: ${screenName}`);
+    console.log(`BaseRenderer: Switching to screen: ${screenName}`);
     
     // Check if the screen exists
     if (!this.screens[screenName]) {
@@ -176,11 +184,13 @@ export const BaseRenderer = {
     
     // If screen element not found, try to render it
     if (!screenElement) {
-      console.log(`Screen element '${screenName}-screen' not found, attempting to render`);
+      // Changed message to indicate this is normal behavior
+      console.log(`BaseRenderer: Creating new screen element for '${screenName}'`);
       
       const screen = this.screens[screenName];
       if (typeof screen.render === 'function') {
         const renderedElement = screen.render();
+        
         if (renderedElement instanceof HTMLElement) {
           const container = document.getElementById('game-container') || document.body;
           container.appendChild(renderedElement);
@@ -211,6 +221,7 @@ export const BaseRenderer = {
     // Emit screen changed event
     EventBus.emit('SCREEN_CHANGED', { screen: screenName });
   },
+  
   
   /**
    * Update battle UI with current state

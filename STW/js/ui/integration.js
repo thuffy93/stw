@@ -271,80 +271,102 @@ export class Integration {
     startJourney() {
         console.log("Integration: Starting journey");
         
-        // Show loading message with consistent pattern
+        // Show loading message
         EventBus.emit('LOADING_START', {
-            message: "Preparing your adventure..."
+          message: "Preparing your adventure..."
         });
         
-        // Load existing game state if available
-        Storage.loadGameState();
-        
-        if (!GameState.get('battleCount')) {
+        try {
+          // Load existing game state if available
+          Storage.loadGameState();
+          
+          if (!GameState.get('battleCount')) {
             GameState.set('currentDay', 1);
             GameState.set('currentPhaseIndex', 0);
             GameState.set('battleCount', 0);
-        }
-        
-        GameState.set('battleOver', false);
-        GameState.set('selectedGems', new Set());
-        GameState.set('player.buffs', []);
-        
-        const player = GameState.get('player');
-        GameState.set('player.stamina', player.baseStamina);
-        
-        // Simulate BasicUI.startJourney logic
-        window.AssetManager.downloadAll((success, loadedAssets) => {
-            if (success) {
-                console.log("All gems loaded:", loadedAssets);
-                EventBus.emit('UI_MESSAGE', { 
-                    message: "Gems ready, starting battle!" 
+          }
+          
+          GameState.set('battleOver', false);
+          GameState.set('selectedGems', new Set());
+          GameState.set('player.buffs', []);
+          
+          const player = GameState.get('player');
+          if (!player) {
+            throw new Error("No player data found. Please select a class first.");
+          }
+          
+          GameState.set('player.stamina', player.baseStamina);
+          
+          // Create gem bag if needed - use class appropriate gems
+          let gemBag = GameState.get('gemBag');
+          if (!gemBag || gemBag.length === 0) {
+            if (window.Config && Config.BASE_GEMS) {
+              // Get starting gems for the class
+              const className = player.class;
+              const startingGemKeys = Config.STARTING_GEMS[className] || [];
+              
+              // Create gems from those keys
+              gemBag = startingGemKeys.map(key => {
+                const baseGem = Config.BASE_GEMS[key];
+                if (!baseGem) return null;
+                
+                return {
+                  ...baseGem,
+                  id: `${baseGem.name}-${Utils.generateId()}`
+                };
+              }).filter(gem => gem !== null);
+              
+              // Add some random gems to fill up the bag
+              while (gemBag.length < 15) {
+                const randomGemKey = Object.keys(Config.BASE_GEMS)[Math.floor(Math.random() * Object.keys(Config.BASE_GEMS).length)];
+                const baseGem = Config.BASE_GEMS[randomGemKey];
+                
+                gemBag.push({
+                  ...baseGem,
+                  id: `${baseGem.name}-${Utils.generateId()}`
                 });
-                
-                const gemBag = Object.values(loadedAssets).map(gem => ({
-                    ...gem,
-                    id: `${gem.name}-${Utils.generateId()}`
-                }));
-                GameState.set('gemBag', Utils.shuffle(gemBag));
-                GameState.set('hand', []);
-                GameState.set('discard', []);
-                
-                const initialHand = gemBag.slice(0, Config.MAX_HAND_SIZE);
-                GameState.set('hand', initialHand);
-                GameState.set('gemBag', gemBag.slice(Config.MAX_HAND_SIZE));
-                
-                console.log("Initial hand:", GameState.get('hand'));
-                console.log("Remaining gemBag:", GameState.get('gemBag'));
-                
-                // Hide loading indicator
-                EventBus.emit('LOADING_END');
-                
-                // Emit events with consistent pattern
-                EventBus.emit('JOURNEY_STARTED', {
-                    player: GameState.get('player'),
-                    initialHand,
-                    gemBagSize: gemBag.length - initialHand.length,
-                    timestamp: Date.now()
-                });
-                
-                setTimeout(() => {
-                    EventBus.emit('SCREEN_CHANGE', { screen: 'battle' });
-                    EventBus.emit('BATTLE_INIT');
-                    EventBus.emit('HAND_UPDATED', { hand: initialHand });
-                }, 100);
-            } else {
-                console.error("Failed to load gems:", loadedAssets);
-                
-                // Emit error with consistent pattern
-                EventBus.emit('ERROR_SHOW', {
-                    message: "Failed to prepare gems. Please try again.",
-                    isFatal: false
-                });
-                
-                // Hide loading indicator
-                EventBus.emit('LOADING_END');
+              }
+              
+              gemBag = Utils.shuffle(gemBag);
             }
-        });
-    }
+            
+            // Set up gems in state
+            GameState.set('gemBag', gemBag);
+            GameState.set('hand', []);
+            GameState.set('discard', []);
+            
+            const initialHand = gemBag.slice(0, Config.MAX_HAND_SIZE);
+            GameState.set('hand', initialHand);
+            GameState.set('gemBag', gemBag.slice(Config.MAX_HAND_SIZE));
+          }
+          
+          console.log("Journey started with hand:", GameState.get('hand'));
+          
+          // Hide loading indicator
+          EventBus.emit('LOADING_END');
+          
+          // Emit events with consistent pattern
+          EventBus.emit('JOURNEY_STARTED', {
+            player: GameState.get('player'),
+            initialHand: GameState.get('hand'),
+            gemBagSize: GameState.get('gemBag').length,
+            timestamp: Date.now()
+          });
+          
+          // Screen transition is now managed by the GemCatalogScreen component
+        } catch (error) {
+          console.error("Error in startJourney:", error);
+          
+          // Emit error with consistent pattern
+          EventBus.emit('ERROR_SHOW', {
+            message: "Failed to prepare journey: " + (error.message || "Unknown error"),
+            isFatal: false
+          });
+          
+          // Hide loading indicator
+          EventBus.emit('LOADING_END');
+        }
+      }
 
     /**
      * Unlock a gem
