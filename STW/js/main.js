@@ -1,348 +1,215 @@
-// main.js - Consolidated with standardized event handling
+// main.js - Main application entry point
+import EventBus from './EventBus.js';
+import StateManager from './StateManager.js';
+import GemManager from './GemManager.js';
+import BattleManager from './BattleManager.js';
+import ShopManager from './ShopManager.js';
+import UIManager from './UIManager.js';
+import CampManager from './CampManager.js';
 
-// Core imports
-import { EventBus } from './core/eventbus.js';
-import { Config } from './core/config.js';
-import { GameState } from './core/state.js';
-import { Utils } from './core/utils.js';
-import { Storage } from './core/storage.js';
-import { AssetManager } from './core/AssetManager.js';
-
-// UI modules
-import { BaseRenderer } from './ui/baseRenderer.js';
-import { GemRenderer } from './ui/gemRenderer.js';
-import { Renderer } from './ui/renderer.js';
-
-// Import screen components directly
-import { CharacterSelectScreen } from './ui/components/screens/CharacterSelectScreen.js';
-import { BattleScreen } from './ui/components/screens/BattleScreen.js';
-import { ShopScreen } from './ui/components/screens/ShopScreen.js';
-import { GemCatalogScreen } from './ui/components/screens/GemCatalogScreen.js';
-import { CampScreen } from './ui/components/screens/CampScreen.js';
-
-// Game systems
-import { Character } from './systems/character.js';
-import { GemGeneration } from './systems/gem-generation.js';
-import { GemProficiency } from './systems/gem-proficiency.js';
-import { GemUpgrades } from './systems/gem-upgrades.js';
-import { Gems } from './systems/gem.js';
-import { BattleInitialization } from './systems/battle-initialization.js';
-import { BattleMechanics } from './systems/battle-mechanics.js';
-import { Battle } from './systems/battle.js';
-import { Shop } from './systems/shop.js';
-import { EventHandler } from './systems/eventHandler.js';
-
-/**
- * Game - Main application controller
- */
-const Game = (() => {
-    // Track initialization status
-    let initialized = false;
-    
-    // Track event subscriptions
-    let eventSubscriptions = [];
-    
-    /**
-     * Helper method to subscribe to events and track subscriptions
-     * @param {String} eventName - Event name
-     * @param {Function} handler - Event handler
-     * @returns {Object} Subscription object
-     */
-    function subscribe(eventName, handler) {
-        const subscription = EventBus.on(eventName, handler);
-        eventSubscriptions.push(subscription);
-        return subscription;
+// Audio system - simple wrapper for sound effects
+class AudioManager {
+    constructor() {
+        this.enabled = false;
+        this.sounds = {};
+        this.backgroundMusic = null;
     }
     
-    /**
-     * Clear all subscriptions
-     */
-    function unsubscribeAll() {
-        eventSubscriptions.forEach(subscription => {
-            if (subscription && typeof subscription.unsubscribe === 'function') {
-                subscription.unsubscribe();
-            }
-        });
-        eventSubscriptions = [];
-    }
-    
-    /**
-     * Initialize the game
-     */
-    function initialize() {
-        if (initialized) {
-            console.warn("Game already initialized, skipping");
-            return;
-        }
+    init() {
+        // Create sound effects
+        this.sounds = {
+            gemPlay: new Audio('sounds/gem_play.mp3'),
+            gemFail: new Audio('sounds/gem_fail.mp3'),
+            playerDamage: new Audio('sounds/player_damage.mp3'),
+            enemyDamage: new Audio('sounds/enemy_damage.mp3'),
+            heal: new Audio('sounds/heal.mp3'),
+            victory: new Audio('sounds/victory.mp3'),
+            defeat: new Audio('sounds/defeat.mp3'),
+            buttonClick: new Audio('sounds/button_click.mp3'),
+            // Add more sounds as needed
+        };
         
-        console.log("Initializing Super Tiny World...");
+        // Set up background music
+        this.backgroundMusic = new Audio('sounds/background_music.mp3');
+        this.backgroundMusic.loop = true;
         
-        try {
-            // Register global objects for module access (helps with component integration)
-            window.EventBus = EventBus;
-            window.GameState = GameState;
-            window.Utils = Utils;
-            window.Config = Config;
-            
-            // Setup core EventBus listeners
-            setupEventBusListeners();
-            
-            // Initialize modules in the correct order
-            initializeAllModules();
-            
-            // Initialize asset manager with gems
-            initializeAssets();
-            
-            // Initialize screens
-            initializeScreens();
-            
-            // Mark initialization as complete
-            initialized = true;
-            console.log("Game initialized successfully");
-            
-            // Start at character selection screen
-            EventBus.emit('SCREEN_CHANGE', { screen: 'characterSelect' });
-            
-            return true;
-        } catch (error) {
-            console.error("Error during game initialization:", error);
-            BaseRenderer.showError("Failed to initialize game. Please refresh the page.", true);
-            return false;
-        }
-    }
-    
-    /**
-     * Set up core EventBus listeners with standardized subscription pattern
-     */
-    function setupEventBusListeners() {
-        // Core system events
-        subscribe('SAVE_GAME_STATE', () => Storage.saveGameState());
-        subscribe('LOAD_GAME_STATE', () => Storage.loadGameState());
-        subscribe('SAVE_META_ZENNY', () => Storage.saveMetaZenny());
-        
-        // Selection events
-        subscribe('GEM_SELECT', ({ index, context }) => {
-            if (typeof Battle.toggleGemSelection === 'function') {
-                Battle.toggleGemSelection(index, context === 'shop');
-            }
-        });
-        
-        // Debug events
-        subscribe('DEBUG_LOG', (data) => console.log('[DEBUG]', data));
-        
-        // Error handling
-        subscribe('ERROR_OCCURRED', ({ error, source, isFatal = false }) => {
-            console.error(`[ERROR] in ${source}:`, error);
-            
-            // Show error message
-            EventBus.emit('ERROR_SHOW', {
-                message: error.message || String(error),
-                isFatal
+        // Handle missing sound files gracefully
+        Object.values(this.sounds).forEach(sound => {
+            sound.addEventListener('error', (e) => {
+                console.log('Sound file not found, disabling sound');
+                this.enabled = false;
             });
         });
-    }
-    
-   /**
-     * Initialize all modules in the correct order
-     * Fixed to handle modules that are instances rather than static classes
-     */
-    function initializeAllModules() {
-        console.log("Initializing core modules");
         
-        // Initialize renderer first
-        if (typeof BaseRenderer.initialize === 'function') {
-            BaseRenderer.initialize();
-        }
-        
-        if (typeof GemRenderer.initialize === 'function') {
-            GemRenderer.initialize();
-        }
-        
-        if (typeof Renderer.initialize === 'function') {
-            Renderer.initialize();
-        }
-        
-        // Initialize system modules - handle both function and method approaches
-        if (typeof Character.initialize === 'function') {
-            Character.initialize();
-        }
-        
-        // Gems module - check if it's a class instance or static class
-        if (typeof Gems.initialize === 'function') {
-            Gems.initialize();
-        }
-        
-        // Battle module - check different possible forms
-        if (typeof Battle.initialize === 'function') {
-            Battle.initialize();
-        } else if (Battle && typeof Battle === 'object') {
-            // If Battle is an instance and doesn't have initialize, just log a message
-            console.log("Battle module is an instance, no initialization needed");
-        }
-        
-        // Shop module - check if it's a class instance or static class
-        if (typeof Shop.initialize === 'function') {
-            Shop.initialize();
-        } else if (Shop && typeof Shop === 'object') {
-            console.log("Shop module is an instance, no initialization needed");
-        }
-        
-        // EventHandler module
-        if (typeof EventHandler.initialize === 'function') {
-            EventHandler.initialize();
-        }
-        
-        // AssetManager module
-        if (typeof AssetManager.initialize === 'function') {
-            AssetManager.initialize();
-        }
-        
-        // Emit event for successful initialization
-        EventBus.emit('ALL_MODULES_INITIALIZED', {
-            timestamp: Date.now()
+        this.backgroundMusic.addEventListener('error', (e) => {
+            console.log('Background music file not found');
         });
     }
     
-    /**
-     * Initialize screen components and register them with BaseRenderer
-     */
-    function initializeScreens() {
-        console.log("Initializing screen components");
+    toggleSound() {
+        this.enabled = !this.enabled;
         
-        try {
-            // Create screen instances
-            const screens = {
-                characterSelect: new CharacterSelectScreen(),
-                battle: new BattleScreen(),
-                shop: new ShopScreen(),
-                gemCatalog: new GemCatalogScreen(),
-                camp: new CampScreen()
+        if (this.enabled) {
+            this.backgroundMusic.play().catch(e => console.log('Failed to play background music'));
+        } else {
+            this.backgroundMusic.pause();
+        }
+    }
+    
+    play(soundName) {
+        if (!this.enabled || !this.sounds[soundName]) return;
+        
+        // Stop and reset the sound before playing
+        const sound = this.sounds[soundName];
+        sound.currentTime = 0;
+        sound.play().catch(e => console.log(`Failed to play sound: ${soundName}`));
+    }
+}
+
+// Initialize the game
+class Game {
+    constructor() {
+        // Create the event bus (central messaging system)
+        this.eventBus = new EventBus();
+        
+        // Create the state manager
+        this.stateManager = new StateManager(this.eventBus);
+        
+        // Create the gem manager
+        this.gemManager = new GemManager(this.eventBus, this.stateManager);
+        
+        // Create the battle manager
+        this.battleManager = new BattleManager(this.eventBus, this.stateManager, this.gemManager);
+        
+        // Create the shop manager
+        this.shopManager = new ShopManager(this.eventBus, this.stateManager, this.gemManager);
+        
+        // Create the UI manager
+        this.uiManager = new UIManager(this.eventBus, this.stateManager);
+        
+        // Create the camp manager
+        this.campManager = new CampManager(this.eventBus, this.stateManager, this.battleManager);
+        
+        // Create audio manager
+        this.audioManager = new AudioManager();
+    }
+    
+    init() {
+        // Initialize audio system
+        this.audioManager.init();
+        
+        // Listen for audio toggle
+        document.getElementById('audio-button').addEventListener('click', () => {
+            this.audioManager.toggleSound();
+            document.getElementById('audio-button').textContent = 
+                this.audioManager.enabled ? '🔊' : '🔇';
+        });
+        
+        // Set up additional event listeners
+        this.setupEventListeners();
+        
+        // Initial UI update
+        this.eventBus.emit('state:updated');
+        
+        console.log('Game initialized!');
+    }
+    
+    setupEventListeners() {
+        // Connect various events across managers
+        
+        // Forward gem-related events to gem manager
+        this.eventBus.on('gems:play', (selectedGems) => {
+            this.gemManager.playGems(selectedGems);
+        });
+        
+        this.eventBus.on('gems:discard', (selectedGems) => {
+            this.gemManager.discardGems(selectedGems);
+        });
+        
+        // Handle player wait action (get focus)
+        this.eventBus.on('player:wait', () => {
+            // Add focus buff
+            const state = this.stateManager.getState();
+            const playerBuffs = state.player.buffs;
+            
+            const focusBuff = {
+                type: 'focus',
+                duration: 1
             };
             
-            // Register each screen with BaseRenderer
-            Object.entries(screens).forEach(([name, screen]) => {
-                BaseRenderer.registerScreen(name, screen);
+            const newBuffs = [...playerBuffs.filter(b => b.type !== 'focus'), focusBuff];
+            
+            this.stateManager.updateState({
+                player: {
+                    buffs: newBuffs
+                }
             });
             
-            console.log("Screens registered successfully");
-            
-            // Emit event for successful screen initialization
-            EventBus.emit('SCREENS_INITIALIZED', {
-                screens: Object.keys(screens),
-                timestamp: Date.now()
+            this.eventBus.emit('message:show', {
+                text: 'Focused! +20% damage/healing next turn.',
+                type: 'success'
             });
             
-            return true;
-        } catch (error) {
-            console.error("Error initializing screens:", error);
-            
-            // Emit error event with consistent format
-            EventBus.emit('ERROR_OCCURRED', {
-                error,
-                source: 'screen_initialization',
-                isFatal: false
-            });
-            
-            // Continue anyway with what we have
-            return false;
-        }
-    }
-    
-    /**
-     * Initialize asset manager with gem assets
-     */
-    function initializeAssets() {
-        // Queue up gem assets in AssetManager
-        Object.entries(Config.BASE_GEMS).forEach(([key, gem]) => {
-            AssetManager.queue(key, gem, 'data');
+            // End turn
+            this.eventBus.emit('turn:ended');
         });
         
-        // Emit event for successful asset initialization
-        EventBus.emit('ASSETS_INITIALIZED', {
-            gemCount: Object.keys(Config.BASE_GEMS).length,
-            timestamp: Date.now()
+        // Handle battle flee
+        this.eventBus.on('battle:flee', () => {
+            this.battleManager.fleeBattle();
         });
-    }
-    
-    /**
-     * Reset the game state (for testing)
-     */
-    function reset() {
-        if (!initialized) {
-            console.warn("Game not yet initialized, cannot reset");
-            return;
-        }
         
-        // Reset state
-        GameState.set('currentScreen', 'characterSelect');
-        GameState.set('battleOver', false);
-        GameState.set('selectedGems', new Set());
+        // Handle journey continuation after shop
+        this.eventBus.on('journey:continue', () => {
+            this.battleManager.continueJourney();
+        });
         
-        // Reset UI
-        EventBus.emit('SCREEN_CHANGE', { screen: 'characterSelect' });
+        // Handle gem upgrade options request
+        this.eventBus.on('gem:get-upgrade-options', (data) => {
+            const options = this.gemManager.getUpgradeOptions(data.gemInstanceId);
+            data.callback(options);
+        });
         
-        console.log("Game reset complete");
+        // Handle gem definitions request
+        this.eventBus.on('gem:get-definitions', (data) => {
+            data.callback(this.gemManager.gemDefinitions);
+        });
         
-        // Emit reset complete event
-        EventBus.emit('GAME_RESET_COMPLETE', {
-            timestamp: Date.now()
+        // Handle unlockable gems request
+        this.eventBus.on('gem:get-unlockable', (data) => {
+            const playerClass = this.stateManager.getState().player.class;
+            const unlockables = this.gemManager.availableGemsByClass[playerClass] || [];
+            data.callback(unlockables);
+        });
+        
+        // Handle gem unlock request
+        this.eventBus.on('gem:unlock', (gemId) => {
+            this.shopManager.unlockGem(gemId);
+        });
+        
+        // Audio events
+        this.eventBus.on('player:damaged', () => this.audioManager.play('playerDamage'));
+        this.eventBus.on('enemy:damaged', () => this.audioManager.play('enemyDamage'));
+        this.eventBus.on('player:healed', () => this.audioManager.play('heal'));
+        this.eventBus.on('battle:victory', () => this.audioManager.play('victory'));
+        this.eventBus.on('battle:defeat', () => this.audioManager.play('defeat'));
+        this.eventBus.on('gem:played', (gem) => {
+            this.audioManager.play(gem.success ? 'gemPlay' : 'gemFail');
         });
     }
     
-    /**
-     * Clean up resources on unload
-     */
-    function cleanup() {
-        // Unsubscribe from all events
-        unsubscribeAll();
+    // Start the game
+    start() {
+        console.log('Game starting!');
         
-        // Cleanup all module subscriptions if they have cleanup methods
-        [BaseRenderer, Battle, Shop, Gems, Character, EventHandler].forEach(module => {
-            if (module && typeof module.unsubscribeAll === 'function') {
-                module.unsubscribeAll();
-            }
-        });
-        
-        // Save state
-        if (initialized && GameState.get('player.class')) {
-            Storage.saveGameState();
-        }
-        
-        initialized = false;
-        
-        console.log("Game cleanup complete");
+        // Show initial screen (character select)
+        this.stateManager.changeScreen('character-select-screen');
     }
-    
-    // Public interface
-    return {
-        initialize,
-        reset,
-        cleanup
-    };
-})();
-
-// Single initialization function
-function initializeGame() {
-    console.log("Initializing game");
-    EventBus.emit('GAME_INITIALIZATION_STARTED', {
-        timestamp: Date.now()
-    });
-    Game.initialize();
 }
 
-// Set up initialization to happen once, using the most appropriate method
-if (document.readyState === 'loading') {
-    // If document is still loading, add event listener
-    document.addEventListener('DOMContentLoaded', initializeGame);
-} else {
-    // If document is already loaded, initialize now
-    console.log("Document already loaded, initializing game");
-    initializeGame();
-}
-
-// Cleanup on page unload
-window.addEventListener('beforeunload', () => {
-    Game.cleanup();
+// Wait for DOM to load then initialize the game
+document.addEventListener('DOMContentLoaded', () => {
+    const game = new Game();
+    game.init();
+    game.start();
 });
-
-export default Game;
