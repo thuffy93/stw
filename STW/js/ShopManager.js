@@ -40,6 +40,27 @@ export default class ShopManager {
             this.continueJourney();
         });
     }
+
+    prepareShop() {
+        console.log("Preparing shop");
+        
+        // Reset shop-specific state only
+        this.stateManager.updateState({
+            inUpgradeMode: false,
+            selectedGems: new Set(),
+            gemCatalog: {
+                ...this.stateManager.getState().gemCatalog,
+                upgradedThisShop: new Set(),
+                gemPool: []
+            }
+        });
+        
+        // Update shop UI
+        if (this.uiManager && this.uiManager.updateShopScreen) {
+            this.uiManager.updateShopScreen();
+        }
+    }
+    
     
     // Buy a random gem
     buyRandomGem() {
@@ -226,6 +247,221 @@ export default class ShopManager {
         });
         
         return true;
+    }
+    
+    selectUpgradeOption(poolIndex) {
+        const state = this.stateManager.getState();
+        const selectedGems = state.selectedGems;
+        const gemCatalog = state.gemCatalog;
+        const hand = state.gems.hand;
+        
+        // Validation
+        if (!state.inUpgradeMode || selectedGems.size !== 1) {
+            this.eventBus.emit('message:show', {
+                text: 'Please select a gem first',
+                type: 'error'
+            });
+            return;
+        }
+        
+        if (poolIndex < 0 || !gemCatalog.gemPool || poolIndex >= gemCatalog.gemPool.length) {
+            this.eventBus.emit('message:show', {
+                text: 'Invalid upgrade option',
+                type: 'error'
+            });
+            return;
+        }
+        
+        // Get the selected gem and upgrade option
+        const selectedIndex = Array.from(selectedGems)[0];
+        
+        // Validate index is in range of hand
+        if (selectedIndex < 0 || selectedIndex >= hand.length) {
+            this.eventBus.emit('message:show', {
+                text: 'Invalid gem selection',
+                type: 'error'
+            });
+            return;
+        }
+        
+        const selectedGem = hand[selectedIndex];
+        const upgradeOption = gemCatalog.gemPool[poolIndex];
+        
+        if (!upgradeOption) {
+            this.eventBus.emit('message:show', {
+                text: 'Upgrade option not available',
+                type: 'error'
+            });
+            return;
+        }
+        
+        // Perform the upgrade - specifically on the hand gem
+        const newGem = {
+            ...upgradeOption,
+            instanceId: `${upgradeOption.id}-upgraded-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            freshlySwapped: false
+        };
+        
+        // Update the hand directly
+        const newHand = [...hand];
+        newHand[selectedIndex] = newGem;
+        
+        this.stateManager.updateState({
+            gems: {
+                ...state.gems,
+                hand: newHand
+            }
+        });
+        
+        // Mark as upgraded this shop visit
+        if (!gemCatalog.upgradedThisShop) {
+            gemCatalog.upgradedThisShop = new Set();
+        }
+        gemCatalog.upgradedThisShop.add(newGem.id);
+        
+        this.stateManager.updateState({
+            gemCatalog: {
+                ...gemCatalog,
+                upgradedThisShop: gemCatalog.upgradedThisShop
+            }
+        });
+        
+        // Reset upgrade mode state
+        this.stateManager.updateState({
+            selectedGems: new Set(),
+            inUpgradeMode: false,
+            gemCatalog: {
+                ...gemCatalog,
+                gemPool: []
+            }
+        });
+        
+        // Show appropriate success message
+        this.eventBus.emit('message:show', {
+            text: `Upgraded ${selectedGem.name} to ${newGem.name}!`,
+            type: 'success'
+        });
+        
+        // Play sound if available
+        if (this.audioManager && this.audioManager.play) {
+            this.audioManager.play('BUTTON_CLICK');
+        }
+        
+        // Update shop UI
+        if (this.uiManager && this.uiManager.updateShopScreen) {
+            this.uiManager.updateShopScreen();
+        }
+    }
+
+    upgradeSelectedGem() {
+        const state = this.stateManager.getState();
+        const selectedGems = state.selectedGems;
+        const player = state.player;
+        const hand = state.gems.hand;
+        
+        // Validate selection and cost
+        if (selectedGems.size !== 1) {
+            this.eventBus.emit('message:show', {
+                text: 'Select a gem to upgrade',
+                type: 'error'
+            });
+            return;
+        }
+        
+        if (player.zenny < 5) {
+            this.eventBus.emit('message:show', {
+                text: 'Not enough $ZENNY! Need 5.',
+                type: 'error'
+            });
+            return;
+        }
+        
+        const selectedIndex = Array.from(selectedGems)[0];
+        
+        // Validate index is in range of hand
+        if (selectedIndex < 0 || selectedIndex >= hand.length) {
+            this.eventBus.emit('message:show', {
+                text: 'Invalid gem selection',
+                type: 'error'
+            });
+            return;
+        }
+        
+        const selectedGem = hand[selectedIndex];
+        
+        // Validate the selected gem exists
+        if (!selectedGem) {
+            this.eventBus.emit('message:show', {
+                text: 'Invalid gem selection',
+                type: 'error'
+            });
+            return;
+        }
+        
+        if (selectedGem.freshlySwapped) {
+            this.eventBus.emit('message:show', {
+                text: 'Cannot upgrade a freshly swapped gem!',
+                type: 'error'
+            });
+            return;
+        }
+        
+        const gemCatalog = state.gemCatalog;
+        if (gemCatalog.upgradedThisShop && gemCatalog.upgradedThisShop.has(selectedGem.id)) {
+            this.eventBus.emit('message:show', {
+                text: 'This gem was already upgraded this shop visit!',
+                type: 'error'
+            });
+            return;
+        }
+        
+        // Deduct payment
+        player.zenny -= 5;
+        this.stateManager.updateState({
+            player: {
+                ...player,
+                zenny: player.zenny
+            }
+        });
+        
+        // Generate upgrade options
+        const options = this.gemManager.getUpgradeOptions(selectedGem.instanceId);
+        
+        // Ensure we have at least one upgrade option
+        if (!options || options.length === 0) {
+            console.error("No upgrade options generated");
+            player.zenny += 5; // Refund
+            this.stateManager.updateState({
+                player: {
+                    ...player,
+                    zenny: player.zenny
+                }
+            });
+            this.eventBus.emit('message:show', {
+                text: 'No upgrade options available for this gem',
+                type: 'error'
+            });
+            return;
+        }
+        
+        // Set the upgrade options in state
+        this.stateManager.updateState({
+            gemCatalog: {
+                ...gemCatalog,
+                gemPool: options
+            },
+            inUpgradeMode: true
+        });
+        
+        // Play sound if available
+        if (this.audioManager && this.audioManager.play) {
+            this.audioManager.play('BUTTON_CLICK');
+        }
+        
+        // Update shop UI
+        if (this.uiManager && this.uiManager.updateShopScreen) {
+            this.uiManager.updateShopScreen();
+        }
     }
     
     // Continue the journey after shopping
