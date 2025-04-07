@@ -81,7 +81,8 @@ export default class StateManager {
     }
     
     // Save game state to localStorage
-    saveGameState() {
+     // Save game state to localStorage
+     saveGameState() {
         try {
             localStorage.setItem('superTinyWorld', JSON.stringify(this.state));
         } catch (error) {
@@ -100,6 +101,26 @@ export default class StateManager {
         } catch (error) {
             console.error('Failed to load game state:', error);
         }
+    }
+    
+    // Add method to modify meta zenny (for debugging/testing)
+    addMetaZenny(amount) {
+        if (typeof amount !== 'number' || isNaN(amount)) {
+            console.error('Invalid amount. Please provide a valid number.');
+            return false;
+        }
+        
+        const currentMetaZenny = this.state.meta.zenny || 0;
+        const newMetaZenny = currentMetaZenny + amount;
+        
+        this.updateState({
+            meta: {
+                zenny: newMetaZenny
+            }
+        });
+        
+        console.log(`Added ${amount} Meta $ZENNY. New total: ${newMetaZenny}`);
+        return true;
     }
     
     // Reset all game progress

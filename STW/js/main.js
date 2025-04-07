@@ -204,8 +204,14 @@ class Game {
         
         // Show initial screen (character select)
         this.stateManager.changeScreen('character-select-screen');
+        
+        // Expose addMetaZenny to global window for console access
+        window.addMetaZenny = (amount) => {
+            return this.stateManager.addMetaZenny(amount);
+        };
     }
 }
+
 
 // Wait for DOM to load then initialize the game
 document.addEventListener('DOMContentLoaded', () => {
