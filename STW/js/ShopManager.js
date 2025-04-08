@@ -69,32 +69,44 @@ export default class ShopManager {
     
     // Buy a random gem
     buyRandomGem() {
-        const state = this.stateManager.getState();
-        const { player, gems } = state;
+        // Declare state with 'let' instead of 'const' so it can be reassigned
+        let state = this.stateManager.getState();
+        let { player, gems } = state;
         
-        // Check if bag is full
-        if (gems.played.length > 0 || gems.discarded.length > 0) {
-            // Get the gem manager to recycle gems
-            this.eventBus.emit('gems:recycle');
+        // Check if we need to recycle played/discarded gems first
+        if (gems.played && gems.played.length > 0 || gems.discarded && gems.discarded.length > 0) {
+            // Recycle gems
+            this.gemManager.recycleAllGems();
             
             // Re-fetch the state after recycling
             state = this.stateManager.getState();
             gems = state.gems;
+            player = state.player; // Also update player reference
         }
         
-        // Check if bag would be full after recycling
+        // Calculate total gems
         const totalGems = gems.bag.length + gems.hand.length;
         const maxGemBagSize = state.gemBagSize || 30;
         
+        // Check if bag would be full even after recycling
         if (totalGems >= maxGemBagSize) {
             // Auto-expand the bag
-            this.eventBus.emit('gem:expand-bag', 1);
+            this.gemManager.increaseGemBagSize(1);
             
             // Re-fetch the state after expanding
             state = this.stateManager.getState();
             gems = state.gems;
+            player = state.player; // Also update player reference
         }
         
+        // Check if player has enough zenny
+        if (player.zenny < this.costs.buyRandomGem) {
+            this.eventBus.emit('message:show', {
+                text: 'Not enough $ZENNY!',
+                type: 'error'
+            });
+            return false;
+        }
         
         // Deduct cost
         this.stateManager.updateState({
@@ -113,10 +125,14 @@ export default class ShopManager {
             });
             return true;
         } else {
+            // Get updated state for correct refund
+            state = this.stateManager.getState();
+            player = state.player;
+            
             // Refund if failed
             this.stateManager.updateState({
                 player: {
-                    zenny: player.zenny
+                    zenny: player.zenny + this.costs.buyRandomGem
                 }
             });
             return false;
