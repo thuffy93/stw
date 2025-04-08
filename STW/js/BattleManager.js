@@ -167,7 +167,7 @@ export default class BattleManager {
         
         // Get enemy for current day and phase
         this.gemManager.recycleAllGems();
-        
+
         const enemy = this.getRandomEnemy(day, phase);
         if (!enemy) {
             console.error(`No enemy found for day ${day}, phase ${phase}`);
@@ -1403,14 +1403,13 @@ export default class BattleManager {
             }
         });
         
-        // Make sure we properly reset the gems between phases
-        // This ensures played gems get recycled back into the bag
-        this.gemManager.resetGemsAfterFleeing();
+        // MODIFIED: Instead of resetting gems, just make sure played/discarded gems
+        // are recycled back into the bag
+        this.gemManager.recycleAllGems();
         
         // Start next battle
         this.stateManager.changeScreen('battle-screen');
         this.startBattle();
-        
     }
     
     // Flee from battle (only available in Dawn/Dusk phases)
