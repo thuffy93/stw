@@ -73,22 +73,28 @@ export default class ShopManager {
         const { player, gems } = state;
         
         // Check if bag is full
-        if (gems.bag.length >= 20) {
-            this.eventBus.emit('message:show', {
-                text: 'Gem bag is full!',
-                type: 'error'
-            });
-            return false;
+        if (gems.played.length > 0 || gems.discarded.length > 0) {
+            // Get the gem manager to recycle gems
+            this.eventBus.emit('gems:recycle');
+            
+            // Re-fetch the state after recycling
+            state = this.stateManager.getState();
+            gems = state.gems;
         }
         
-        // Check if player has enough zenny
-        if (player.zenny < this.costs.buyRandomGem) {
-            this.eventBus.emit('message:show', {
-                text: 'Not enough $ZENNY!',
-                type: 'error'
-            });
-            return false;
+        // Check if bag would be full after recycling
+        const totalGems = gems.bag.length + gems.hand.length;
+        const maxGemBagSize = state.gemBagSize || 30;
+        
+        if (totalGems >= maxGemBagSize) {
+            // Auto-expand the bag
+            this.eventBus.emit('gem:expand-bag', 1);
+            
+            // Re-fetch the state after expanding
+            state = this.stateManager.getState();
+            gems = state.gems;
         }
+        
         
         // Deduct cost
         this.stateManager.updateState({

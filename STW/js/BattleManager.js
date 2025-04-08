@@ -166,6 +166,8 @@ export default class BattleManager {
         }
         
         // Get enemy for current day and phase
+        this.gemManager.recycleAllGems();
+        
         const enemy = this.getRandomEnemy(day, phase);
         if (!enemy) {
             console.error(`No enemy found for day ${day}, phase ${phase}`);
@@ -1297,9 +1299,17 @@ export default class BattleManager {
                 phase
             });
             
-            // Wait briefly then show game over
             setTimeout(() => {
                 this.eventBus.emit('game:over');
+                
+                // Return to character select screen
+                this.stateManager.changeScreen('character-select-screen');
+                
+                // Show a message to the player
+                this.eventBus.emit('message:show', {
+                    text: 'Game over! Select a class to start a new run.',
+                    type: 'error'
+                });
             }, 2000);
         }
     }
@@ -1393,9 +1403,14 @@ export default class BattleManager {
             }
         });
         
+        // Make sure we properly reset the gems between phases
+        // This ensures played gems get recycled back into the bag
+        this.gemManager.resetGemsAfterFleeing();
+        
         // Start next battle
         this.stateManager.changeScreen('battle-screen');
         this.startBattle();
+        
     }
     
     // Flee from battle (only available in Dawn/Dusk phases)
