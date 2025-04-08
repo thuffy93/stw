@@ -14,9 +14,10 @@ export default class UIManager {
             resetButton: document.getElementById('reset-btn'),
             
             // Gem catalog screen
-            gemCatalogScreen: document.getElementById('gemCatalog-screen'),
+            gemCatalogScreen: document.getElementById('gem-catalog-screen'),
             metaZennyDisplay: document.getElementById('meta-zenny-display'),
             unlockedGems: document.getElementById('unlocked-gems'),
+            availableGemsSection: document.getElementById('available-gems-section'),
             availableGems: document.getElementById('available-gems'),
             continueJourneyButton: document.getElementById('continue-journey-btn'),
             
@@ -171,7 +172,7 @@ export default class UIManager {
         }
         
         // Update gem catalog if on that screen
-        else if (state.currentScreen === 'gemCatalog-screen') {
+        else if (state.currentScreen === 'gem-catalog-screen') {
             this.updateGemCatalogUI();
         }
     }
@@ -199,7 +200,7 @@ export default class UIManager {
         else if (screenId === 'camp-screen') {
             this.updateCampUI();
         }
-        else if (screenId === 'gemCatalog-screen') {
+        else if (screenId === 'gem-catalog-screen') {
             this.updateGemCatalogUI();
         }
     }
@@ -259,7 +260,7 @@ export default class UIManager {
         this.eventBus.emit('class:selected', classType);
         
         // Navigate to gem catalog screen
-        this.stateManager.changeScreen('gemCatalog-screen');
+        this.stateManager.changeScreen('gem-catalog-screen');
     }
     
     // Reset game progress
@@ -1079,27 +1080,34 @@ export default class UIManager {
         // Get definitions from gem manager
         this.eventBus.emit('gem:get-definitions', {
             callback: (definitions) => {
-                // Process unlocked gems
-                if (meta.unlockedGems && meta.unlockedGems.length > 0) {
-                    meta.unlockedGems.forEach(gemId => {
-                        const gemDef = definitions[gemId];
-                        if (gemDef) {
-                            // Create gem element 
-                            const gemElement = this.createGemElement(gemDef);
-                            this.elements.unlockedGems.appendChild(gemElement);
-                        }
-                    });
-                } else {
-                    // Display message if no gems unlocked
-                    const noGemsMsg = document.createElement('div');
-                    noGemsMsg.textContent = 'No unlocked gems found';
-                    noGemsMsg.style.padding = '20px';
-                    noGemsMsg.style.textAlign = 'center';
-                    this.elements.unlockedGems.appendChild(noGemsMsg);
-                }
+                // Get class-specific gems 
+                this.eventBus.emit('gem:get-class-gems', {
+                    playerClass,
+                    callback: (classGems) => {
+                        // Filter unlocked gems that are appropriate for this class
+                        const classSpecificUnlocked = meta.unlockedGems.filter(gemId => {
+                            // Always include grey gems for all classes
+                            const gemDef = definitions[gemId];
+                            if (gemDef && gemDef.color === 'grey') return true;
+                            
+                            // Include gems that belong to this class
+                            return classGems.includes(gemId);
+                        });
+                        
+                        // Render class-specific unlocked gems
+                        classSpecificUnlocked.forEach(gemId => {
+                            const gemDef = definitions[gemId];
+                            if (gemDef) {
+                                const gemElement = this.createGemElement(gemDef);
+                                this.elements.unlockedGems.appendChild(gemElement);
+                            }
+                        });
+                    }
+                });
             }
         });
     }
+    
     
     // Render available gems to unlock
     renderAvailableGems() {
@@ -1107,6 +1115,20 @@ export default class UIManager {
         const { meta, player } = state;
         const playerClass = player.class;
         
+        // Check if element exists
+        if (!this.elements.availableGems) {
+            console.error("Available gems container not found in DOM");
+            // Try to get it again (it might not have been available when the UIManager was initialized)
+            this.elements.availableGems = document.getElementById('available-gems');
+            
+            // If still not found, exit early
+            if (!this.elements.availableGems) {
+                console.error("Still cannot find available-gems element, aborting render");
+                return;
+            }
+        }
+        
+        // Clear current contents
         this.elements.availableGems.innerHTML = '';
         
         // Get available unlockable gems from gem manager
@@ -1114,9 +1136,23 @@ export default class UIManager {
             callback: (unlockables) => {
                 console.log("Got unlockable gems:", unlockables);
                 
+                // Check if we received a valid array
+                if (!Array.isArray(unlockables)) {
+                    console.error("Invalid unlockables data received:", unlockables);
+                    this.showNoGemsMessage();
+                    return;
+                }
+                
                 // Get definitions
                 this.eventBus.emit('gem:get-definitions', {
                     callback: (definitions) => {
+                        // Make sure we have valid definitions
+                        if (!definitions || typeof definitions !== 'object') {
+                            console.error("Invalid gem definitions received");
+                            this.showNoGemsMessage();
+                            return;
+                        }
+                        
                         // Filter out gems that are already unlocked
                         const notYetUnlocked = unlockables.filter(gemId => 
                             !meta.unlockedGems || !meta.unlockedGems.includes(gemId)
@@ -1152,12 +1188,7 @@ export default class UIManager {
                                 }
                             });
                         } else {
-                            // Display message if no unlockable gems
-                            const noGemsMsg = document.createElement('div');
-                            noGemsMsg.textContent = 'No additional gems available to unlock';
-                            noGemsMsg.style.padding = '20px';
-                            noGemsMsg.style.textAlign = 'center';
-                            this.elements.availableGems.appendChild(noGemsMsg);
+                            this.showNoGemsMessage();
                         }
                     }
                 });
@@ -1165,6 +1196,17 @@ export default class UIManager {
         });
     }
     
+    showNoGemsMessage() {
+        // Make sure element exists
+        if (!this.elements.availableGems) return;
+        
+        // Display message if no unlockable gems
+        const noGemsMsg = document.createElement('div');
+        noGemsMsg.textContent = 'No additional gems available to unlock';
+        noGemsMsg.style.padding = '20px';
+        noGemsMsg.style.textAlign = 'center';
+        this.elements.availableGems.appendChild(noGemsMsg);
+    }
     
     // Unlock a gem in the catalog
     unlockGem(gemId) {
