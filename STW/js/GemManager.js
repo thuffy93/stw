@@ -710,22 +710,22 @@ export default class GemManager {
     recycleAllGems() {
         const state = this.stateManager.getState();
         
-        // With the new gem management approach:
-        // Only recycle discarded and played gems
-        const discardedGems = [...state.gems.discarded, ...state.gems.played];
+        // Only recycle discarded gems
+        const discardedGems = [...state.gems.discarded];
         const bagGems = [...state.gems.bag];
         const handGems = [...state.gems.hand];
+        const playedGems = [...state.gems.played];
         
-        // If no discarded or played gems, just return current state
+        // If no discarded gems, just return current state
         if (discardedGems.length === 0) {
             console.log("No gems to recycle");
             return state.gems.bag;
         }
         
-        // Shuffle discarded and played gems into the bag
+        // Shuffle discarded gems into the bag
         const shuffledBag = this.shuffleArray([...bagGems, ...discardedGems]);
         
-        console.log(`Recycling ${discardedGems.length} gems back into the bag`);
+        console.log(`Recycling ${discardedGems.length} discarded gems back into the bag`);
         
         // Update state with recycled gems
         this.stateManager.updateState({
@@ -733,7 +733,7 @@ export default class GemManager {
                 bag: shuffledBag,
                 hand: handGems,
                 discarded: [],
-                played: []
+                played: playedGems  // Keep played gems intact
             }
         });
         
@@ -814,26 +814,42 @@ export default class GemManager {
             state = this.stateManager.getState();
         }
         
-        // Calculate the total gems across all collections
-        const totalGems = 
-            state.gems.bag.length + 
-            state.gems.hand.length + 
-            state.gems.discarded.length + 
-            state.gems.played.length;
-
-        console.log(`Total gems: ${totalGems} (bag: ${state.gems.bag.length}, hand: ${state.gems.hand.length}, discarded: ${state.gems.discarded.length}, played: ${state.gems.played.length})`);
-
-        const maxGemBagSize = state.gemBagSize || 20;
-
-        // Explicitly prevent adding gems if at max
-        if (totalGems >= maxGemBagSize) {
-            this.eventBus.emit('message:show', {
-                text: 'Gem bag is full! Cannot add more gems.',
-                type: 'error'
-            });
+        // Create the new gem
+        const newGem = this.createRandomGem(state);
+        
+        if (!newGem) {
+            console.error('Failed to create random gem');
             return null;
         }
         
+        // Add to gem bag
+        const newBag = [...state.gems.bag, newGem];
+        
+        // Calculate new max bag size
+        const currentBagSize = state.gemBagSize || 20;
+        const newBagSize = currentBagSize + 1;
+        
+        // Update state with new gem and increased bag size
+        this.stateManager.updateState({
+            gems: {
+                bag: newBag,
+                hand: state.gems.hand,
+                discarded: state.gems.discarded,
+                played: state.gems.played
+            },
+            gemBagSize: newBagSize
+        });
+        
+        console.log(`Added new gem to bag: ${newGem.name} (${newGem.id}), New bag size: ${newBagSize}`);
+        
+        // Emit event
+        this.eventBus.emit('gem:added', newGem);
+        
+        return newGem;
+    }
+    
+    // Helper method to create a random gem (extracted from existing method)
+    createRandomGem(state) {
         // Determine gem color probability based on class
         const playerClass = state.player.class;
         let colorProbability = {
@@ -919,27 +935,7 @@ export default class GemManager {
         }
         
         // Create the new gem
-        const newGem = this.createGem(randomGemDef.id);
-        
-        // Add to gem bag
-        const newBag = [...state.gems.bag, newGem];
-        
-        // CRITICAL: Do NOT touch played or discarded gems
-        this.stateManager.updateState({
-            gems: {
-                bag: newBag,
-                hand: state.gems.hand,
-                discarded: state.gems.discarded,
-                played: state.gems.played
-            }
-        });
-        
-        console.log(`Added new gem to bag: ${newGem.name} (${newGem.id})`);
-        
-        // Emit event
-        this.eventBus.emit('gem:added', newGem);
-        
-        return newGem;
+        return this.createGem(randomGemDef.id);
     }
     
     // Get upgrade options for a gem
