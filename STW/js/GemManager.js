@@ -126,27 +126,29 @@ export default class GemManager {
             },
         };
         
-        
         // Set up event listeners
         this.setupEventListeners();
         
         // Setup shared base gems that all classes have access to
         this.baseStarterGems = ['red-attack', 'blue-magic', 'green-attack', 'grey-heal'];
-
+    
         // Setup class-specific starter gems (in addition to base gems)
         this.classStarterGems = {
             'knight': ['red-strong'],
             'mage': ['blue-strong-heal'],
             'rogue': ['green-quick']
         };
-
+    
         // Available unlockable gems by class
         this.availableGemsByClass = {
             'knight': ['red-burst'],
             'mage': ['blue-shield'],
             'rogue': ['green-poison']
         };
-    }
+        
+        // NEW: Initialize starting bag size
+        this.initializeGemBagSize();
+    }    
     
     setupEventListeners() {
         // Listen for class selection to initialize starter gems
@@ -307,6 +309,50 @@ export default class GemManager {
         return true;
     }
 
+    initializeGemBagSize() {
+        const state = this.stateManager.getState();
+        
+        // Get current max bag size or set default
+        let maxBagSize = 30; // Default bag size increased to 30
+        
+        // Check if we need to update the state
+        if (!state.gemBagSize) {
+            console.log(`Initializing gem bag size to ${maxBagSize}`);
+            
+            // Update state with gem bag size - need to use proper merge
+            this.stateManager.updateState({
+                gemBagSize: maxBagSize
+            });
+        } else {
+            console.log(`Gem bag size already set to ${state.gemBagSize}`);
+        }
+    }
+    
+    // NEW: Method to increase gem bag size
+    increaseGemBagSize(amount = 1) {
+        const state = this.stateManager.getState();
+        const currentSize = state.gemBagSize || 20;
+        const newSize = currentSize + amount;
+        
+        this.stateManager.updateState({
+            gemBagSize: newSize
+        });
+        
+        console.log(`Increased gem bag size from ${currentSize} to ${newSize}`);
+        
+        // Show message to player
+        this.eventBus.emit('message:show', {
+            text: `Gem bag capacity increased to ${newSize}!`,
+            type: 'success'
+        });
+        
+        return newSize;
+    }    
+
+    getGemBagSize() {
+        const state = this.stateManager.getState();
+        return state.gemBagSize || 20; // Default to 20 if not set
+    }    
     
     // Shuffle array using Fisher-Yates algorithm
     shuffleArray(array) {
@@ -702,7 +748,7 @@ export default class GemManager {
         const originalGem = handGems[gemIndex];
         
         // Create new gem
-        const newGem = this.gemManager.createGem(newGemId);
+        const newGem = this.createGem(newGemId);
         
         if (!newGem) {
             console.error(`Failed to create new gem: ${newGemId}`);
@@ -725,12 +771,8 @@ export default class GemManager {
             }
         });
         
-        // Deduct the cost from player's zenny
-        this.stateManager.updateState({
-            player: {
-                zenny: state.player.zenny - this.costs.upgradeGem
-            }
-        });
+        // Fixed: Don't deduct cost here - let ShopManager handle it
+        // ShopManager already deducts the cost after calling this method
         
         // Emit event
         this.eventBus.emit('gem:upgraded', {
@@ -747,7 +789,6 @@ export default class GemManager {
         return newGem;
     }
     
-    
     // Add a random gem to bag (shop purchase)
     addRandomGem() {
         const state = this.stateManager.getState();
@@ -755,13 +796,16 @@ export default class GemManager {
             state.gems.bag.length + 
             state.gems.hand.length + 
             state.gems.discarded.length + 
-            state.gems.played.length;
+            (state.gems.played ? state.gems.played.length : 0); // Added safety check
         
-        const maxGemBagSize = 20;
+        // Get the current bag size (default to 30 if not found)
+        const maxGemBagSize = state.gemBagSize || 30;
+        
+        console.log(`Current gem count: ${allGemCount}, Max bag size: ${maxGemBagSize}`);
         
         if (allGemCount >= maxGemBagSize) {
             this.eventBus.emit('message:show', {
-                text: 'Gem collection is full!',
+                text: `Gem collection full! (${allGemCount}/${maxGemBagSize})`,
                 type: 'error'
             });
             return null;
@@ -785,29 +829,49 @@ export default class GemManager {
             colorProbability.green = 0.55;
         }
         
-        // Get class-specific gems
-        const classGems = this.getClassGems(playerClass);
+        // Get gems for this class
+        let classGems = this.getClassGems(playerClass);
         
-        // Filter unlocked gems that are appropriate for this class
-        const unlockedGems = state.meta.unlockedGems;
-        const classUnlockedGems = unlockedGems.filter(gemId => {
-            // Always include grey gems
-            const gemDef = this.gemDefinitions[gemId];
-            if (gemDef && gemDef.color === 'grey') return true;
-            
-            // Include gems that belong to this class
-            return classGems.includes(gemId);
-        });
+        // Ensure we have a list of class gems
+        if (!classGems || !Array.isArray(classGems)) {
+            classGems = this.baseStarterGems;
+            console.warn(`No class gems found for ${playerClass}, using base gems`);
+        }
         
+        // Get unlocked gems
+        let unlockedGems = [];
+        if (state.meta && state.meta.unlockedGems) {
+            if (Array.isArray(state.meta.unlockedGems)) {
+                // Old structure
+                unlockedGems = state.meta.unlockedGems;
+            } else {
+                // New structure 
+                const globalGems = state.meta.unlockedGems.global || [];
+                const playerClassGems = state.meta.unlockedGems[playerClass] || [];
+                unlockedGems = [...globalGems, ...playerClassGems];
+            }
+        } else {
+            // If no unlocked gems found, use starter gems
+            unlockedGems = [...this.baseStarterGems];
+            if (this.classStarterGems[playerClass]) {
+                unlockedGems = [...unlockedGems, ...this.classStarterGems[playerClass]];
+            }
+        }
+        
+        // Filter to available gem definitions
         const availableGems = Object.values(this.gemDefinitions)
-            .filter(gem => classUnlockedGems.includes(gem.id));
+            .filter(gem => unlockedGems.includes(gem.id));
         
         if (availableGems.length === 0) {
             console.error('No available gems to add');
+            this.eventBus.emit('message:show', {
+                text: 'No gems available to add!',
+                type: 'error'
+            });
             return null;
         }
         
-        // Group gems by color
+        // Group by color
         const gemsByColor = {
             red: availableGems.filter(gem => gem.color === 'red'),
             blue: availableGems.filter(gem => gem.color === 'blue'),
@@ -837,6 +901,10 @@ export default class GemManager {
         
         if (!selectedColor) {
             console.error('No gems available to add');
+            this.eventBus.emit('message:show', {
+                text: 'No gems available to add!',
+                type: 'error'
+            });
             return null;
         }
         
@@ -847,6 +915,15 @@ export default class GemManager {
         // Create the new gem
         const newGem = this.createGem(randomGemDef.id);
         
+        if (!newGem) {
+            console.error(`Failed to create gem of type ${randomGemDef.id}`);
+            this.eventBus.emit('message:show', {
+                text: 'Failed to create gem!',
+                type: 'error'
+            });
+            return null;
+        }
+        
         // Add to gem bag
         const newBag = [...state.gems.bag, newGem];
         
@@ -856,7 +933,7 @@ export default class GemManager {
                 bag: newBag,
                 hand: state.gems.hand,
                 discarded: state.gems.discarded,
-                played: state.gems.played
+                played: state.gems.played || [] // Add safety check
             }
         });
         
@@ -864,6 +941,12 @@ export default class GemManager {
         
         // Emit event
         this.eventBus.emit('gem:added', newGem);
+        
+        // Show success message
+        this.eventBus.emit('message:show', {
+            text: `Purchased ${newGem.name}!`,
+            type: 'success'
+        });
         
         return newGem;
     }
@@ -874,7 +957,6 @@ export default class GemManager {
         const handGems = state.gems.hand;
         
         const gem = handGems.find(g => g.instanceId === gemInstanceId);
-        const unlockedGems = state.meta.unlockedGems;
         const playerClass = state.player.class;
         
         if (!gem) {
@@ -919,21 +1001,36 @@ export default class GemManager {
         }
         
         // 3. Add unlocked gems of the same color (but only if they're actually unlocked)
-        if (gem.color === 'red' && playerClass === 'knight' && unlockedGems.includes('red-burst')) {
+        // Fix for the error: Handle both array and object structure of unlockedGems
+        let unlockedGemsList = [];
+        const { meta } = state;
+        
+        if (Array.isArray(meta.unlockedGems)) {
+            // Old structure - simple array
+            unlockedGemsList = meta.unlockedGems;
+        } else if (meta.unlockedGems && typeof meta.unlockedGems === 'object') {
+            // New structure - combine global and class-specific unlocks
+            const globalGems = meta.unlockedGems.global || [];
+            const classGems = meta.unlockedGems[playerClass] || [];
+            unlockedGemsList = [...globalGems, ...classGems];
+        }
+        
+        // Now we have unlockedGemsList as an array, we can safely use includes()
+        if (gem.color === 'red' && playerClass === 'knight' && unlockedGemsList.includes('red-burst')) {
             const burstUpgrade = {
                 ...this.gemDefinitions['red-burst'],
                 upgradeType: 'unlocked'
             };
             upgrades.push(burstUpgrade);
         }
-        else if (gem.color === 'blue' && playerClass === 'mage' && unlockedGems.includes('blue-shield')) {
+        else if (gem.color === 'blue' && playerClass === 'mage' && unlockedGemsList.includes('blue-shield')) {
             const shieldUpgrade = {
                 ...this.gemDefinitions['blue-shield'],
                 upgradeType: 'unlocked'
             };
             upgrades.push(shieldUpgrade);
         }
-        else if (gem.color === 'green' && playerClass === 'rogue' && unlockedGems.includes('green-poison')) {
+        else if (gem.color === 'green' && playerClass === 'rogue' && unlockedGemsList.includes('green-poison')) {
             const poisonUpgrade = {
                 ...this.gemDefinitions['green-poison'],
                 upgradeType: 'unlocked'
@@ -944,7 +1041,6 @@ export default class GemManager {
         console.log(`Generated ${upgrades.length} upgrade options for ${gem.name}`);
         return upgrades;
     }
-    
     
     // Unlock a new gem in the meta progression
     unlockGem(gemId, cost = 50) {
@@ -1061,21 +1157,16 @@ export default class GemManager {
     resetGemsAfterFleeing() {
         const state = this.stateManager.getState();
         
-        // Return hand gems to discarded
-        const handGems = [...state.gems.hand];
-        const allDiscarded = [...state.gems.discarded, ...handGems];
+        // FIXED: Don't discard the hand gems, keep them for the next battle
+        console.log("Preserving hand when fleeing");
         
-        // Keep played gems separate
-        this.stateManager.updateState({
-            gems: {
-                bag: state.gems.bag,
-                hand: [],
-                discarded: allDiscarded,
-                played: state.gems.played
-            }
-        });
-        
-        // Draw new hand for next battle
-        setTimeout(() => this.drawGems(3), 100);
+        // No changes to state - keep hand as is
+        // If needed, draw more gems to fill the hand up to 3
+        const currentHandSize = state.gems.hand.length;
+        if (currentHandSize < 3) {
+            const gemsToDraw = 3 - currentHandSize;
+            console.log(`Hand has ${currentHandSize} gems, drawing ${gemsToDraw} more to fill it`);
+            this.drawGems(gemsToDraw);
+        }
     }
 }

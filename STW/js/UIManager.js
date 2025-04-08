@@ -446,11 +446,14 @@ export default class UIManager {
         // Update hand
         this.renderHand();
         
+        // MODIFIED: Get current gem bag size from state
+        const currentBagSize = state.gemBagSize || 20;
+        
         // Update gem bag count
         this.elements.gemBagCount.textContent = gems.bag.length;
         this.elements.gemBagCount2.textContent = gems.bag.length;
-        this.elements.gemBagTotal.textContent = 20; // Max bag size
-        this.elements.gemBagTotal2.textContent = 20;
+        this.elements.gemBagTotal.textContent = currentBagSize;
+        this.elements.gemBagTotal2.textContent = currentBagSize;
         
         // Update button states
         this.updateBattleButtons();
@@ -684,9 +687,12 @@ export default class UIManager {
         // Render gems in hand if needed
         this.renderShopHand();
         
+        // MODIFIED: Get current gem bag size from state
+        const currentBagSize = state.gemBagSize || 20;
+        
         // Update gem bag count
         this.elements.shopGemBagCount.textContent = gems.bag.length;
-        this.elements.shopGemBagTotal.textContent = 20;
+        this.elements.shopGemBagTotal.textContent = currentBagSize;
         
         // Update button states
         this.updateShopButtons();

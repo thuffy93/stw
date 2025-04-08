@@ -118,18 +118,18 @@ export default class CampManager {
             return;
         }
         
-        // Heal player a bit at camp (25% of max health)
-        const healAmount = Math.floor(state.player.maxHealth * 0.25);
-        const newHealth = Math.min(state.player.maxHealth, state.player.health + healAmount);
+        // FIXED: Fully heal player at start of new day
+        const maxHealth = state.player.maxHealth;
+        const healAmount = maxHealth - state.player.health;
         
         this.stateManager.updateState({
             player: {
-                health: newHealth
+                health: maxHealth
             }
         });
         
         this.eventBus.emit('message:show', {
-            text: `Rested and healed ${healAmount} HP. Ready for day ${day + 1}!`,
+            text: `Fully rested and restored to ${maxHealth} HP. Ready for day ${day + 1}!`,
             type: 'success'
         });
         

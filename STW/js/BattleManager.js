@@ -195,20 +195,17 @@ export default class BattleManager {
             }
         });
         
-        // Clear any existing hand to start fresh
-        this.stateManager.updateState({
-            gems: {
-                hand: [],
-                discarded: state.gems.discarded,
-                bag: state.gems.bag,
-                played: state.gems.played
-            }
-        });
-        
-        console.log("Starting battle with fresh hand");
-        
-        // Draw initial hand with a full set of 3 gems
-        this.gemManager.drawGems(3);
+        // FIXED: Instead of clearing the hand, check if we need to draw more gems
+        // Only draw gems if needed to reach 3 cards
+        const currentHandSize = state.gems.hand.length;
+        if (currentHandSize < 3) {
+            // Only need to draw enough to fill the hand
+            const gemsToDraw = 3 - currentHandSize;
+            console.log(`Hand has ${currentHandSize} gems, drawing ${gemsToDraw} more to fill it`);
+            this.gemManager.drawGems(gemsToDraw);
+        } else {
+            console.log(`Starting battle with existing hand of ${currentHandSize} gems`);
+        }
         
         // Emit battle started event
         this.eventBus.emit('battle:started', {
@@ -252,11 +249,19 @@ export default class BattleManager {
         const { enemy } = state.battle;
         const { player } = state;
     
+        // FIXED: Add safety check for null enemy
+        if (!enemy) {
+            console.error('No enemy found when processing gem effect');
+            return;
+        }
+    
         // Prepare updates
         const playerUpdates = {};
         const enemyUpdates = {};
-        const newBuffs = [...player.buffs];
-        const updatedEnemyBuffs = [...enemy.buffs];
+        
+        // FIXED: Added safety checks for null buffs
+        const newBuffs = player.buffs ? [...player.buffs] : [];
+        const updatedEnemyBuffs = enemy.buffs ? [...enemy.buffs] : [];
     
         // Get player class for bonus calculation
         const playerClass = player.class;
@@ -272,8 +277,8 @@ export default class BattleManager {
                     damageAmount = Math.floor(damageAmount * 1.5); // 50% bonus
                 }
                 
-                // Apply any active buffs
-                if (player.buffs.some(buff => buff.type === 'focus')) {
+                // Apply any active buffs - FIXED: Added safety check
+                if (player.buffs && player.buffs.some(buff => buff.type === 'focus')) {
                     damageAmount = Math.floor(damageAmount * 1.2); // 20% bonus from focus
                 }
                 
@@ -308,8 +313,8 @@ export default class BattleManager {
                     healAmount = Math.floor(healAmount * 1.5); // 50% bonus
                 }
                 
-                // Apply any active buffs
-                if (player.buffs.some(buff => buff.type === 'focus')) {
+                // Apply any active buffs - FIXED: Added safety check
+                if (player.buffs && player.buffs.some(buff => buff.type === 'focus')) {
                     healAmount = Math.floor(healAmount * 1.2); // 20% bonus from focus
                 }
                 
@@ -332,8 +337,8 @@ export default class BattleManager {
                     defenseAmount = Math.floor(defenseAmount * 1.5); // 50% bonus
                 }
                 
-                // Remove existing defense buff
-                const updatedBuffs = player.buffs.filter(b => b.type !== 'defense');
+                // Remove existing defense buff - FIXED: Added safety check
+                const updatedBuffs = player.buffs ? player.buffs.filter(b => b.type !== 'defense') : [];
                 
                 // Add defense buff
                 const defenseBuff = {
