@@ -1077,88 +1077,114 @@ export default class UIManager {
         
         this.elements.unlockedGems.innerHTML = '';
         
+        // Check if meta.unlockedGems exists and has the correct structure
+        if (!meta.unlockedGems) {
+            console.error("Unlocked gems not found in meta state");
+            return;
+        }
+        
+        // Handle both old (array) and new (object) structures
+        let globalGems = [];
+        let classGems = [];
+        
+        if (Array.isArray(meta.unlockedGems)) {
+            // Old structure - treat all as global
+            globalGems = meta.unlockedGems;
+        } else {
+            // New structure
+            globalGems = meta.unlockedGems.global || [];
+            classGems = meta.unlockedGems[playerClass] || [];
+        }
+        
         // Get definitions from gem manager
         this.eventBus.emit('gem:get-definitions', {
             callback: (definitions) => {
-                // Get class-specific gems 
-                this.eventBus.emit('gem:get-class-gems', {
-                    playerClass,
-                    callback: (classGems) => {
-                        // Filter unlocked gems that are appropriate for this class
-                        const classSpecificUnlocked = meta.unlockedGems.filter(gemId => {
-                            // Always include grey gems for all classes
-                            const gemDef = definitions[gemId];
-                            if (gemDef && gemDef.color === 'grey') return true;
-                            
-                            // Include gems that belong to this class
-                            return classGems.includes(gemId);
-                        });
-                        
-                        // Render class-specific unlocked gems
-                        classSpecificUnlocked.forEach(gemId => {
-                            const gemDef = definitions[gemId];
-                            if (gemDef) {
-                                const gemElement = this.createGemElement(gemDef);
-                                this.elements.unlockedGems.appendChild(gemElement);
-                            }
-                        });
+                // IMPORTANT: Display base gems first regardless of class
+                // These should always be available to all classes
+                const baseGems = ['red-attack', 'blue-magic', 'green-attack', 'grey-heal'];
+                
+                // Display base gems first
+                baseGems.forEach(gemId => {
+                    const gemDef = definitions[gemId];
+                    if (gemDef) {
+                        const gemElement = this.createGemElement(gemDef);
+                        this.elements.unlockedGems.appendChild(gemElement);
+                    }
+                });
+                
+                // Class-specific starter gems
+                const classStarterGems = {
+                    'knight': ['red-strong'],
+                    'mage': ['blue-strong-heal'],
+                    'rogue': ['green-quick']
+                };
+                
+                const starterGems = classStarterGems[playerClass] || [];
+                starterGems.forEach(gemId => {
+                    const gemDef = definitions[gemId];
+                    if (gemDef) {
+                        const gemElement = this.createGemElement(gemDef);
+                        this.elements.unlockedGems.appendChild(gemElement);
+                    }
+                });
+                
+                // Then display additional unlocked gems specific to this class
+                // (that aren't base or starter gems)
+                classGems.forEach(gemId => {
+                    // Skip if it's a base gem or starter gem (already displayed)
+                    if (baseGems.includes(gemId) || starterGems.includes(gemId)) {
+                        return;
+                    }
+                    
+                    const gemDef = definitions[gemId];
+                    if (gemDef) {
+                        const gemElement = this.createGemElement(gemDef);
+                        this.elements.unlockedGems.appendChild(gemElement);
                     }
                 });
             }
         });
-    }
-    
+    }    
     
     // Render available gems to unlock
     renderAvailableGems() {
         const state = this.stateManager.getState();
-        const { meta, player } = state;
-        const playerClass = player.class;
-        
-        // Check if element exists
-        if (!this.elements.availableGems) {
-            console.error("Available gems container not found in DOM");
-            // Try to get it again (it might not have been available when the UIManager was initialized)
-            this.elements.availableGems = document.getElementById('available-gems');
-            
-            // If still not found, exit early
-            if (!this.elements.availableGems) {
-                console.error("Still cannot find available-gems element, aborting render");
-                return;
-            }
-        }
+        const { meta } = state;
+        const playerClass = state.player.class;
         
         // Clear current contents
         this.elements.availableGems.innerHTML = '';
         
-        // Get available unlockable gems from gem manager
+        // Check if meta.unlockedGems has the right structure
+        if (!meta.unlockedGems) {
+            console.error("Unlocked gems not found in meta state");
+            return;
+        }
+        
+        // Handle both old (array) and new (object) structures
+        let unlockedGems = [];
+        
+        if (Array.isArray(meta.unlockedGems)) {
+            // Old structure
+            unlockedGems = meta.unlockedGems;
+        } else {
+            // New structure - combine global and class-specific gems
+            unlockedGems = [
+                ...(meta.unlockedGems.global || []),
+                ...(meta.unlockedGems[playerClass] || [])
+            ];
+        }
+        
+        // Use the event bus to get unlockable gems
         this.eventBus.emit('gem:get-unlockable', {
             callback: (unlockables) => {
-                console.log("Got unlockable gems:", unlockables);
-                
-                // Check if we received a valid array
-                if (!Array.isArray(unlockables)) {
-                    console.error("Invalid unlockables data received:", unlockables);
-                    this.showNoGemsMessage();
-                    return;
-                }
-                
                 // Get definitions
                 this.eventBus.emit('gem:get-definitions', {
                     callback: (definitions) => {
-                        // Make sure we have valid definitions
-                        if (!definitions || typeof definitions !== 'object') {
-                            console.error("Invalid gem definitions received");
-                            this.showNoGemsMessage();
-                            return;
-                        }
-                        
                         // Filter out gems that are already unlocked
                         const notYetUnlocked = unlockables.filter(gemId => 
-                            !meta.unlockedGems || !meta.unlockedGems.includes(gemId)
+                            !unlockedGems.includes(gemId)
                         );
-                        
-                        console.log("Gems not yet unlocked:", notYetUnlocked);
                         
                         if (notYetUnlocked.length > 0) {
                             // Create gem elements for each unlockable
@@ -1210,7 +1236,14 @@ export default class UIManager {
     
     // Unlock a gem in the catalog
     unlockGem(gemId) {
+        // Make sure we call the correct unlock method on the gem manager
+        // This fixes the issue where gems don't show up after purchase
         this.eventBus.emit('gem:unlock', gemId);
+        
+        // Re-render the gem catalog after unlocking
+        setTimeout(() => {
+            this.updateGemCatalogUI();
+        }, 100);
     }
     
     // Event handlers for battle events

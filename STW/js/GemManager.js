@@ -181,16 +181,32 @@ export default class GemManager {
         
         // Initialize unlocked gems in meta progression if not already done
         const currentMeta = this.stateManager.getState('meta');
-        if (!currentMeta.unlockedGems || currentMeta.unlockedGems.length === 0) {
-            // Start with base gems always unlocked
-            const baseUnlockedGems = [
-                'red-attack', 'blue-magic', 'green-quick', 'grey-heal',
-                'red-strong', 'blue-strong-heal', 'green-poison'
+        
+        // Initialize the unlockedGems object with class-specific arrays if it doesn't exist
+        // or if it's still using the old array structure
+        if (!currentMeta.unlockedGems || Array.isArray(currentMeta.unlockedGems)) {
+            console.log("Creating new class-specific gem unlock structure");
+            
+            // Base gems that are always available to all classes
+            const globalGems = [
+                'red-attack', 'blue-magic', 'green-attack', 'grey-heal'
             ];
             
+            // Class-specific starter gems
+            const knightGems = ['red-strong'];
+            const mageGems = ['blue-strong-heal'];
+            const rogueGems = ['green-quick'];
+            
+            // Create the new structure
             this.stateManager.updateState({
                 meta: {
-                    unlockedGems: baseUnlockedGems
+                    ...currentMeta,
+                    unlockedGems: {
+                        global: globalGems,
+                        knight: knightGems,
+                        mage: mageGems,
+                        rogue: rogueGems
+                    }
                 }
             });
         }
@@ -308,30 +324,38 @@ export default class GemManager {
             'grey-heal',
             'red-attack',     // Basic red attack available to all
             'blue-magic',     // Basic blue magic available to all
-            'green-attack'    // Basic green attack available to all (renamed)
+            'green-attack'    // Basic green attack available to all
         ];
         
-        // Class-specific gems and unlockable gems
+        // Class-specific gems
         const classBaseGems = {
             'knight': ['red-strong'],
             'mage': ['blue-strong-heal'],
             'rogue': ['green-quick']
         };
         
+        // Unlockable gems
         const unlockableGems = {
             'knight': ['red-burst'],
             'mage': ['blue-shield'],
             'rogue': ['green-poison']
         };
         
-        // Combine base gems with class-specific base gems
+        // Combine base gems with class-specific gems
+        let result = [...baseGems];
+        
+        // Add class-specific starter gems
         if (classBaseGems[playerClass]) {
-            return [...baseGems, ...classBaseGems[playerClass]];
+            result = [...result, ...classBaseGems[playerClass]];
         }
         
-        return baseGems;
-    }
-    
+        // Also add unlockable gems for the class
+        if (unlockableGems[playerClass]) {
+            result = [...result, ...unlockableGems[playerClass]];
+        }
+        
+        return result;
+    }    
 
     // Create a gem instance based on its definition
     createGem(gemId) {
@@ -937,15 +961,21 @@ export default class GemManager {
             return false;
         }
         
+        // Validate the gem is appropriate for the class
+        const gemDef = this.gemDefinitions[gemId];
+        if (!gemDef) {
+            console.error(`Unknown gem ID: ${gemId}`);
+            return false;
+        }
+        
         // Check if this gem is valid for the current class
         const classSpecificGems = {
             'knight': ['red-burst', 'red-strong', 'red-attack'],
             'mage': ['blue-shield', 'blue-strong-heal', 'blue-magic'],
-            'rogue': ['green-poison', 'green-quick']
+            'rogue': ['green-poison', 'green-quick', 'green-attack']
         };
         
         // Check if the gem is appropriate for the class (or is a grey gem which works for all)
-        const gemDef = this.gemDefinitions[gemId];
         const isGrey = gemDef && gemDef.color === 'grey';
         const isClassAppropriate = classSpecificGems[playerClass] && classSpecificGems[playerClass].includes(gemId);
         
@@ -957,8 +987,17 @@ export default class GemManager {
             return false;
         }
         
+        // Make sure meta.unlockedGems is using the new structure
+        if (Array.isArray(meta.unlockedGems)) {
+            console.error("Unlocked gems is still using old array structure");
+            return false;
+        }
+        
         // Check if already unlocked for this class
-        if (meta.unlockedGems.includes(gemId)) {
+        const classGems = meta.unlockedGems[playerClass] || [];
+        const globalGems = meta.unlockedGems.global || [];
+        
+        if (classGems.includes(gemId) || globalGems.includes(gemId)) {
             this.eventBus.emit('message:show', {
                 text: 'Gem already unlocked!',
                 type: 'error'
@@ -975,15 +1014,18 @@ export default class GemManager {
             return false;
         }
         
-        // Add to unlocked gems and deduct cost
-        const updatedUnlockedGems = [...meta.unlockedGems, gemId];
+        // Add to unlocked gems for this specific class and deduct cost
+        const updatedClassGems = [...classGems, gemId];
         const updatedZenny = meta.zenny - cost;
         
         // Update state with new unlocked gems and zenny
         this.stateManager.updateState({
             meta: {
                 ...meta,
-                unlockedGems: updatedUnlockedGems,
+                unlockedGems: {
+                    ...meta.unlockedGems,
+                    [playerClass]: updatedClassGems
+                },
                 zenny: updatedZenny
             }
         });
