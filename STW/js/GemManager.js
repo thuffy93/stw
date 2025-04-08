@@ -791,21 +791,36 @@ export default class GemManager {
     
     // Add a random gem to bag (shop purchase)
     addRandomGem() {
-        const state = this.stateManager.getState();
-        const allGemCount = 
+        let state = this.stateManager.getState();
+        
+        // Ensure that state.gems.played exists before trying to use it
+        if (!state.gems.played) {
+            // Initialize it if it doesn't exist
+            this.stateManager.updateState({
+                gems: {
+                    ...state.gems,
+                    played: []
+                }
+            });
+            // Get updated state with played initialized
+            state = this.stateManager.getState();
+        }
+        
+        // Calculate the total gems across all collections
+        const totalGems = 
             state.gems.bag.length + 
             state.gems.hand.length + 
             state.gems.discarded.length + 
-            (state.gems.played ? state.gems.played.length : 0); // Added safety check
+            state.gems.played.length;
         
-        // Get the current bag size (default to 30 if not found)
-        const maxGemBagSize = state.gemBagSize || 30;
+        console.log(`Total gems: ${totalGems} (bag: ${state.gems.bag.length}, hand: ${state.gems.hand.length}, discarded: ${state.gems.discarded.length}, played: ${state.gems.played.length})`);
         
-        console.log(`Current gem count: ${allGemCount}, Max bag size: ${maxGemBagSize}`);
+        const maxGemBagSize = 20;
         
-        if (allGemCount >= maxGemBagSize) {
+        if (totalGems >= maxGemBagSize) {
+            console.log(`Cannot add gem: collection full (${totalGems}/${maxGemBagSize})`);
             this.eventBus.emit('message:show', {
-                text: `Gem collection full! (${allGemCount}/${maxGemBagSize})`,
+                text: 'Gem collection is full!',
                 type: 'error'
             });
             return null;
@@ -829,49 +844,53 @@ export default class GemManager {
             colorProbability.green = 0.55;
         }
         
-        // Get gems for this class
-        let classGems = this.getClassGems(playerClass);
+        // For random purchases in the shop, we need to check if we have gems in the unlocked pool
+        let availableGems = [];
         
-        // Ensure we have a list of class gems
-        if (!classGems || !Array.isArray(classGems)) {
-            classGems = this.baseStarterGems;
-            console.warn(`No class gems found for ${playerClass}, using base gems`);
+        // Always include base gems
+        this.baseStarterGems.forEach(gemId => {
+            if (this.gemDefinitions[gemId]) {
+                availableGems.push(this.gemDefinitions[gemId]);
+            }
+        });
+        
+        // Add class-specific starter gems
+        if (this.classStarterGems[playerClass]) {
+            this.classStarterGems[playerClass].forEach(gemId => {
+                if (this.gemDefinitions[gemId]) {
+                    availableGems.push(this.gemDefinitions[gemId]);
+                }
+            });
         }
         
-        // Get unlocked gems
-        let unlockedGems = [];
-        if (state.meta && state.meta.unlockedGems) {
-            if (Array.isArray(state.meta.unlockedGems)) {
-                // Old structure
-                unlockedGems = state.meta.unlockedGems;
-            } else {
-                // New structure 
-                const globalGems = state.meta.unlockedGems.global || [];
-                const playerClassGems = state.meta.unlockedGems[playerClass] || [];
-                unlockedGems = [...globalGems, ...playerClassGems];
-            }
-        } else {
-            // If no unlocked gems found, use starter gems
-            unlockedGems = [...this.baseStarterGems];
-            if (this.classStarterGems[playerClass]) {
-                unlockedGems = [...unlockedGems, ...this.classStarterGems[playerClass]];
-            }
+        // Add any appropriate class-specific unlocked gems if needed
+        // Uncomment this section if you want to include unlocked gems in random purchases
+        /*
+        const unlockedGems = state.meta.unlockedGems;
+        if (unlockedGems && !Array.isArray(unlockedGems)) {
+            // New structure with class-specific gems
+            const classGems = unlockedGems[playerClass] || [];
+            
+            classGems.forEach(gemId => {
+                // Skip starter gems (already added above)
+                if (this.baseStarterGems.includes(gemId) || 
+                    (this.classStarterGems[playerClass] && this.classStarterGems[playerClass].includes(gemId))) {
+                    return;
+                }
+                
+                if (this.gemDefinitions[gemId]) {
+                    availableGems.push(this.gemDefinitions[gemId]);
+                }
+            });
         }
-        
-        // Filter to available gem definitions
-        const availableGems = Object.values(this.gemDefinitions)
-            .filter(gem => unlockedGems.includes(gem.id));
+        */
         
         if (availableGems.length === 0) {
             console.error('No available gems to add');
-            this.eventBus.emit('message:show', {
-                text: 'No gems available to add!',
-                type: 'error'
-            });
             return null;
         }
         
-        // Group by color
+        // Group gems by color
         const gemsByColor = {
             red: availableGems.filter(gem => gem.color === 'red'),
             blue: availableGems.filter(gem => gem.color === 'blue'),
@@ -899,12 +918,8 @@ export default class GemManager {
             );
         }
         
-        if (!selectedColor) {
+        if (!selectedColor || !gemsByColor[selectedColor] || gemsByColor[selectedColor].length === 0) {
             console.error('No gems available to add');
-            this.eventBus.emit('message:show', {
-                text: 'No gems available to add!',
-                type: 'error'
-            });
             return null;
         }
         
@@ -912,17 +927,13 @@ export default class GemManager {
         const gemsOfColor = gemsByColor[selectedColor];
         const randomGemDef = gemsOfColor[Math.floor(Math.random() * gemsOfColor.length)];
         
-        // Create the new gem
-        const newGem = this.createGem(randomGemDef.id);
-        
-        if (!newGem) {
-            console.error(`Failed to create gem of type ${randomGemDef.id}`);
-            this.eventBus.emit('message:show', {
-                text: 'Failed to create gem!',
-                type: 'error'
-            });
+        if (!randomGemDef || !randomGemDef.id) {
+            console.error('Selected gem definition is invalid');
             return null;
         }
+        
+        // Create the new gem
+        const newGem = this.createGem(randomGemDef.id);
         
         // Add to gem bag
         const newBag = [...state.gems.bag, newGem];
@@ -933,7 +944,7 @@ export default class GemManager {
                 bag: newBag,
                 hand: state.gems.hand,
                 discarded: state.gems.discarded,
-                played: state.gems.played || [] // Add safety check
+                played: state.gems.played
             }
         });
         
@@ -941,12 +952,6 @@ export default class GemManager {
         
         // Emit event
         this.eventBus.emit('gem:added', newGem);
-        
-        // Show success message
-        this.eventBus.emit('message:show', {
-            text: `Purchased ${newGem.name}!`,
-            type: 'success'
-        });
         
         return newGem;
     }
