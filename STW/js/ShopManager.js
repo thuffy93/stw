@@ -39,6 +39,11 @@ export default class ShopManager {
         this.eventBus.on('shop:continue', () => {
             this.continueJourney();
         });
+
+        this.eventBus.on('shop:direct-upgrade-gem', (data) => {
+            this.directUpgradeGem(data.gemInstanceId, data.originalGemId);
+        });
+        
     }
 
     prepareShop() {
@@ -472,6 +477,70 @@ export default class ShopManager {
         this.eventBus.emit('journey:continue');
     }
     
+    directUpgradeGem(gemInstanceId, originalGemId) {
+        const state = this.stateManager.getState();
+        const handGems = state.gems.hand;
+        
+        // Find the gem to upgrade in hand
+        const gemIndex = handGems.findIndex(gem => gem.instanceId === gemInstanceId);
+        
+        if (gemIndex === -1) {
+            console.error(`Gem not found in hand for direct upgrade: ${gemInstanceId}`);
+            return null;
+        }
+        
+        // Get the original gem for reference
+        const originalGem = handGems[gemIndex];
+        
+        // Create an enhanced version of the same gem
+        // Unlike regular upgrades, we're not changing the gem type, just its values
+        const enhancedGem = {
+            ...originalGem,
+            instanceId: `${originalGemId}-${Date.now()}-enhanced`,
+            name: `Enhanced ${originalGem.name}`,
+            value: Math.floor(originalGem.value * 1.5), // 50% power increase
+            // Keep the same cost and other properties
+        };
+        
+        console.log(`Directly upgrading ${originalGem.name} (${gemInstanceId}) to Enhanced version`);
+        
+        // Replace in hand
+        const newHand = [...handGems];
+        newHand[gemIndex] = enhancedGem;
+        
+        // Update state, only changing the hand
+        this.stateManager.updateState({
+            gems: {
+                hand: newHand,
+                bag: state.gems.bag,
+                discarded: state.gems.discarded,
+                played: state.gems.played
+            }
+        });
+        
+        // Deduct the cost from player's zenny
+        this.stateManager.updateState({
+            player: {
+                zenny: state.player.zenny - this.costs.upgradeGem
+            }
+        });
+        
+        // Emit event
+        this.eventBus.emit('gem:upgraded', {
+            oldGem: originalGem,
+            newGem: enhancedGem
+        });
+        
+        // Show success message
+        this.eventBus.emit('message:show', {
+            text: `Enhanced ${originalGem.name} to be 50% more powerful!`,
+            type: 'success'
+        });
+        
+        return enhancedGem;
+    }
+    
+
     // Display gem upgrade options
     getUpgradeOptions(gemInstanceId) {
         return this.gemManager.getUpgradeOptions(gemInstanceId);

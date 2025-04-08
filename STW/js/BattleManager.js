@@ -152,11 +152,30 @@ export default class BattleManager {
         const state = this.stateManager.getState();
         const { day, phase } = state.journey;
         
+        // If this is first battle of first day, ensure player has no debuffs
+        if (day === 1 && phase === 'DAWN') {
+            if (state.player.buffs && state.player.buffs.length > 0) {
+                console.log("First battle: Clearing any existing player buffs/debuffs");
+                this.stateManager.updateState({
+                    player: {
+                        ...state.player,
+                        buffs: []
+                    }
+                });
+            }
+        }
+        
         // Get enemy for current day and phase
         const enemy = this.getRandomEnemy(day, phase);
         if (!enemy) {
             console.error(`No enemy found for day ${day}, phase ${phase}`);
             return;
+        }
+        
+        // Check if the bag is empty and there are discarded gems
+        if (state.gems.bag.length === 0 && state.gems.discarded.length > 0) {
+            // Recycle discarded gems before starting battle
+            this.gemManager.recycleDiscardPile();
         }
         
         // Initialize battle state
@@ -228,20 +247,20 @@ export default class BattleManager {
             this.processGemFailure(gem);
             return;
         }
-
+    
         const state = this.stateManager.getState();
         const { enemy } = state.battle;
         const { player } = state;
-
+    
         // Prepare updates
         const playerUpdates = {};
         const enemyUpdates = {};
         const newBuffs = [...player.buffs];
         const updatedEnemyBuffs = [...enemy.buffs];
-
+    
         // Get player class for bonus calculation
         const playerClass = player.class;
-
+    
         switch(gem.type) {
             case 'attack':
                 let damageAmount = gem.value;
@@ -256,12 +275,6 @@ export default class BattleManager {
                 // Apply any active buffs
                 if (player.buffs.some(buff => buff.type === 'focus')) {
                     damageAmount = Math.floor(damageAmount * 1.2); // 20% bonus from focus
-                }
-                
-                // Check for special effects
-                if (gem.id === 'green-backstab' && 
-                    enemy.buffs.some(buff => buff.type === 'poison')) {
-                    damageAmount *= 2; // Double damage if enemy is poisoned
                 }
                 
                 // Apply damage to enemy
@@ -280,8 +293,9 @@ export default class BattleManager {
                     return;
                 }
                 
-                // Special case for green-quick
-                if (gem.id === 'green-quick') {
+                // Special case for Quick Attack (now using specialEffect property)
+                if (gem.specialEffect === 'draw') {
+                    console.log("Quick Attack special effect: Drawing an extra gem");
                     this.gemManager.drawGems(1);
                 }
                 break;
@@ -479,13 +493,6 @@ export default class BattleManager {
                 this.processEnemyTurn();
             }, 1000);
         } else {
-            // Switch to player turn
-            this.stateManager.updateState({
-                battle: {
-                    currentTurn: 'PLAYER'
-                }
-            });
-            
             // Process buffs and debuffs at end of round
             this.processStatusEffects();
             
@@ -501,8 +508,35 @@ export default class BattleManager {
             if (handSize < 3) {
                 this.gemManager.drawGems(3 - handSize);
             }
+            
+            // Get updated player state after status effects processing
+            const updatedState = this.stateManager.getState();
+            const isPlayerStunned = updatedState.player.buffs.some(buff => buff.type === 'stunned');
+            
+            // Now switch to player turn (after drawing)
+            this.stateManager.updateState({
+                battle: {
+                    currentTurn: 'PLAYER'
+                }
+            });
+            
+            // If player is stunned, immediately end their turn
+            if (isPlayerStunned) {
+                console.log("Player is stunned - automatically skipping their turn");
+                this.eventBus.emit('message:show', {
+                    text: 'Stunned! Turn skipped.',
+                    type: 'error'
+                });
+                
+                // Use setTimeout to give a visual indication that the turn is being skipped
+                setTimeout(() => {
+                    this.processEndOfTurn();
+                }, 1500);
+            }
         }
     }
+    
+    
     
     // Process status effects at end of round
     processStatusEffects() {
@@ -1265,12 +1299,44 @@ export default class BattleManager {
         }
     }
     
-    // Progress to next phase or shop
     progressJourney() {
         const state = this.stateManager.getState();
         const { day, phase } = state.journey;
         
-        // After victory, go to shop
+        console.log(`Progressing game state after battle: Day ${day}, Phase ${phase}`);
+        
+        // Check if the just completed battle was a Dark phase (boss) battle
+        if (phase === 'DARK') {
+            console.log("Completed boss battle, going directly to camp");
+            
+            // End of day, go directly to camp
+            const nextDay = day + 1;
+            const nextPhase = 'DAWN';
+            
+            // Update state
+            this.stateManager.updateState({
+                journey: {
+                    day: nextDay,
+                    phase: nextPhase
+                }
+            });
+            
+            // Emit day end event to trigger gem bag reset
+            this.eventBus.emit('day:ended', {
+                oldDay: day,
+                newDay: nextDay
+            });
+            
+            // Go directly to camp screen with a delay
+            setTimeout(() => {
+                this.stateManager.changeScreen('camp-screen');
+            }, 1500);
+            
+            return;
+        }
+        
+        // For Dawn and Dusk phases, go to shop as normal
+        console.log("Going to shop after non-boss battle");
         setTimeout(() => {
             this.stateManager.changeScreen('shop-screen');
         }, 1500);
