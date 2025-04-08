@@ -168,6 +168,19 @@
             width: 120px;
         }
 
+        #continue-journey-btn {
+            position: relative;  /* Ensure it participates in stacking context */
+            z-index: 1100;       /* Higher than overlays */
+            pointer-events: auto;
+        }
+        
+        /* Optional: add a subtle hover effect to make it more obvious when the button is being interacted with */
+        #continue-journey-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-md);
+            transition: all 0.2s ease;
+        }
+
         .btn-large {
             width: 200px;
             min-height: 50px;
@@ -741,7 +754,7 @@
         /* Message Notification */
         #message {
             position: fixed;
-            bottom: 10px; /* Keep message at bottom */
+            top: 10px; /* Changed from bottom to top */
             left: 50%;
             transform: translateX(-50%);
             padding: 10px 20px;
@@ -749,7 +762,7 @@
             font-size: 1.1em;
             text-align: center;
             max-width: 80%;
-            z-index: 1000;
+            z-index: 1100; /* Increased z-index to be higher than other overlays */
             opacity: 0;
             transition: opacity var(--animation-speed) ease;
         }
