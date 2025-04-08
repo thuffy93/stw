@@ -1,3 +1,4 @@
+// ShopManager.js - Handles shop interactions and gem upgrades
 export default class ShopManager {
     constructor(eventBus, stateManager, gemManager) {
         this.eventBus = eventBus;
@@ -43,12 +44,7 @@ export default class ShopManager {
             this.directUpgradeGem(data.gemInstanceId, data.originalGemId);
         });
         
-        // Handle gem unlock request
-        this.eventBus.on('gem:unlock', (gemId) => {
-            this.unlockGem(gemId);
-        });
     }
-
 
     prepareShop() {
         console.log("Preparing shop");
@@ -550,8 +546,31 @@ export default class ShopManager {
         return this.gemManager.getUpgradeOptions(gemInstanceId);
     }
     
-    // Handle gem catalog unlocking - make sure to use gemManager's method
+    // Handle gem catalog unlocking
     unlockGem(gemId) {
-        return this.gemManager.unlockGem(gemId);
+        const state = this.stateManager.getState();
+        const { meta } = state;
+        const cost = 50; // Fixed cost for unlocking gems
+        
+        // Check if already unlocked
+        if (meta.unlockedGems.includes(gemId)) {
+            this.eventBus.emit('message:show', {
+                text: 'Gem already unlocked!',
+                type: 'error'
+            });
+            return false;
+        }
+        
+        // Check if player has enough meta zenny
+        if (meta.zenny < cost) {
+            this.eventBus.emit('message:show', {
+                text: 'Not enough Meta $ZENNY!',
+                type: 'error'
+            });
+            return false;
+        }
+        
+        // Unlock the gem via gem manager
+        return this.gemManager.unlockGem(gemId, cost);
     }
 }

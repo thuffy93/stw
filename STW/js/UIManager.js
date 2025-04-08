@@ -1079,27 +1079,34 @@ export default class UIManager {
         // Get definitions from gem manager
         this.eventBus.emit('gem:get-definitions', {
             callback: (definitions) => {
-                // Process unlocked gems
-                if (meta.unlockedGems && meta.unlockedGems.length > 0) {
-                    meta.unlockedGems.forEach(gemId => {
-                        const gemDef = definitions[gemId];
-                        if (gemDef) {
-                            // Create gem element 
-                            const gemElement = this.createGemElement(gemDef);
-                            this.elements.unlockedGems.appendChild(gemElement);
-                        }
-                    });
-                } else {
-                    // Display message if no gems unlocked
-                    const noGemsMsg = document.createElement('div');
-                    noGemsMsg.textContent = 'No unlocked gems found';
-                    noGemsMsg.style.padding = '20px';
-                    noGemsMsg.style.textAlign = 'center';
-                    this.elements.unlockedGems.appendChild(noGemsMsg);
-                }
+                // Get class-specific gems 
+                this.eventBus.emit('gem:get-class-gems', {
+                    playerClass,
+                    callback: (classGems) => {
+                        // Filter unlocked gems that are appropriate for this class
+                        const classSpecificUnlocked = meta.unlockedGems.filter(gemId => {
+                            // Always include grey gems for all classes
+                            const gemDef = definitions[gemId];
+                            if (gemDef && gemDef.color === 'grey') return true;
+                            
+                            // Include gems that belong to this class
+                            return classGems.includes(gemId);
+                        });
+                        
+                        // Render class-specific unlocked gems
+                        classSpecificUnlocked.forEach(gemId => {
+                            const gemDef = definitions[gemId];
+                            if (gemDef) {
+                                const gemElement = this.createGemElement(gemDef);
+                                this.elements.unlockedGems.appendChild(gemElement);
+                            }
+                        });
+                    }
+                });
             }
         });
     }
+    
     
     // Render available gems to unlock
     renderAvailableGems() {
@@ -1112,53 +1119,51 @@ export default class UIManager {
         // Get available unlockable gems from gem manager
         this.eventBus.emit('gem:get-unlockable', {
             callback: (unlockables) => {
-                console.log("Got unlockable gems:", unlockables);
+                // Filter for gems not already unlocked
+                const notUnlocked = unlockables.filter(gemId => 
+                    !meta.unlockedGems.includes(gemId)
+                );
                 
-                // Get definitions
-                this.eventBus.emit('gem:get-definitions', {
-                    callback: (definitions) => {
-                        // Filter out gems that are already unlocked
-                        const notYetUnlocked = unlockables.filter(gemId => 
-                            !meta.unlockedGems || !meta.unlockedGems.includes(gemId)
-                        );
+                // Get class-specific gems
+                this.eventBus.emit('gem:get-class-gems', {
+                    playerClass,
+                    callback: (classGems) => {
+                        // Filter for gems that are appropriate for this class
+                        const classSpecificUnlockable = notUnlocked.filter(gemId => {
+                            return classGems.includes(gemId);
+                        });
                         
-                        console.log("Gems not yet unlocked:", notYetUnlocked);
-                        
-                        if (notYetUnlocked.length > 0) {
-                            // Create gem elements for each unlockable
-                            notYetUnlocked.forEach(gemId => {
-                                const gemDef = definitions[gemId];
-                                if (gemDef) {
-                                    // Create container
-                                    const container = document.createElement('div');
-                                    container.classList.add('unlockable-gem-container');
-                                    
-                                    // Create gem element
-                                    const gemElement = this.createGemElement(gemDef);
-                                    container.appendChild(gemElement);
-                                    
-                                    // Add cost label
-                                    const costLabel = document.createElement('div');
-                                    costLabel.classList.add('gem-cost-label');
-                                    costLabel.textContent = '50 $ZENNY';
-                                    container.appendChild(costLabel);
-                                    
-                                    // Add click handler to unlock
-                                    container.addEventListener('click', () => {
-                                        this.unlockGem(gemId);
-                                    });
-                                    
-                                    this.elements.availableGems.appendChild(container);
-                                }
-                            });
-                        } else {
-                            // Display message if no unlockable gems
-                            const noGemsMsg = document.createElement('div');
-                            noGemsMsg.textContent = 'No additional gems available to unlock';
-                            noGemsMsg.style.padding = '20px';
-                            noGemsMsg.style.textAlign = 'center';
-                            this.elements.availableGems.appendChild(noGemsMsg);
-                        }
+                        // Get definitions
+                        this.eventBus.emit('gem:get-definitions', {
+                            callback: (definitions) => {
+                                // Create gem elements for each unlockable
+                                classSpecificUnlockable.forEach(gemId => {
+                                    const gemDef = definitions[gemId];
+                                    if (gemDef) {
+                                        // Create container
+                                        const container = document.createElement('div');
+                                        container.classList.add('unlockable-gem-container');
+                                        
+                                        // Create gem element
+                                        const gemElement = this.createGemElement(gemDef);
+                                        container.appendChild(gemElement);
+                                        
+                                        // Add cost label
+                                        const costLabel = document.createElement('div');
+                                        costLabel.classList.add('gem-cost-label');
+                                        costLabel.textContent = '50 $ZENNY';
+                                        container.appendChild(costLabel);
+                                        
+                                        // Add click handler to unlock
+                                        container.addEventListener('click', () => {
+                                            this.unlockGem(gemId);
+                                        });
+                                        
+                                        this.elements.availableGems.appendChild(container);
+                                    }
+                                });
+                            }
+                        });
                     }
                 });
             }

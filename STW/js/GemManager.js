@@ -175,22 +175,9 @@ export default class GemManager {
             this.resetBagForNewDay();
         });
 
-        // Listen for gem catalog related events
         this.eventBus.on('gem:get-class-gems', (data) => {
             const classGems = this.getClassGems(data.playerClass);
             data.callback(classGems);
-        });
-        
-        // Handle get definitions request
-        this.eventBus.on('gem:get-definitions', (data) => {
-            data.callback(this.gemDefinitions);
-        });
-        
-        // Handle get unlockable gems request
-        this.eventBus.on('gem:get-unlockable', (data) => {
-            const playerClass = this.stateManager.getState().player.class;
-            const unlockables = this.availableGemsByClass[playerClass] || [];
-            data.callback(unlockables);
         });
     }
     
@@ -208,8 +195,8 @@ export default class GemManager {
         if (!currentMeta.unlockedGems || currentMeta.unlockedGems.length === 0) {
             // Start with base gems always unlocked
             const baseUnlockedGems = [
-                ...this.baseStarterGems,  // Include all base gems
-                ...this.classStarterGems[classType]  // Include class-specific starter gems
+                'red-attack', 'blue-magic', 'green-quick', 'grey-heal',
+                'red-strong', 'blue-strong-heal', 'green-poison'
             ];
             
             this.stateManager.updateState({
@@ -217,8 +204,6 @@ export default class GemManager {
                     unlockedGems: baseUnlockedGems
                 }
             });
-            
-            console.log(`Initialized unlocked gems for ${classType}:`, baseUnlockedGems);
         }
         
         // Ensure player has clean buffs state before starting
@@ -331,26 +316,30 @@ export default class GemManager {
             'grey-heal',
             'red-attack',     // Basic red attack available to all
             'blue-magic',     // Basic blue magic available to all
-            'green-attack'    // Basic green attack available to all
+            'green-attack'    // Basic green attack available to all (renamed)
         ];
         
-        // Class-specific gems
+        // Class-specific gems and unlockable gems
         const classBaseGems = {
             'knight': ['red-strong'],
             'mage': ['blue-strong-heal'],
             'rogue': ['green-quick']
         };
         
-        // Combine base gems with class-specific base gems
-        const result = [...baseGems];
+        const unlockableGems = {
+            'knight': ['red-burst'],
+            'mage': ['blue-shield'],
+            'rogue': ['green-poison']
+        };
         
+        // Combine base gems with class-specific base gems
         if (classBaseGems[playerClass]) {
-            result.push(...classBaseGems[playerClass]);
+            return [...baseGems, ...classBaseGems[playerClass]];
         }
         
-        console.log(`Class gems for ${playerClass}:`, result);
-        return result;
+        return baseGems;
     }
+    
 
     // Create a gem instance based on its definition
     createGem(gemId) {
@@ -942,14 +931,42 @@ export default class GemManager {
     
     
     // Unlock a new gem in the meta progression
-    unlockGem(gemId) {
+    unlockGem(gemId, cost = 50) {
         const state = this.stateManager.getState();
         const { meta } = state;
         const playerClass = state.player.class;
-        const cost = 50; // Fixed cost for unlocking gems
         
-        // Check if already unlocked
-        if (meta.unlockedGems && meta.unlockedGems.includes(gemId)) {
+        // Make sure we have a class selected
+        if (!playerClass) {
+            this.eventBus.emit('message:show', {
+                text: 'No class selected!',
+                type: 'error'
+            });
+            return false;
+        }
+        
+        // Check if this gem is valid for the current class
+        const classSpecificGems = {
+            'knight': ['red-burst', 'red-strong', 'red-attack'],
+            'mage': ['blue-shield', 'blue-strong-heal', 'blue-magic'],
+            'rogue': ['green-backstab', 'green-poison', 'green-quick']
+        };
+        
+        // Check if the gem is appropriate for the class (or is a grey gem which works for all)
+        const gemDef = this.gemDefinitions[gemId];
+        const isGrey = gemDef && gemDef.color === 'grey';
+        const isClassAppropriate = classSpecificGems[playerClass] && classSpecificGems[playerClass].includes(gemId);
+        
+        if (!isGrey && !isClassAppropriate) {
+            this.eventBus.emit('message:show', {
+                text: `This gem cannot be unlocked by ${playerClass}!`,
+                type: 'error'
+            });
+            return false;
+        }
+        
+        // Check if already unlocked for this class
+        if (meta.unlockedGems.includes(gemId)) {
             this.eventBus.emit('message:show', {
                 text: 'Gem already unlocked!',
                 type: 'error'
@@ -957,7 +974,7 @@ export default class GemManager {
             return false;
         }
         
-        // Check if player has enough meta zenny
+        // Check if we have enough meta zenny
         if (meta.zenny < cost) {
             this.eventBus.emit('message:show', {
                 text: 'Not enough Meta $ZENNY!',
@@ -966,15 +983,8 @@ export default class GemManager {
             return false;
         }
         
-        // Get the gem definition
-        const gemDef = this.gemDefinitions[gemId];
-        if (!gemDef) {
-            console.error(`Unknown gem ID: ${gemId}`);
-            return false;
-        }
-        
         // Add to unlocked gems and deduct cost
-        const updatedUnlockedGems = meta.unlockedGems ? [...meta.unlockedGems, gemId] : [gemId];
+        const updatedUnlockedGems = [...meta.unlockedGems, gemId];
         const updatedZenny = meta.zenny - cost;
         
         // Update state with new unlocked gems and zenny
@@ -995,11 +1005,10 @@ export default class GemManager {
         
         // Show success message
         this.eventBus.emit('message:show', {
-            text: `Unlocked ${gemDef.name}!`,
+            text: `Unlocked ${gemDef.name} for your ${playerClass}!`,
             type: 'success'
         });
         
-        console.log(`Unlocked gem ${gemId} for ${cost} meta zenny`);
         return true;
     }
     
