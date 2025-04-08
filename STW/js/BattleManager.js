@@ -166,18 +166,10 @@ export default class BattleManager {
         }
         
         // Get enemy for current day and phase
-        this.gemManager.recycleAllGems();
-
         const enemy = this.getRandomEnemy(day, phase);
         if (!enemy) {
             console.error(`No enemy found for day ${day}, phase ${phase}`);
             return;
-        }
-        
-        // Check if the bag is empty and there are discarded gems
-        if (state.gems.bag.length === 0 && state.gems.discarded.length > 0) {
-            // Recycle discarded gems before starting battle
-            this.gemManager.recycleDiscardPile();
         }
         
         // Initialize battle state
@@ -197,16 +189,17 @@ export default class BattleManager {
             }
         });
         
-        // FIXED: Instead of clearing the hand, check if we need to draw more gems
-        // Only draw gems if needed to reach 3 cards
+        // MODIFIED: Do not automatically refill or recycle the bag
+        // Only draw gems to fill hand if there are gems available
         const currentHandSize = state.gems.hand.length;
-        if (currentHandSize < 3) {
-            // Only need to draw enough to fill the hand
-            const gemsToDraw = 3 - currentHandSize;
-            console.log(`Hand has ${currentHandSize} gems, drawing ${gemsToDraw} more to fill it`);
+        const currentBagSize = state.gems.bag.length;
+        
+        if (currentHandSize < 3 && currentBagSize > 0) {
+            const gemsToDraw = Math.min(3 - currentHandSize, currentBagSize);
+            console.log(`Hand has ${currentHandSize} gems, drawing ${gemsToDraw} from bag of ${currentBagSize}`);
             this.gemManager.drawGems(gemsToDraw);
         } else {
-            console.log(`Starting battle with existing hand of ${currentHandSize} gems`);
+            console.log(`Starting battle - Hand: ${currentHandSize}, Bag: ${currentBagSize}`);
         }
         
         // Emit battle started event
@@ -1403,14 +1396,13 @@ export default class BattleManager {
             }
         });
         
-        // MODIFIED: Instead of resetting gems, just make sure played/discarded gems
-        // are recycled back into the bag
-        this.gemManager.recycleAllGems();
+        // IMPORTANT: No recycling between battle phases
+        // Gems should remain exactly as they are
         
         // Start next battle
         this.stateManager.changeScreen('battle-screen');
         this.startBattle();
-    }
+    } 
     
     // Flee from battle (only available in Dawn/Dusk phases)
     fleeBattle() {
