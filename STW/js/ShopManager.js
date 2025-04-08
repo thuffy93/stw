@@ -552,8 +552,22 @@ export default class ShopManager {
         const { meta } = state;
         const cost = 50; // Fixed cost for unlocking gems
         
-        // Check if already unlocked
-        if (meta.unlockedGems.includes(gemId)) {
+        // Check if already unlocked - handle both array and object structure
+        let alreadyUnlocked = false;
+        
+        if (Array.isArray(meta.unlockedGems)) {
+            // Old structure - simple array check
+            alreadyUnlocked = meta.unlockedGems.includes(gemId);
+        } else {
+            // New structure - check both global and class-specific unlocks
+            const playerClass = state.player.class;
+            const globalGems = meta.unlockedGems.global || [];
+            const classGems = meta.unlockedGems[playerClass] || [];
+            
+            alreadyUnlocked = globalGems.includes(gemId) || classGems.includes(gemId);
+        }
+        
+        if (alreadyUnlocked) {
             this.eventBus.emit('message:show', {
                 text: 'Gem already unlocked!',
                 type: 'error'
@@ -570,7 +584,7 @@ export default class ShopManager {
             return false;
         }
         
-        // Unlock the gem via gem manager
+        // Unlock the gem via gem manager - this handles updating the specific class's unlocks
         return this.gemManager.unlockGem(gemId, cost);
     }
 }
