@@ -124,17 +124,6 @@ export default class GemManager {
                 baseSuccess: 90, // Changed to 90 to match other unlockables
                 tooltip: 'Apply 4 poison damage per turn for 3 turns. Rogue class bonus: 50% extra poison damage.'
             },
-            'green-backstab': {
-                id: 'green-backstab',
-                name: 'Backstab',
-                color: 'green',
-                type: 'attack',
-                value: 12,
-                cost: 2,
-                icon: '🗡️',
-                baseSuccess: 90,
-                tooltip: 'Deal 12 damage. If enemy has poison, deal double damage. Rogue class bonus: 50% extra damage.'
-            }
         };
         
         
@@ -257,6 +246,9 @@ export default class GemManager {
                 gemBag.push(this.createGem(gemId));
             });
         }
+        
+        // Note: We are NOT adding unlockable gems to the initial bag
+        // They should only be obtained through upgrades
         
         // Fill remaining spots with basic gems to reach the max bag size
         const remainingSlots = maxGemBagSize - gemBag.length;
@@ -949,7 +941,7 @@ export default class GemManager {
         const classSpecificGems = {
             'knight': ['red-burst', 'red-strong', 'red-attack'],
             'mage': ['blue-shield', 'blue-strong-heal', 'blue-magic'],
-            'rogue': ['green-backstab', 'green-poison', 'green-quick']
+            'rogue': ['green-poison', 'green-quick']
         };
         
         // Check if the gem is appropriate for the class (or is a grey gem which works for all)
