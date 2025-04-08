@@ -170,6 +170,15 @@ export default class GemManager {
             const classGems = this.getClassGems(data.playerClass);
             data.callback(classGems);
         });
+
+        this.eventBus.on('gems:recycle', () => {
+            this.recycleAllGems();
+        });
+        
+        this.eventBus.on('gem:expand-bag', (amount) => {
+            this.increaseGemBagSize(amount || 1);
+        });
+        
     }
     
     // Initialize the player's gems based on class selection
@@ -211,7 +220,14 @@ export default class GemManager {
                     }
                 }
             });
+                       
         }
+
+         // Reset gem bag size to exactly 20 for new run
+        this.stateManager.updateState({
+            gemBagSize: 20
+        });
+        console.log("Reset gem bag size to exactly 20 for new run");
         
         // Ensure player has clean buffs state before starting
         const state = this.stateManager.getState();
@@ -729,6 +745,35 @@ export default class GemManager {
         return shuffledGems;
     }
     
+    recycleAllGems() {
+        const state = this.stateManager.getState();
+        
+        // Gather all gems from all locations
+        const allGems = [...state.gems.bag, ...state.gems.discarded, ...state.gems.played];
+        
+        // Preserve the hand as is
+        const handGems = [...state.gems.hand];
+        
+        // Don't include hand gems in the bag
+        const bagGems = allGems.filter(gem => !handGems.some(handGem => handGem.instanceId === gem.instanceId));
+        
+        // Shuffle the bag
+        const shuffledBag = this.shuffleArray(bagGems);
+        
+        console.log(`Recycling ${bagGems.length} gems back into the bag`);
+        
+        // Update state with all gems properly redistributed
+        this.stateManager.updateState({
+            gems: {
+                bag: shuffledBag,
+                hand: handGems,
+                discarded: [],
+                played: []
+            }
+        });
+        
+        return shuffledBag;
+    }
     // Upgrade a gem (in shop)
     upgradeGem(gemInstanceId, newGemId) {
         const state = this.stateManager.getState();
@@ -812,16 +857,53 @@ export default class GemManager {
             state.gems.hand.length + 
             state.gems.discarded.length + 
             state.gems.played.length;
-        
+
         console.log(`Total gems: ${totalGems} (bag: ${state.gems.bag.length}, hand: ${state.gems.hand.length}, discarded: ${state.gems.discarded.length}, played: ${state.gems.played.length})`);
-        
+
+        // Check if we have played gems that should be recycled
+        if (state.gems.played.length > 0 || state.gems.discarded.length > 0) {
+            console.log("Found played/discarded gems - recycling them first");
+            
+            // Gather all gems from all locations
+            const allGems = [...state.gems.bag, ...state.gems.hand, ...state.gems.discarded, ...state.gems.played];
+            
+            // Preserve the hand as is
+            const handGems = [...state.gems.hand];
+            
+            // Put all non-hand gems back in the bag
+            const bagGems = allGems.filter(gem => !handGems.some(handGem => handGem.instanceId === gem.instanceId));
+            
+            // Shuffle the bag
+            const shuffledBag = this.shuffleArray(bagGems);
+            
+            // Update state with all gems properly redistributed
+            this.stateManager.updateState({
+                gems: {
+                    bag: shuffledBag,
+                    hand: handGems,
+                    discarded: [],
+                    played: []
+                }
+            });
+            
+            // Refresh state after recycling
+            state = this.stateManager.getState();
+            
+            // Recalculate total after recycling
+            const newTotalGems = 
+                state.gems.bag.length + 
+                state.gems.hand.length;
+            
+            console.log(`After recycling: Total gems: ${newTotalGems} (bag: ${state.gems.bag.length}, hand: ${state.gems.hand.length})`);
+        }
+
         const maxGemBagSize = this.getGemBagSize();
 
         if (totalGems >= maxGemBagSize) {
             // Auto-expand the bag instead of preventing the purchase
             const newSize = this.increaseGemBagSize(1);
             
-            // Re-fetch the updated state after increasing bag size
+            // Refresh state after increasing bag size
             state = this.stateManager.getState();
             
             this.eventBus.emit('message:show', {

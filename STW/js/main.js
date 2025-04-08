@@ -196,6 +196,14 @@ class Game {
         this.eventBus.on('gem:played', (gem) => {
             this.audioManager.play(gem.success ? 'gemPlay' : 'gemFail');
         });
+        
+        this.eventBus.on('gems:recycle', () => {
+            this.gemManager.recycleAllGems();
+        });
+        
+        this.eventBus.on('gem:expand-bag', (amount) => {
+            this.gemManager.increaseGemBagSize(amount || 1);
+        });
     }
     
     // Start the game
