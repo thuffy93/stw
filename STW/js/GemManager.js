@@ -246,7 +246,7 @@ export default class GemManager {
         });
         
         const gemBag = [];
-        const maxGemBagSize = 20;
+        const maxGemBagSize = this.getGemBagSize();
         
         // Base starter gems for all classes
         this.baseStarterGems.forEach(gemId => {
@@ -351,8 +351,8 @@ export default class GemManager {
 
     getGemBagSize() {
         const state = this.stateManager.getState();
-        return state.gemBagSize || 20; // Default to 20 if not set
-    }    
+        return state.gemBagSize || 30; // Default to 30 if not set
+    }
     
     // Shuffle array using Fisher-Yates algorithm
     shuffleArray(array) {
@@ -815,15 +815,20 @@ export default class GemManager {
         
         console.log(`Total gems: ${totalGems} (bag: ${state.gems.bag.length}, hand: ${state.gems.hand.length}, discarded: ${state.gems.discarded.length}, played: ${state.gems.played.length})`);
         
-        const maxGemBagSize = 20;
-        
+        const maxGemBagSize = this.getGemBagSize();
+
         if (totalGems >= maxGemBagSize) {
-            console.log(`Cannot add gem: collection full (${totalGems}/${maxGemBagSize})`);
+            // Auto-expand the bag instead of preventing the purchase
+            const newSize = this.increaseGemBagSize(1);
+            
+            // Re-fetch the updated state after increasing bag size
+            state = this.stateManager.getState();
+            
             this.eventBus.emit('message:show', {
-                text: 'Gem collection is full!',
-                type: 'error'
+                text: `Gem bag expanded to ${newSize} slots!`,
+                type: 'success'
             });
-            return null;
+            // Continue with adding the gem - don't return
         }
         
         // Determine gem color probability based on class

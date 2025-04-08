@@ -671,7 +671,8 @@ export default class UIManager {
         
         // Update gem bag count
         this.elements.shopGemBagCount.textContent = gems.bag.length;
-        this.elements.shopGemBagTotal.textContent = 20; // Max bag size
+        const currentBagSize = state.gemBagSize || 30;
+        this.elements.shopGemBagTotal.textContent = currentBagSize;
     }
     
     // Update shop UI
