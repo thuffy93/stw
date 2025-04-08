@@ -208,7 +208,8 @@ export default class UIManager {
     selectClass(classType) {
         // Initialize player stats based on class
         let playerStats = {
-            class: classType
+            class: classType,
+            buffs: [] // Explicitly initialize with empty buffs array
         };
         
         // Set class-specific starting values
@@ -241,6 +242,8 @@ export default class UIManager {
                 console.error(`Unknown class type: ${classType}`);
                 return;
         }
+        
+        console.log("Initializing player with clean state, no buffs or debuffs");
         
         // Update state with player stats
         this.stateManager.updateState({
@@ -547,15 +550,32 @@ export default class UIManager {
         const isPlayerTurn = battle.currentTurn === 'PLAYER';
         const isPlayerStunned = player.buffs.some(buff => buff.type === 'stunned');
         
-        this.elements.executeButton.disabled = !isPlayerTurn || isPlayerStunned || this.selectedGems.length === 0;
-        this.elements.waitButton.disabled = !isPlayerTurn || isPlayerStunned;
-        this.elements.discardEndButton.disabled = !isPlayerTurn || isPlayerStunned || this.selectedGems.length === 0;
-        this.elements.endTurnButton.disabled = !isPlayerTurn || isPlayerStunned;
-        
-        // Only enable flee in Dawn/Dusk phases
-        const canFlee = state.journey.phase !== 'DARK';
-        this.elements.fleeButton.disabled = !isPlayerTurn || !canFlee || isPlayerStunned;
+        if (isPlayerStunned) {
+            // If stunned, disable all buttons regardless of other conditions
+            this.elements.executeButton.disabled = true;
+            this.elements.waitButton.disabled = true;
+            this.elements.discardEndButton.disabled = true;
+            this.elements.endTurnButton.disabled = true;
+            this.elements.fleeButton.disabled = true;
+            
+            // Add a visual indicator for the stunned state
+            document.getElementById('player-stats').classList.add('stunned');
+        } else {
+            // Normal button state handling
+            this.elements.executeButton.disabled = !isPlayerTurn || this.selectedGems.length === 0;
+            this.elements.waitButton.disabled = !isPlayerTurn;
+            this.elements.discardEndButton.disabled = !isPlayerTurn || this.selectedGems.length === 0;
+            this.elements.endTurnButton.disabled = !isPlayerTurn;
+            
+            // Only enable flee in Dawn/Dusk phases
+            const canFlee = state.journey.phase !== 'DARK';
+            this.elements.fleeButton.disabled = !isPlayerTurn || !canFlee;
+            
+            // Remove stunned visual indicator
+            document.getElementById('player-stats').classList.remove('stunned');
+        }
     }
+    
     
     // Toggle gem selection
     toggleGemSelection(gemInstanceId) {
@@ -675,11 +695,11 @@ export default class UIManager {
     renderShopHand() {
         const state = this.stateManager.getState();
         const { gems } = state;
-        const { bag } = gems;
+        const { hand } = gems; // Use 'hand' instead of 'bag'
         
         this.elements.shopHand.innerHTML = '';
         
-        bag.forEach(gem => {
+        hand.forEach(gem => {
             const gemElement = this.createGemElement(gem);
             
             // Add selection handler
@@ -775,7 +795,7 @@ export default class UIManager {
         
         // Get the gem from state
         const state = this.stateManager.getState();
-        const gem = state.gems.bag.find(g => g.instanceId === gemInstanceId);
+        const gem = state.gems.hand.find(g => g.instanceId === gemInstanceId);
         
         if (!gem) {
             console.error(`Gem not found: ${gemInstanceId}`);
@@ -789,20 +809,102 @@ export default class UIManager {
                 // Store the options
                 this.shopState.upgradeOptions = options;
                 
-                // Render each option
+                // Show the original gem being upgraded at the top
+                const originalGemContainer = document.createElement('div');
+                originalGemContainer.classList.add('original-gem-container');
+                originalGemContainer.style.textAlign = 'center';
+                originalGemContainer.style.padding = '10px';
+                originalGemContainer.style.marginBottom = '15px';
+                
+                const originalGemElement = this.createGemElement(gem);
+                originalGemContainer.appendChild(originalGemElement);
+                
+                const upgradeArrow = document.createElement('div');
+                upgradeArrow.textContent = '↓';
+                upgradeArrow.style.fontSize = '24px';
+                upgradeArrow.style.margin = '5px 0';
+                originalGemContainer.appendChild(upgradeArrow);
+                
+                this.elements.gemPool.appendChild(originalGemContainer);
+                
+                // Add options header
+                const optionsHeader = document.createElement('div');
+                optionsHeader.textContent = 'Available Upgrades:';
+                optionsHeader.style.textAlign = 'center';
+                optionsHeader.style.fontWeight = 'bold';
+                optionsHeader.style.padding = '5px';
+                optionsHeader.style.marginBottom = '10px';
+                this.elements.gemPool.appendChild(optionsHeader);
+                
+                // Create a container for all upgrade options
+                const upgradesContainer = document.createElement('div');
+                upgradesContainer.classList.add('upgrade-options-container');
+                upgradesContainer.style.display = 'flex';
+                upgradesContainer.style.flexWrap = 'wrap';
+                upgradesContainer.style.justifyContent = 'center';
+                upgradesContainer.style.gap = '15px';
+                
+                // Add all options to the container
                 options.forEach(upgradeGem => {
                     const upgradeElement = this.createGemElement(upgradeGem);
                     
+                    // Add upgrade type label
+                    const typeLabel = document.createElement('div');
+                    typeLabel.classList.add('upgrade-type-label');
+                    typeLabel.style.fontSize = '0.8em';
+                    typeLabel.style.textAlign = 'center';
+                    typeLabel.style.padding = '2px';
+                    typeLabel.style.marginTop = '5px';
+                    
+                    switch(upgradeGem.upgradeType) {
+                        case 'direct':
+                            typeLabel.textContent = 'Enhanced';
+                            typeLabel.style.color = '#f39c12'; // Orange
+                            break;
+                        case 'class':
+                            typeLabel.textContent = 'Class Specific';
+                            typeLabel.style.color = '#2ecc71'; // Green
+                            break;
+                        case 'unlocked':
+                            typeLabel.textContent = 'Unlocked Gem';
+                            typeLabel.style.color = '#3498db'; // Blue
+                            break;
+                        default:
+                            typeLabel.textContent = 'Upgrade';
+                    }
+                    
+                    // Create a wrapper to hold both the gem and its label
+                    const wrapper = document.createElement('div');
+                    wrapper.classList.add('gem-upgrade-wrapper');
+                    wrapper.style.display = 'flex';
+                    wrapper.style.flexDirection = 'column';
+                    wrapper.style.alignItems = 'center';
+                    
+                    wrapper.appendChild(upgradeElement);
+                    wrapper.appendChild(typeLabel);
+                    
                     // Add click handler to select this upgrade
-                    upgradeElement.addEventListener('click', () => {
+                    wrapper.addEventListener('click', () => {
                         this.selectUpgrade(gemInstanceId, upgradeGem.id);
                     });
                     
-                    this.elements.gemPool.appendChild(upgradeElement);
+                    upgradesContainer.appendChild(wrapper);
                 });
+                
+                this.elements.gemPool.appendChild(upgradesContainer);
+                
+                // If no options available, show message
+                if (options.length === 0) {
+                    const noOptionsMsg = document.createElement('div');
+                    noOptionsMsg.textContent = 'No upgrade options available';
+                    noOptionsMsg.style.padding = '20px';
+                    noOptionsMsg.style.textAlign = 'center';
+                    this.elements.gemPool.appendChild(noOptionsMsg);
+                }
             }
         });
     }
+    
     
     // Cancel upgrade mode
     cancelUpgrade() {
@@ -819,10 +921,38 @@ export default class UIManager {
     
     // Select an upgrade option
     selectUpgrade(gemInstanceId, upgradeGemId) {
-        // Emit upgrade event
+        console.log(`Selecting upgrade: ${gemInstanceId} -> ${upgradeGemId}`);
+        
+        // Handle direct upgrades specially (they have a custom ID format with "-upgraded")
+        let finalGemId = upgradeGemId;
+        if (upgradeGemId.endsWith('-upgraded')) {
+            // For direct upgrades, we need to get the original gem's data and create an enhanced version
+            const state = this.stateManager.getState();
+            const originalGem = state.gems.hand.find(g => g.instanceId === gemInstanceId);
+            
+            if (originalGem) {
+                // Instead of using the "-upgraded" ID, use the original gem's ID
+                // The ShopManager will handle enhancing its values
+                finalGemId = originalGem.id;
+                
+                console.log(`Direct upgrade of ${originalGem.name} (${originalGem.id})`);
+                
+                // Emit special direct upgrade event
+                this.eventBus.emit('shop:direct-upgrade-gem', {
+                    gemInstanceId,
+                    originalGemId: originalGem.id
+                });
+                
+                // Exit upgrade mode
+                this.cancelUpgrade();
+                return;
+            }
+        }
+        
+        // For regular upgrades, proceed normally
         this.eventBus.emit('shop:upgrade-gem', {
             gemInstanceId,
-            newGemId: upgradeGemId
+            newGemId: finalGemId
         });
         
         // Exit upgrade mode
@@ -942,28 +1072,47 @@ export default class UIManager {
     renderUnlockedGems() {
         const state = this.stateManager.getState();
         const { meta } = state;
+        const playerClass = state.player.class;
         
         this.elements.unlockedGems.innerHTML = '';
         
         // Get definitions from gem manager
         this.eventBus.emit('gem:get-definitions', {
             callback: (definitions) => {
-                // Filter for unlocked gems
-                meta.unlockedGems.forEach(gemId => {
-                    const gemDef = definitions[gemId];
-                    if (gemDef) {
-                        const gemElement = this.createGemElement(gemDef);
-                        this.elements.unlockedGems.appendChild(gemElement);
+                // Get class-specific gems 
+                this.eventBus.emit('gem:get-class-gems', {
+                    playerClass,
+                    callback: (classGems) => {
+                        // Filter unlocked gems that are appropriate for this class
+                        const classSpecificUnlocked = meta.unlockedGems.filter(gemId => {
+                            // Always include grey gems for all classes
+                            const gemDef = definitions[gemId];
+                            if (gemDef && gemDef.color === 'grey') return true;
+                            
+                            // Include gems that belong to this class
+                            return classGems.includes(gemId);
+                        });
+                        
+                        // Render class-specific unlocked gems
+                        classSpecificUnlocked.forEach(gemId => {
+                            const gemDef = definitions[gemId];
+                            if (gemDef) {
+                                const gemElement = this.createGemElement(gemDef);
+                                this.elements.unlockedGems.appendChild(gemElement);
+                            }
+                        });
                     }
                 });
             }
         });
     }
     
+    
     // Render available gems to unlock
     renderAvailableGems() {
         const state = this.stateManager.getState();
         const { meta, player } = state;
+        const playerClass = player.class;
         
         this.elements.availableGems.innerHTML = '';
         
@@ -975,33 +1124,44 @@ export default class UIManager {
                     !meta.unlockedGems.includes(gemId)
                 );
                 
-                // Get definitions
-                this.eventBus.emit('gem:get-definitions', {
-                    callback: (definitions) => {
-                        // Create gem elements for each unlockable
-                        notUnlocked.forEach(gemId => {
-                            const gemDef = definitions[gemId];
-                            if (gemDef) {
-                                // Create container
-                                const container = document.createElement('div');
-                                container.classList.add('unlockable-gem-container');
-                                
-                                // Create gem element
-                                const gemElement = this.createGemElement(gemDef);
-                                container.appendChild(gemElement);
-                                
-                                // Add cost label
-                                const costLabel = document.createElement('div');
-                                costLabel.classList.add('gem-cost-label');
-                                costLabel.textContent = '50 $ZENNY';
-                                container.appendChild(costLabel);
-                                
-                                // Add click handler to unlock
-                                container.addEventListener('click', () => {
-                                    this.unlockGem(gemId);
+                // Get class-specific gems
+                this.eventBus.emit('gem:get-class-gems', {
+                    playerClass,
+                    callback: (classGems) => {
+                        // Filter for gems that are appropriate for this class
+                        const classSpecificUnlockable = notUnlocked.filter(gemId => {
+                            return classGems.includes(gemId);
+                        });
+                        
+                        // Get definitions
+                        this.eventBus.emit('gem:get-definitions', {
+                            callback: (definitions) => {
+                                // Create gem elements for each unlockable
+                                classSpecificUnlockable.forEach(gemId => {
+                                    const gemDef = definitions[gemId];
+                                    if (gemDef) {
+                                        // Create container
+                                        const container = document.createElement('div');
+                                        container.classList.add('unlockable-gem-container');
+                                        
+                                        // Create gem element
+                                        const gemElement = this.createGemElement(gemDef);
+                                        container.appendChild(gemElement);
+                                        
+                                        // Add cost label
+                                        const costLabel = document.createElement('div');
+                                        costLabel.classList.add('gem-cost-label');
+                                        costLabel.textContent = '50 $ZENNY';
+                                        container.appendChild(costLabel);
+                                        
+                                        // Add click handler to unlock
+                                        container.addEventListener('click', () => {
+                                            this.unlockGem(gemId);
+                                        });
+                                        
+                                        this.elements.availableGems.appendChild(container);
+                                    }
                                 });
-                                
-                                this.elements.availableGems.appendChild(container);
                             }
                         });
                     }
@@ -1009,6 +1169,7 @@ export default class UIManager {
             }
         });
     }
+    
     
     // Unlock a gem in the catalog
     unlockGem(gemId) {
