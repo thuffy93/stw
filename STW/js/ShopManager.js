@@ -131,8 +131,9 @@ export default class ShopManager {
             return false;
         }
         
-        // Find the gem
-        const gemIndex = gems.bag.findIndex(gem => gem.instanceId === gemInstanceId);
+        // Fix: Look for the gem in the hand instead of the bag
+        // Since we're discarding from the shop, we should be looking at the hand
+        const gemIndex = gems.hand.findIndex(gem => gem.instanceId === gemInstanceId);
         
         if (gemIndex === -1) {
             this.eventBus.emit('message:show', {
@@ -142,9 +143,12 @@ export default class ShopManager {
             return false;
         }
         
-        // Remove the gem
-        const discardedGem = gems.bag[gemIndex];
-        const newBag = [...gems.bag.slice(0, gemIndex), ...gems.bag.slice(gemIndex + 1)];
+        // Remove the gem from hand
+        const discardedGem = gems.hand[gemIndex];
+        const newHand = [...gems.hand.slice(0, gemIndex), ...gems.hand.slice(gemIndex + 1)];
+        
+        // Move the discarded gem to the discarded pile
+        const newDiscarded = [...gems.discarded, discardedGem];
         
         // Deduct cost and update state
         this.stateManager.updateState({
@@ -152,7 +156,10 @@ export default class ShopManager {
                 zenny: player.zenny - this.costs.discardGem
             },
             gems: {
-                bag: newBag
+                hand: newHand,
+                discarded: newDiscarded,
+                bag: gems.bag,
+                played: gems.played
             }
         });
         
