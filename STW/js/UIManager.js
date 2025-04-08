@@ -90,8 +90,8 @@ export default class UIManager {
             audioButton: document.getElementById('audio-button')
         };
         
-        // Set up event listeners
-        this.setupEventListeners();
+        // Set up basic event listeners (non-screen specific)
+        this.setupBasicEventListeners();
         
         // Track selected gems in hand
         this.selectedGems = [];
@@ -104,35 +104,13 @@ export default class UIManager {
         };
     }
     
-    setupEventListeners() {
-        // Character selection
+    // Setup permanent event listeners (those that don't change with screens)
+    setupBasicEventListeners() {
+        // Character selection - these buttons are always in the DOM
         this.elements.knightButton.addEventListener('click', () => this.selectClass('knight'));
         this.elements.mageButton.addEventListener('click', () => this.selectClass('mage'));
         this.elements.rogueButton.addEventListener('click', () => this.selectClass('rogue'));
         this.elements.resetButton.addEventListener('click', () => this.resetGame());
-        
-        // Gem catalog
-        this.elements.continueJourneyButton.addEventListener('click', () => this.startJourney());
-        
-        // Battle actions
-        this.elements.executeButton.addEventListener('click', () => this.executeGems());
-        this.elements.waitButton.addEventListener('click', () => this.waitAction());
-        this.elements.discardEndButton.addEventListener('click', () => this.discardAndEndTurn());
-        this.elements.endTurnButton.addEventListener('click', () => this.endTurn());
-        this.elements.fleeButton.addEventListener('click', () => this.fleeBattle());
-        
-        // Shop actions
-        this.elements.upgradeGemButton.addEventListener('click', () => this.upgradeGem());
-        this.elements.discardGemButton.addEventListener('click', () => this.discardGem());
-        this.elements.buyRandomGemButton.addEventListener('click', () => this.buyRandomGem());
-        this.elements.cancelUpgradeButton.addEventListener('click', () => this.cancelUpgrade());
-        this.elements.healButton.addEventListener('click', () => this.healPlayer());
-        this.elements.shopContinueButton.addEventListener('click', () => this.continueFromShop());
-        
-        // Camp actions
-        this.elements.withdrawButton.addEventListener('click', () => this.withdrawZenny());
-        this.elements.depositButton.addEventListener('click', () => this.depositZenny());
-        this.elements.nextDayButton.addEventListener('click', () => this.startNextDay());
         
         // Event listeners for state changes
         this.eventBus.on('state:updated', () => this.updateUI());
@@ -150,6 +128,166 @@ export default class UIManager {
         
         // Listen for shop events
         this.eventBus.on('shop:enter', () => this.setupShop());
+    }
+    
+    // Setup screen-specific event listeners
+    setupScreenEventListeners(screenId) {
+        console.log(`Setting up event listeners for screen: ${screenId}`);
+        
+        // Clear any existing listeners for screen-specific elements
+        // (this is a preventive measure, though modern browsers typically clean these up
+        // when elements are removed from the DOM)
+        
+        switch(screenId) {
+            case 'gem-catalog-screen':
+                // Refresh the reference to the continue button
+                this.elements.continueJourneyButton = document.getElementById('continue-journey-btn');
+                
+                if (this.elements.continueJourneyButton) {
+                    console.log('Found continue journey button, attaching listener');
+                    
+                    // Remove any existing listeners (cloned node approach)
+                    const newButton = this.elements.continueJourneyButton.cloneNode(true);
+                    this.elements.continueJourneyButton.parentNode.replaceChild(newButton, this.elements.continueJourneyButton);
+                    this.elements.continueJourneyButton = newButton;
+                    
+                    // Add the click listener
+                    this.elements.continueJourneyButton.addEventListener('click', () => {
+                        console.log('Continue journey button clicked!');
+                        this.startJourney();
+                    });
+                } else {
+                    console.error('Continue journey button not found in the DOM!');
+                }
+                break;
+
+            case 'battle-screen':
+                // Refresh the references to buttons 
+                this.elements.executeButton = document.getElementById('execute-btn');
+                this.elements.waitButton = document.getElementById('wait-btn');
+                this.elements.discardEndButton = document.getElementById('discard-end-btn');
+                this.elements.endTurnButton = document.getElementById('end-turn-btn');
+                this.elements.fleeButton = document.getElementById('flee-btn');
+                
+                // Set up battle action event listeners
+                if (this.elements.executeButton) {
+                    const newExecuteBtn = this.elements.executeButton.cloneNode(true);
+                    this.elements.executeButton.parentNode.replaceChild(newExecuteBtn, this.elements.executeButton);
+                    this.elements.executeButton = newExecuteBtn;
+                    this.elements.executeButton.addEventListener('click', () => this.executeGems());
+                }
+                
+                if (this.elements.waitButton) {
+                    const newWaitBtn = this.elements.waitButton.cloneNode(true);
+                    this.elements.waitButton.parentNode.replaceChild(newWaitBtn, this.elements.waitButton);
+                    this.elements.waitButton = newWaitBtn;
+                    this.elements.waitButton.addEventListener('click', () => this.waitAction());
+                }
+                
+                if (this.elements.discardEndButton) {
+                    const newDiscardBtn = this.elements.discardEndButton.cloneNode(true);
+                    this.elements.discardEndButton.parentNode.replaceChild(newDiscardBtn, this.elements.discardEndButton);
+                    this.elements.discardEndButton = newDiscardBtn;
+                    this.elements.discardEndButton.addEventListener('click', () => this.discardAndEndTurn());
+                }
+                
+                if (this.elements.endTurnButton) {
+                    const newEndTurnBtn = this.elements.endTurnButton.cloneNode(true);
+                    this.elements.endTurnButton.parentNode.replaceChild(newEndTurnBtn, this.elements.endTurnButton);
+                    this.elements.endTurnButton = newEndTurnBtn;
+                    this.elements.endTurnButton.addEventListener('click', () => this.endTurn());
+                }
+                
+                if (this.elements.fleeButton) {
+                    const newFleeBtn = this.elements.fleeButton.cloneNode(true);
+                    this.elements.fleeButton.parentNode.replaceChild(newFleeBtn, this.elements.fleeButton);
+                    this.elements.fleeButton = newFleeBtn;
+                    this.elements.fleeButton.addEventListener('click', () => this.fleeBattle());
+                }
+                break;
+                
+            case 'shop-screen':
+                // Refresh shop button references
+                this.elements.upgradeGemButton = document.getElementById('upgrade-gem');
+                this.elements.discardGemButton = document.getElementById('discard-gem');
+                this.elements.buyRandomGemButton = document.getElementById('buy-random-gem');
+                this.elements.cancelUpgradeButton = document.getElementById('cancel-upgrade');
+                this.elements.healButton = document.getElementById('heal-10');
+                this.elements.shopContinueButton = document.getElementById('continue-btn');
+                
+                // Set up shop action event listeners
+                if (this.elements.upgradeGemButton) {
+                    const newUpgradeBtn = this.elements.upgradeGemButton.cloneNode(true);
+                    this.elements.upgradeGemButton.parentNode.replaceChild(newUpgradeBtn, this.elements.upgradeGemButton);
+                    this.elements.upgradeGemButton = newUpgradeBtn;
+                    this.elements.upgradeGemButton.addEventListener('click', () => this.upgradeGem());
+                }
+                
+                if (this.elements.discardGemButton) {
+                    const newDiscardBtn = this.elements.discardGemButton.cloneNode(true);
+                    this.elements.discardGemButton.parentNode.replaceChild(newDiscardBtn, this.elements.discardGemButton);
+                    this.elements.discardGemButton = newDiscardBtn;
+                    this.elements.discardGemButton.addEventListener('click', () => this.discardGem());
+                }
+                
+                if (this.elements.buyRandomGemButton) {
+                    const newBuyBtn = this.elements.buyRandomGemButton.cloneNode(true);
+                    this.elements.buyRandomGemButton.parentNode.replaceChild(newBuyBtn, this.elements.buyRandomGemButton);
+                    this.elements.buyRandomGemButton = newBuyBtn;
+                    this.elements.buyRandomGemButton.addEventListener('click', () => this.buyRandomGem());
+                }
+                
+                if (this.elements.cancelUpgradeButton) {
+                    const newCancelBtn = this.elements.cancelUpgradeButton.cloneNode(true);
+                    this.elements.cancelUpgradeButton.parentNode.replaceChild(newCancelBtn, this.elements.cancelUpgradeButton);
+                    this.elements.cancelUpgradeButton = newCancelBtn;
+                    this.elements.cancelUpgradeButton.addEventListener('click', () => this.cancelUpgrade());
+                }
+                
+                if (this.elements.healButton) {
+                    const newHealBtn = this.elements.healButton.cloneNode(true);
+                    this.elements.healButton.parentNode.replaceChild(newHealBtn, this.elements.healButton);
+                    this.elements.healButton = newHealBtn;
+                    this.elements.healButton.addEventListener('click', () => this.healPlayer());
+                }
+                
+                if (this.elements.shopContinueButton) {
+                    const newContinueBtn = this.elements.shopContinueButton.cloneNode(true);
+                    this.elements.shopContinueButton.parentNode.replaceChild(newContinueBtn, this.elements.shopContinueButton);
+                    this.elements.shopContinueButton = newContinueBtn;
+                    this.elements.shopContinueButton.addEventListener('click', () => this.continueFromShop());
+                }
+                break;
+                
+            case 'camp-screen':
+                // Refresh camp button references
+                this.elements.withdrawButton = document.getElementById('withdraw-btn');
+                this.elements.depositButton = document.getElementById('deposit-btn');
+                this.elements.nextDayButton = document.getElementById('next-day-btn');
+                
+                // Set up camp action event listeners
+                if (this.elements.withdrawButton) {
+                    const newWithdrawBtn = this.elements.withdrawButton.cloneNode(true);
+                    this.elements.withdrawButton.parentNode.replaceChild(newWithdrawBtn, this.elements.withdrawButton);
+                    this.elements.withdrawButton = newWithdrawBtn;
+                    this.elements.withdrawButton.addEventListener('click', () => this.withdrawZenny());
+                }
+                
+                if (this.elements.depositButton) {
+                    const newDepositBtn = this.elements.depositButton.cloneNode(true);
+                    this.elements.depositButton.parentNode.replaceChild(newDepositBtn, this.elements.depositButton);
+                    this.elements.depositButton = newDepositBtn;
+                    this.elements.depositButton.addEventListener('click', () => this.depositZenny());
+                }
+                
+                if (this.elements.nextDayButton) {
+                    const newNextDayBtn = this.elements.nextDayButton.cloneNode(true);
+                    this.elements.nextDayButton.parentNode.replaceChild(newNextDayBtn, this.elements.nextDayButton);
+                    this.elements.nextDayButton = newNextDayBtn;
+                    this.elements.nextDayButton.addEventListener('click', () => this.startNextDay());
+                }
+                break;
+        }
     }
     
     // Update the entire UI based on current state
@@ -179,15 +317,18 @@ export default class UIManager {
     
     // Handle screen changes
     onScreenChanged(screenId) {
+        console.log(`Screen changed to: ${screenId}`);
+        
         // Clear previous screen-specific state
         if (screenId === 'battle-screen') {
             this.selectedGems = [];
-            this.updateBattleUI();
             
             // Set background based on phase
             const phase = this.stateManager.getState().journey.phase;
             this.elements.battleScreen.className = 'screen active';
             this.elements.battleScreen.classList.add(phase.toLowerCase());
+            
+            this.updateBattleUI();
         } 
         else if (screenId === 'shop-screen') {
             this.shopState = {
@@ -203,6 +344,9 @@ export default class UIManager {
         else if (screenId === 'gem-catalog-screen') {
             this.updateGemCatalogUI();
         }
+        
+        // Set up event listeners for the current screen
+        this.setupScreenEventListeners(screenId);
     }
     
     // Select character class
@@ -273,11 +417,15 @@ export default class UIManager {
     
     // Start the journey from gem catalog
     startJourney() {
+        console.log('Starting journey from gem catalog');
+        
         // Navigate to battle screen
         this.stateManager.changeScreen('battle-screen');
         
-        // Start the first battle
-        this.eventBus.emit('battle:start');
+        // Start the first battle after a short delay to ensure UI is ready
+        setTimeout(() => {
+            this.eventBus.emit('battle:start');
+        }, 100);
     }
     
     // Update battle UI with current state
