@@ -161,12 +161,18 @@ export default class GemManager {
             // IMPROVED FIX: Add more detailed debug logging to track success state
             console.log(`Gem played: ${gemData.name} (${gemData.id}), Success: ${gemData.success}, Proficiency: ${gemData.proficiency}`);
             
-            // Only update proficiency if gem was successful - carefully check the success property
-            if (gemData.success === true) {
-                console.log(`  → Updating proficiency for successful gem: ${gemData.id}`);
+            // Only update proficiency if:
+            // 1. Gem was successful
+            // 2. Gem is not fully mastered (proficiency < 70%)
+            // 3. Gem is not a base starter gem (these start with 100% proficiency)
+            if (gemData.success === true && gemData.proficiency < 70) {
+                console.log(`  → Updating proficiency for successful unmastered gem: ${gemData.id}`);
                 this.updateGemProficiency(gemData.id);
             } else {
-                console.log(`  → NOT updating proficiency for failed gem: ${gemData.id}`);
+                const skipReason = !gemData.success ? "failed gem" : 
+                                   gemData.proficiency >= 70 ? "already mastered gem" : 
+                                   "base gem";
+                console.log(`  → NOT updating proficiency for ${skipReason}: ${gemData.id}`);
             }
         });
         
