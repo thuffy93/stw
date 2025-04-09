@@ -755,6 +755,25 @@ export default class UIManager {
         }
     }
     
+    unlockGem(gemId) {
+        // Get gem definition to show its name in the confirmation
+        this.eventBus.emit('gem:get-definitions', {
+            callback: (definitions) => {
+                const gemDef = definitions[gemId];
+                
+                if (!gemDef) {
+                    console.error(`Unknown gem ID for confirmation: ${gemId}`);
+                    return;
+                }
+                
+                // Show confirmation dialog
+                if (confirm(`Are you sure you want to unlock ${gemDef.name} for 50 Meta $ZENNY?`)) {
+                    // Make sure we call the correct unlock method on the gem manager
+                    this.eventBus.emit('gem:unlock', gemId);
+                }
+            }
+        });
+    }
     
     // Toggle gem selection
     toggleGemSelection(gemInstanceId) {
@@ -1443,18 +1462,6 @@ export default class UIManager {
         noGemsMsg.style.padding = '20px';
         noGemsMsg.style.textAlign = 'center';
         this.elements.availableGems.appendChild(noGemsMsg);
-    }
-    
-    // Unlock a gem in the catalog
-    unlockGem(gemId) {
-        // Make sure we call the correct unlock method on the gem manager
-        // This fixes the issue where gems don't show up after purchase
-        this.eventBus.emit('gem:unlock', gemId);
-        
-        // Re-render the gem catalog after unlocking
-        setTimeout(() => {
-            this.updateGemCatalogUI();
-        }, 100);
     }
     
     // Event handlers for battle events
