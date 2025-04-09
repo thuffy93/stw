@@ -542,10 +542,8 @@ export default class BattleManager {
         };
     }
     
-    // Process gem effects when played
+    // Modified processGemEffect function in BattleManager.js
     processGemEffect(gem) {
-        // Existing code...
-        // No changes needed here
         if (!gem.success) {
             this.processGemFailure(gem);
             return;
@@ -583,23 +581,159 @@ export default class BattleManager {
                     damageAmount = Math.floor(damageAmount * 1.5); // 50% bonus
                 }
                 
-                // Apply any active buffs - FIXED: Added safety check
+                // Apply any active player buffs - FIXED: Added safety check
                 if (player.buffs && player.buffs.some(buff => buff.type === 'focus')) {
                     damageAmount = Math.floor(damageAmount * 1.2); // 20% bonus from focus
                 }
                 
+                // FIXED: Check for player debuffs that reduce damage output
+                if (player.buffs) {
+                    // Check for haunted debuff - reduces damage
+                    const hauntedBuff = player.buffs.find(buff => buff.type === 'haunted');
+                    if (hauntedBuff) {
+                        const reductionFactor = hauntedBuff.value; // e.g., 0.5 for 50% reduction
+                        const reducedDamage = Math.floor(damageAmount * (1 - reductionFactor));
+                        const damageReduction = damageAmount - reducedDamage;
+                        
+                        damageAmount = reducedDamage;
+                        
+                        // Show message about the reduced damage
+                        this.eventBus.emit('message:show', {
+                            text: `Haunted effect reduces your damage by ${damageReduction}!`,
+                            type: 'error'
+                        });
+                    }
+                    
+                    // Check for weakened debuff - reduces damage
+                    const weakenedBuff = player.buffs.find(buff => buff.type === 'weakened');
+                    if (weakenedBuff) {
+                        const reductionFactor = weakenedBuff.value; // e.g., 0.3 for 30% reduction
+                        const reducedDamage = Math.floor(damageAmount * (1 - reductionFactor));
+                        const damageReduction = damageAmount - reducedDamage;
+                        
+                        damageAmount = reducedDamage;
+                        
+                        // Show message about the reduced damage
+                        this.eventBus.emit('message:show', {
+                            text: `Weakened effect reduces your damage by ${damageReduction}!`,
+                            type: 'error'
+                        });
+                    }
+                    
+                    // Check for curse debuff - reduces damage
+                    const curseBuff = player.buffs.find(buff => buff.type === 'curse');
+                    if (curseBuff) {
+                        const reductionFactor = curseBuff.value; // e.g., 0.3 for 30% reduction
+                        const reducedDamage = Math.floor(damageAmount * (1 - reductionFactor));
+                        const damageReduction = damageAmount - reducedDamage;
+                        
+                        damageAmount = reducedDamage;
+                        
+                        // Show message about the reduced damage
+                        this.eventBus.emit('message:show', {
+                            text: `Curse effect reduces your damage by ${damageReduction}!`,
+                            type: 'error'
+                        });
+                    }
+                }
+                
+                // FIXED: Check if enemy is phased (invulnerable)
+                if (enemy.buffs && enemy.buffs.some(buff => buff.type === 'phased')) {
+                    // Enemy is invulnerable - no damage
+                    this.eventBus.emit('message:show', {
+                        text: `${enemy.name} is phased out of reality! Your attack passes through harmlessly!`,
+                        type: 'error'
+                    });
+                    
+                    // No damage applied - enemy health stays the same
+                    enemyUpdates.health = enemy.health;
+                    break;
+                }
+                
+                // FIXED: Check for enemy defense buff
+                let actualDamage = damageAmount;
+                let blockedDamage = 0;
+                
+                const enemyDefenseBuff = enemy.buffs && enemy.buffs.find(buff => buff.type === 'defense');
+                if (enemyDefenseBuff) {
+                    // Reduce damage by defense value, minimum 1
+                    actualDamage = Math.max(1, damageAmount - enemyDefenseBuff.value);
+                    blockedDamage = damageAmount - actualDamage;
+                    
+                    // Show damage reduction message
+                    this.eventBus.emit('message:show', {
+                        text: `${enemy.name}'s defense blocked ${blockedDamage} damage!`,
+                        type: 'info'
+                    });
+                }
+                
+                // FIXED: Check for parrying buff
+                const parryingBuff = enemy.buffs && enemy.buffs.find(buff => buff.type === 'parrying');
+                if (parryingBuff) {
+                    // Calculate reflected damage
+                    const reflectDamage = Math.floor(actualDamage * parryingBuff.value);
+                    
+                    // Apply reflected damage to player
+                    const newPlayerHealth = Math.max(0, player.health - reflectDamage);
+                    playerUpdates.health = newPlayerHealth;
+                    
+                    // Show parry message
+                    this.eventBus.emit('message:show', {
+                        text: `${enemy.name} parried your attack and reflected ${reflectDamage} damage back to you!`,
+                        type: 'error'
+                    });
+                    
+                    // Emit damage event for player
+                    this.eventBus.emit('player:damaged', {
+                        amount: reflectDamage,
+                        source: 'enemy-parry',
+                        enemy
+                    });
+                    
+                    // Check for player defeat from parry
+                    if (newPlayerHealth <= 0) {
+                        // Update state before ending battle
+                        this.stateManager.updateState({
+                            player: {
+                                ...player,
+                                ...playerUpdates
+                            }
+                        });
+                        
+                        this.endBattle(false);
+                        return;
+                    }
+                }
+                
                 // Apply damage to enemy
-                const newEnemyHealth = Math.max(0, enemy.health - damageAmount);
+                const newEnemyHealth = Math.max(0, enemy.health - actualDamage);
                 enemyUpdates.health = newEnemyHealth;
                 
-                // Emit damage event
+                // Emit damage event with blocked amount
                 this.eventBus.emit('enemy:damaged', {
-                    amount: damageAmount,
+                    amount: actualDamage,
+                    blocked: blockedDamage,
                     gem: gem
                 });
                 
                 // Check for victory
                 if (newEnemyHealth <= 0) {
+                    // Update state before ending battle
+                    this.stateManager.updateState({
+                        player: {
+                            ...player,
+                            ...playerUpdates,
+                            buffs: newBuffs
+                        },
+                        battle: {
+                            enemy: {
+                                ...enemy,
+                                ...enemyUpdates,
+                                buffs: updatedEnemyBuffs
+                            }
+                        }
+                    });
+                    
                     this.endBattle(true);
                     return;
                 }
@@ -794,8 +928,6 @@ export default class BattleManager {
     }
     // Process end of turn effects
     processEndOfTurn() {
-        // Existing code...
-        // No changes needed here
         const state = this.stateManager.getState();
         const { battle, player } = state;
         
@@ -816,7 +948,7 @@ export default class BattleManager {
                 this.processEnemyTurn();
             }, 1000);
         } else {
-            // Process buffs and debuffs at end of round
+            // FIXED: Process active status effects only, don't reduce durations yet
             this.processStatusEffects();
             
             // Calculate stamina recovery based on how much was used
@@ -869,6 +1001,10 @@ export default class BattleManager {
                 this.gemManager.drawGems(3 - handSize);
             }
             
+            // FIXED: NOW we process buff durations at the end of a full round
+            // This ensures buffs last for a proper turn cycle
+            this.processTurnEnd();
+            
             // Get updated player state after status effects processing
             const updatedState = this.stateManager.getState();
             const isPlayerStunned = updatedState.player.buffs.some(buff => buff.type === 'stunned');
@@ -895,93 +1031,155 @@ export default class BattleManager {
             }
         }
     }
-    // Process status effects at end of round
+    // Process status effects at end of round - Updated to handle all buff types
     processStatusEffects() {
         const state = this.stateManager.getState();
         const { battle, player } = state;
         const { enemy } = battle;
         
-        // Process player buffs
-        let updatedPlayerBuffs = [];
+        // Safety checks
+        if (!player || !player.buffs || !enemy || !enemy.buffs) {
+            console.warn('Missing player or enemy data in processStatusEffects');
+            return;
+        }
+        
+        // Process player buffs - ONLY apply active effects, don't reduce durations
+        let updatedPlayerBuffs = [...player.buffs]; // Keep all buffs with current durations
         let playerUpdates = {};
         
+        // Process active effects only
         player.buffs.forEach(buff => {
-            // Reduce duration
-            const newDuration = buff.duration - 1;
-            
-            if (newDuration <= 0) {
-                // Buff expired
-                this.eventBus.emit('player:buff-expired', {
-                    type: buff.type
-                });
-            } else {
-                // Keep buff with reduced duration
-                updatedPlayerBuffs.push({
-                    ...buff,
-                    duration: newDuration
-                });
-            }
-            
-            // Process active poison damage
-            if (buff.type === 'poison') {
-                const poisonDamage = buff.value;
-                const newHealth = Math.max(0, player.health - poisonDamage);
-                
-                playerUpdates.health = newHealth;
-                
-                this.eventBus.emit('player:poisoned-damage', {
-                    amount: poisonDamage
-                });
-                
-                // Check for defeat
-                if (newHealth <= 0) {
-                    this.endBattle(false);
-                }
+            // Process active status effects (damage over time)
+            switch (buff.type) {
+                case 'poison':
+                    const poisonDamage = buff.value;
+                    const newHealth = Math.max(0, player.health - poisonDamage);
+                    
+                    playerUpdates.health = newHealth;
+                    
+                    this.eventBus.emit('player:poisoned-damage', {
+                        amount: poisonDamage
+                    });
+                    
+                    this.eventBus.emit('message:show', {
+                        text: `You take ${poisonDamage} poison damage!`,
+                        type: 'error'
+                    });
+                    
+                    // Check for defeat
+                    if (newHealth <= 0) {
+                        this.endBattle(false);
+                        return; // Exit early to prevent further processing
+                    }
+                    break;
+                    
+                case 'bleeding':
+                    // Process bleeding DoT
+                    const bleedDamage = buff.value;
+                    const newHealthAfterBleed = Math.max(0, (playerUpdates.health !== undefined ? playerUpdates.health : player.health) - bleedDamage);
+                    
+                    playerUpdates.health = newHealthAfterBleed;
+                    
+                    this.eventBus.emit('player:damaged', {
+                        amount: bleedDamage,
+                        source: 'bleeding'
+                    });
+                    
+                    this.eventBus.emit('message:show', {
+                        text: `You take ${bleedDamage} bleeding damage!`,
+                        type: 'error'
+                    });
+                    
+                    // Check for defeat
+                    if (newHealthAfterBleed <= 0) {
+                        this.endBattle(false);
+                        return; // Exit early to prevent further processing
+                    }
+                    break;
+                    
+                case 'burning':
+                    // Process burning DoT
+                    const burnDamage = buff.value;
+                    const newHealthAfterBurn = Math.max(0, (playerUpdates.health !== undefined ? playerUpdates.health : player.health) - burnDamage);
+                    
+                    playerUpdates.health = newHealthAfterBurn;
+                    
+                    this.eventBus.emit('player:damaged', {
+                        amount: burnDamage,
+                        source: 'burning'
+                    });
+                    
+                    this.eventBus.emit('message:show', {
+                        text: `You take ${burnDamage} burning damage!`,
+                        type: 'error'
+                    });
+                    
+                    // Check for defeat
+                    if (newHealthAfterBurn <= 0) {
+                        this.endBattle(false);
+                        return; // Exit early to prevent further processing
+                    }
+                    break;
             }
         });
         
-        // Process enemy buffs
-        let updatedEnemyBuffs = [];
+        // Process enemy buffs - ONLY apply active effects, don't reduce durations
+        let updatedEnemyBuffs = [...enemy.buffs]; // Keep all buffs with current durations
         let enemyUpdates = {};
         
+        // Process active effects only
         enemy.buffs.forEach(buff => {
-            // Reduce duration
-            const newDuration = buff.duration - 1;
-            
-            if (newDuration <= 0) {
-                // Buff expired
-                this.eventBus.emit('enemy:buff-expired', {
-                    type: buff.type
-                });
-            } else {
-                // Keep buff with reduced duration
-                updatedEnemyBuffs.push({
-                    ...buff,
-                    duration: newDuration
-                });
-            }
-            
-            // Process active poison damage
-            if (buff.type === 'poison') {
-                const poisonDamage = buff.value;
-                const newHealth = Math.max(0, enemy.health - poisonDamage);
-                
-                enemyUpdates.health = newHealth;
-                
-                this.eventBus.emit('enemy:poisoned-damage', {
-                    amount: poisonDamage
-                });
-                
-                // Check for victory
-                if (newHealth <= 0) {
-                    this.endBattle(true);
-                }
+            // Process active status effects
+            switch (buff.type) {
+                case 'poison':
+                    const poisonDamage = buff.value;
+                    const newHealth = Math.max(0, enemy.health - poisonDamage);
+                    
+                    enemyUpdates.health = newHealth;
+                    
+                    this.eventBus.emit('enemy:poisoned-damage', {
+                        amount: poisonDamage
+                    });
+                    
+                    this.eventBus.emit('message:show', {
+                        text: `${enemy.name} takes ${poisonDamage} poison damage!`,
+                        type: 'success'
+                    });
+                    
+                    // Check for victory
+                    if (newHealth <= 0) {
+                        this.endBattle(true);
+                        return; // Exit early to prevent further processing
+                    }
+                    break;
+                    
+                case 'regenerating':
+                    // Process regeneration healing
+                    const regenAmount = buff.value;
+                    const newHealthAfterRegen = Math.min(
+                        enemy.maxHealth, 
+                        (enemyUpdates.health !== undefined ? enemyUpdates.health : enemy.health) + regenAmount
+                    );
+                    
+                    enemyUpdates.health = newHealthAfterRegen;
+                    
+                    this.eventBus.emit('enemy:healed', {
+                        amount: regenAmount,
+                        enemy
+                    });
+                    
+                    this.eventBus.emit('message:show', {
+                        text: `${enemy.name} regenerates ${regenAmount} health!`,
+                        type: 'error'
+                    });
+                    break;
             }
         });
         
-        // Update state
+        // Update state with all the changes but keep buff durations intact
         this.stateManager.updateState({
             player: {
+                ...player,
                 ...playerUpdates,
                 buffs: updatedPlayerBuffs
             },
@@ -1341,16 +1539,67 @@ export default class BattleManager {
         }, 1000);
     }
     
-    // Enemy attack action
+    // Updated enemy attack to apply buffs correctly
     executeEnemyAttack(enemy, player) {
-        // Calculate damage, accounting for player defense
+        // Start with base damage
         let damage = enemy.attack;
+        
+        // Apply damage modifiers from buffs
+        if (enemy.buffs) {
+            // Check for ritual buff - increases damage
+            const ritualBuff = enemy.buffs.find(buff => buff.type === 'ritual');
+            if (ritualBuff) {
+                const bonusDamage = Math.floor(damage * ritualBuff.value);
+                damage += bonusDamage;
+                
+                // Show a message about the increased damage
+                this.eventBus.emit('message:show', {
+                    text: `${enemy.name}'s ritual enhances its attack by ${bonusDamage}!`,
+                    type: 'error'
+                });
+            }
+            
+            // Check for empowered buff - increases damage
+            const empoweredBuff = enemy.buffs.find(buff => buff.type === 'empowered');
+            if (empoweredBuff) {
+                const bonusDamage = empoweredBuff.value;
+                damage += bonusDamage;
+                
+                // Show a message
+                this.eventBus.emit('message:show', {
+                    text: `${enemy.name}'s empowered state adds ${bonusDamage} damage!`,
+                    type: 'error'
+                });
+            }
+            
+            // Check for minion buff - adds extra damage from minions
+            const minionBuff = enemy.buffs.find(buff => buff.type === 'minion');
+            if (minionBuff) {
+                const minionDamage = minionBuff.value;
+                damage += minionDamage;
+                
+                // Show a message
+                this.eventBus.emit('message:show', {
+                    text: `${enemy.name}'s minion adds ${minionDamage} extra damage!`,
+                    type: 'error'
+                });
+            }
+        }
+        
+        // Calculate actual damage after player defense
         let actualDamage = damage;
         
-        // Check for defense buff
-        const defenseBuff = player.buffs.find(buff => buff.type === 'defense');
+        // Check for player defense buff
+        const defenseBuff = player.buffs && player.buffs.find(buff => buff.type === 'defense');
         if (defenseBuff) {
+            const blocked = Math.min(damage, defenseBuff.value);
             actualDamage = Math.max(1, damage - defenseBuff.value);
+            
+            // Show defense message
+            this.eventBus.emit('message:show', {
+                text: `Your defense blocked ${blocked} damage!`,
+                type: 'info'
+            });
         }
         
         // Apply damage to player
@@ -1376,7 +1625,88 @@ export default class BattleManager {
             this.endBattle(false);
         }
     }
-    
+    processTurnEnd() {
+        const state = this.stateManager.getState();
+        const { battle, player } = state;
+        const { enemy } = battle;
+        
+        // Safety checks
+        if (!player || !player.buffs || !enemy || !enemy.buffs) {
+            console.warn('Missing player or enemy data in processTurnEnd');
+            return;
+        }
+        
+        // Process player buffs - ONLY reduce durations
+        let updatedPlayerBuffs = [];
+        
+        player.buffs.forEach(buff => {
+            // Reduce duration
+            const newDuration = buff.duration - 1;
+            
+            if (newDuration <= 0) {
+                // Buff expired
+                this.eventBus.emit('player:buff-expired', {
+                    type: buff.type
+                });
+                
+                // If it was a significant buff, show a message
+                if (['defense', 'focus', 'charmed', 'stunned', 'webbed', 'bleeding', 'burning'].includes(buff.type)) {
+                    this.eventBus.emit('message:show', {
+                        text: `Your ${buff.type} effect has worn off.`,
+                        type: 'info'
+                    });
+                }
+            } else {
+                // Keep buff with reduced duration
+                updatedPlayerBuffs.push({
+                    ...buff,
+                    duration: newDuration
+                });
+            }
+        });
+        
+        // Process enemy buffs - ONLY reduce durations
+        let updatedEnemyBuffs = [];
+        
+        enemy.buffs.forEach(buff => {
+            // Reduce duration
+            const newDuration = buff.duration - 1;
+            
+            if (newDuration <= 0) {
+                // Buff expired
+                this.eventBus.emit('enemy:buff-expired', {
+                    type: buff.type
+                });
+                
+                // If it was a significant buff, show a message
+                if (['defense', 'phased', 'parrying', 'regenerating', 'ritual', 'empowered', 'minion'].includes(buff.type)) {
+                    this.eventBus.emit('message:show', {
+                        text: `${enemy.name}'s ${buff.type} effect has worn off.`,
+                        type: 'info'
+                    });
+                }
+            } else {
+                // Keep buff with reduced duration
+                updatedEnemyBuffs.push({
+                    ...buff,
+                    duration: newDuration
+                });
+            }
+        });
+        
+        // Update state with reduced durations
+        this.stateManager.updateState({
+            player: {
+                buffs: updatedPlayerBuffs
+            },
+            battle: {
+                enemy: {
+                    ...enemy,
+                    buffs: updatedEnemyBuffs
+                }
+            }
+        });
+    }
     // Enemy defend action
     executeEnemyDefend(enemy) {
         // Add defense buff to enemy
@@ -1702,106 +2032,6 @@ export default class BattleManager {
         }
     }
     
-    // Process status effects at end of round
-    processStatusEffects() {
-        const state = this.stateManager.getState();
-        const { battle, player } = state;
-        const { enemy } = battle;
-        
-        // Process player buffs
-        let updatedPlayerBuffs = [];
-        let playerUpdates = {};
-        
-        player.buffs.forEach(buff => {
-            // Reduce duration
-            const newDuration = buff.duration - 1;
-            
-            if (newDuration <= 0) {
-                // Buff expired
-                this.eventBus.emit('player:buff-expired', {
-                    type: buff.type
-                });
-            } else {
-                // Keep buff with reduced duration
-                updatedPlayerBuffs.push({
-                    ...buff,
-                    duration: newDuration
-                });
-            }
-            
-            // Process active poison damage
-            if (buff.type === 'poison') {
-                const poisonDamage = buff.value;
-                const newHealth = Math.max(0, player.health - poisonDamage);
-                
-                playerUpdates.health = newHealth;
-                
-                this.eventBus.emit('player:poisoned-damage', {
-                    amount: poisonDamage
-                });
-                
-                // Check for defeat
-                if (newHealth <= 0) {
-                    this.endBattle(false);
-                }
-            }
-        });
-        
-        // Process enemy buffs
-        let updatedEnemyBuffs = [];
-        let enemyUpdates = {};
-        
-        enemy.buffs.forEach(buff => {
-            // Reduce duration
-            const newDuration = buff.duration - 1;
-            
-            if (newDuration <= 0) {
-                // Buff expired
-                this.eventBus.emit('enemy:buff-expired', {
-                    type: buff.type
-                });
-            } else {
-                // Keep buff with reduced duration
-                updatedEnemyBuffs.push({
-                    ...buff,
-                    duration: newDuration
-                });
-            }
-            
-            // Process active poison damage
-            if (buff.type === 'poison') {
-                const poisonDamage = buff.value;
-                const newHealth = Math.max(0, enemy.health - poisonDamage);
-                
-                enemyUpdates.health = newHealth;
-                
-                this.eventBus.emit('enemy:poisoned-damage', {
-                    amount: poisonDamage
-                });
-                
-                // Check for victory
-                if (newHealth <= 0) {
-                    this.endBattle(true);
-                }
-            }
-        });
-        
-        // Update state
-        this.stateManager.updateState({
-            player: {
-                ...playerUpdates,
-                buffs: updatedPlayerBuffs
-            },
-            battle: {
-                enemy: {
-                    ...enemy,
-                    ...enemyUpdates,
-                    buffs: updatedEnemyBuffs
-                }
-            }
-        });
-    }
-    
     // Determine enemy's next action
     determineEnemyAction(enemy) {
         // FIXED: Add null check to prevent errors when enemy is null
@@ -2106,6 +2336,51 @@ export default class BattleManager {
         const defenseBuff = player.buffs.find(buff => buff.type === 'defense');
         if (defenseBuff) {
             actualDamage = Math.max(1, damage - defenseBuff.value);
+        }
+        
+        // Apply damage to player
+        const newHealth = Math.max(0, player.health - actualDamage);
+        
+        // 30% chance to stun
+        const willStun = Math.random() < 0.3;
+        let newBuffs = [...player.buffs];
+        
+        if (willStun) {
+            // Add stunned effect
+            const stunnedBuff = {
+                type: 'stunned',
+                duration: 1
+            };
+            
+            // Remove any existing stun before adding new one
+            newBuffs = newBuffs.filter(b => b.type !== 'stunned');
+            newBuffs.push(stunnedBuff);
+            
+            this.eventBus.emit('message:show', {
+                text: `${enemy.name}'s bite stuns you!`,
+                type: 'error'
+            });
+        }
+        
+        // Update state
+        this.stateManager.updateState({
+            player: {
+                health: newHealth,
+                buffs: newBuffs
+            }
+        });
+        
+        // Emit events
+        this.eventBus.emit('player:damaged', {
+            amount: actualDamage,
+            blocked: damage - actualDamage,
+            source: 'enemy-bite',
+            enemy
+        });
+        
+        // Check for defeat
+        if (newHealth <= 0) {
+            this.endBattle(false);
         }
     }
 
