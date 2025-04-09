@@ -651,8 +651,8 @@ export default class UIManager {
             gemElement.classList.add('class-bonus');
         }
         
-        // Add unlearned indicator if not fully mastered
-        if (gem.proficiency < 100) {
+        // Add unlearned indicator if not fully mastered (now 70% instead of 100%)
+        if (gem.proficiency < 70) {
             gemElement.classList.add('unlearned');
         }
         
@@ -684,7 +684,7 @@ export default class UIManager {
         let tooltipText = gem.tooltip || `${gem.name}: ${gem.value} ${gem.type}`;
         
         // Add proficiency to tooltip if not fully mastered
-        if (gem.proficiency < 100) {
+        if (gem.proficiency < 70) {
             tooltipText += `\nMastery: ${Math.floor(gem.proficiency)}%`;
         }
         
@@ -702,6 +702,9 @@ export default class UIManager {
         const isPlayerTurn = battle.currentTurn === 'PLAYER';
         const isPlayerStunned = player.buffs.some(buff => buff.type === 'stunned');
         
+        // Check if gems have been played this turn (checking for played gems this turn)
+        const hasPlayedGems = battle.staminaUsed > 0;
+        
         if (isPlayerStunned) {
             // If stunned, disable all buttons regardless of other conditions
             this.elements.executeButton.disabled = true;
@@ -715,8 +718,11 @@ export default class UIManager {
         } else {
             // Normal button state handling
             this.elements.executeButton.disabled = !isPlayerTurn || this.selectedGems.length === 0;
-            this.elements.waitButton.disabled = !isPlayerTurn;
-            this.elements.discardEndButton.disabled = !isPlayerTurn || this.selectedGems.length === 0;
+            
+            // Disable Wait and Discard & End if gems have been played this turn
+            this.elements.waitButton.disabled = !isPlayerTurn || hasPlayedGems;
+            this.elements.discardEndButton.disabled = !isPlayerTurn || this.selectedGems.length === 0 || hasPlayedGems;
+            
             this.elements.endTurnButton.disabled = !isPlayerTurn;
             
             // Only enable flee in Dawn/Dusk phases
@@ -765,6 +771,9 @@ export default class UIManager {
         
         // Clear selection
         this.selectedGems = [];
+        
+        // Update button states immediately after executing gems
+        this.updateBattleButtons();
     }
     
     // Wait action (gains focus)

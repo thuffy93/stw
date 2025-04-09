@@ -88,7 +88,7 @@ export default class GemManager {
                 tooltip: 'Deal 8 damage and draw a gem. Rogue class bonus: 50% extra damage.'
             },
             
-            // Advanced gems (unlockable)
+            // Advanced gems (unlockable) - UPDATED SUCCESS RATES
             'red-burst': {
                 id: 'red-burst',
                 name: 'Burst Attack',
@@ -97,7 +97,7 @@ export default class GemManager {
                 value: 20,
                 cost: 3,
                 icon: '💥',
-                baseSuccess: 90,
+                baseSuccess: 15, // Changed from 90% to 15%
                 tooltip: 'Deal 20 damage to the enemy. Knight class bonus: 50% extra damage.'
             },
             'blue-shield': {
@@ -109,7 +109,7 @@ export default class GemManager {
                 cost: 2,
                 duration: 2,
                 icon: '🛡️',
-                baseSuccess: 90,
+                baseSuccess: 15, // Changed from 90% to 15%
                 tooltip: 'Gain 15 defense for 2 turns. Mage class bonus: 50% more defense.'
             },
             'green-poison': { // Changed to be an unlockable gem for rogue
@@ -121,7 +121,7 @@ export default class GemManager {
                 cost: 2,
                 icon: '☠️',
                 duration: 3,
-                baseSuccess: 90, // Changed to 90 to match other unlockables
+                baseSuccess: 15, // Changed from 90% to 15%
                 tooltip: 'Apply 4 poison damage per turn for 3 turns. Rogue class bonus: 50% extra poison damage.'
             },
         };
@@ -551,7 +551,8 @@ export default class GemManager {
                 success
             });
             
-            // Update gem proficiency on successful use
+            // Update gem proficiency ONLY on successful use
+            // This is the key change - we only increase proficiency if the gem succeeds
             if (success) {
                 this.updateGemProficiency(gem.id);
             }
@@ -572,10 +573,10 @@ export default class GemManager {
         const currentProficiency = meta.gemProficiency[gemId] || 
             this.gemDefinitions[gemId]?.baseSuccess || 0;
         
-        // Only update if not already mastered
-        if (currentProficiency < 100) {
-            // Increase proficiency by 15% (capped at 100%)
-            const newProficiency = Math.min(100, currentProficiency + 15);
+        // Only update if not already at max proficiency (now 70% instead of 100%)
+        if (currentProficiency < 70) {
+            // Increase proficiency by 15% (capped at 70%)
+            const newProficiency = Math.min(70, currentProficiency + 15);
             
             const updatedProficiency = {
                 ...meta.gemProficiency,
