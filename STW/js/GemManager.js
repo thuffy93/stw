@@ -158,7 +158,16 @@ export default class GemManager {
         
         // Listen for gem play events to update proficiency
         this.eventBus.on('gem:played', (gemData) => {
-            this.updateGemProficiency(gemData.id);
+            // IMPROVED FIX: Add more detailed debug logging to track success state
+            console.log(`Gem played: ${gemData.name} (${gemData.id}), Success: ${gemData.success}, Proficiency: ${gemData.proficiency}`);
+            
+            // Only update proficiency if gem was successful - carefully check the success property
+            if (gemData.success === true) {
+                console.log(`  → Updating proficiency for successful gem: ${gemData.id}`);
+                this.updateGemProficiency(gemData.id);
+            } else {
+                console.log(`  → NOT updating proficiency for failed gem: ${gemData.id}`);
+            }
         });
         
         // Listen for day end to reset the gem bag
@@ -284,7 +293,7 @@ export default class GemManager {
         // Note: We are NOT adding unlockable gems to the initial bag
         // They should only be obtained through upgrades
         
-        // Fill remaining spots with basic gems to reach the max bag size
+        // Fill remaining slots with basic gems to reach the max bag size
         const remainingSlots = maxGemBagSize - gemBag.length;
         
         // Get class-appropriate basic gem types - include all base types plus class-specific ones
@@ -543,19 +552,18 @@ export default class GemManager {
         
         // Process each gem effect and emit events
         selectedGems.forEach(gem => {
-            // Determine if gem succeeds based on proficiency
-            const success = Math.random() * 100 < gem.proficiency;
+            // IMPROVED: Ensure the success calculation is explicit and correctly logged
+            const successRoll = Math.random() * 100;
+            const success = successRoll < gem.proficiency;
             
+            console.log(`Gem ${gem.name} (${gem.id}) - Proficiency: ${gem.proficiency}, Roll: ${successRoll.toFixed(2)}, Success: ${success}`);
+            
+            // FIXED: Only emit gem:played event, don't update proficiency here
+            // Let the event handler in setupEventListeners handle the proficiency update
             this.eventBus.emit('gem:played', {
                 ...gem,
-                success
+                success: success  // Explicitly set the success property
             });
-            
-            // Update gem proficiency ONLY on successful use
-            // This is the key change - we only increase proficiency if the gem succeeds
-            if (success) {
-                this.updateGemProficiency(gem.id);
-            }
         });
         
         // Check if the gem bag is empty after playing gems
@@ -851,7 +859,6 @@ export default class GemManager {
         
         return newGem;
     }
-    
     // Helper method to create a random gem (extracted from existing method)
     createRandomGem(state) {
         // Determine gem color probability based on class
@@ -941,7 +948,6 @@ export default class GemManager {
         // Create the new gem
         return this.createGem(randomGemDef.id);
     }
-    
     // Get upgrade options for a gem
     getUpgradeOptions(gemInstanceId) {
         const state = this.stateManager.getState();

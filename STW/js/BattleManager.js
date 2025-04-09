@@ -701,13 +701,19 @@ export default class BattleManager {
     }
     
     // Execute enemy's turn
-    // Execute enemy's turn
     processEnemyTurn() {
         const state = this.stateManager.getState();
         const { battle, player } = state;
-        const { enemy } = battle;
         
         if (!battle.inProgress) {
+            return;
+        }
+        
+        // FIXED: Add null check for enemy
+        const { enemy } = battle;
+        if (!enemy) {
+            console.warn('Cannot process enemy turn: enemy is null');
+            this.processEndOfTurn(); // Skip to end of turn
             return;
         }
         
@@ -778,17 +784,21 @@ export default class BattleManager {
         
         // Determine next action
         const updatedEnemy = this.stateManager.getState().battle.enemy;
-        const nextAction = this.determineEnemyAction(updatedEnemy);
         
-        // Update enemy's next action
-        this.stateManager.updateState({
-            battle: {
-                enemy: {
-                    ...updatedEnemy,
-                    nextAction
+        // FIXED: Add null check before determining next action
+        if (updatedEnemy) {
+            const nextAction = this.determineEnemyAction(updatedEnemy);
+            
+            // Update enemy's next action
+            this.stateManager.updateState({
+                battle: {
+                    enemy: {
+                        ...updatedEnemy,
+                        nextAction
+                    }
                 }
-            }
-        });
+            });
+        }
         
         // End enemy turn after a short delay
         setTimeout(() => {
@@ -1259,6 +1269,12 @@ export default class BattleManager {
     
     // Determine enemy's next action
     determineEnemyAction(enemy) {
+        // FIXED: Add null check to prevent errors when enemy is null
+        if (!enemy) {
+            console.warn('Cannot determine action: enemy is null');
+            return 'attack'; // Default fallback action
+        }
+
         const availableActions = enemy.actions || ['attack'];
         
         // Simple AI logic
