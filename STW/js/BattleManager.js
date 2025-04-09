@@ -1,3 +1,4 @@
+// BattleManager.js - Handles battle mechanics and enemy AI
 export default class BattleManager {
     constructor(eventBus, stateManager, gemManager) {
         this.eventBus = eventBus;
@@ -165,7 +166,6 @@ export default class BattleManager {
         console.log(`Tracked ${amount} stamina used. Total this turn: ${currentStaminaUsed + amount}`);
     }
     
-    // Start a new battle
     // Start a new battle
     startBattle() {
         const state = this.stateManager.getState();
@@ -418,7 +418,7 @@ export default class BattleManager {
     processGemFailure(gem) {
         const state = this.stateManager.getState();
         const { player } = state;
-
+    
         // Default failure effects based on gem type
         switch(gem.type) {
             case 'attack':
@@ -443,6 +443,18 @@ export default class BattleManager {
                     amount: selfDamage,
                     source: 'gem-failure'
                 });
+                
+                // Display stun message
+                this.eventBus.emit('message:show', {
+                    text: 'Stunned! Turn skipped.',
+                    type: 'error'
+                });
+                
+                // Automatically end the turn after a short delay
+                setTimeout(() => {
+                    this.processEndOfTurn();
+                }, 1000);
+                
                 break;
                 
             case 'heal':
@@ -483,7 +495,7 @@ export default class BattleManager {
             default:
                 break;
         }
-
+    
         // Check for player defeat
         const updatedState = this.stateManager.getState();
         if (updatedState.player.health <= 0) {
@@ -491,7 +503,6 @@ export default class BattleManager {
         }
     }
     
-    // Process end of turn effects
     // Process end of turn effects
     processEndOfTurn() {
         const state = this.stateManager.getState();
@@ -528,11 +539,17 @@ export default class BattleManager {
                 // If player waited, discarded, or just ended turn, recover 3 stamina
                 staminaRecovery = 3;
             } else {
-                // Otherwise, calculate recovery (75% of used stamina, rounded to nearest integer)
-                staminaRecovery = Math.round(staminaUsed * 0.75);
-                
-                // Cap recovery at 3 stamina
-                staminaRecovery = Math.min(staminaRecovery, 3);
+                // Otherwise, calculate recovery based on the specific amount used
+                if (staminaUsed === 1) {
+                    // Recover 2 stamina if 1 was used
+                    staminaRecovery = 2;
+                } else if (staminaUsed === 2) {
+                    // Recover 1 stamina if 2 were used
+                    staminaRecovery = 1;
+                } else {
+                    // Recover 2 stamina if 3+ were used
+                    staminaRecovery = 2;
+                }
             }
             
             // Calculate new stamina value (don't exceed max)
