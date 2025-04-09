@@ -1,4 +1,3 @@
-// BattleManager.js - Handles battle mechanics and enemy AI
 export default class BattleManager {
     constructor(eventBus, stateManager, gemManager) {
         this.eventBus = eventBus;
@@ -145,8 +144,28 @@ export default class BattleManager {
         this.eventBus.on('battle:start', () => {
             this.startBattle();
         });
+        
+        // New event listener to track stamina used
+        this.eventBus.on('stamina:used', (amount) => {
+            this.trackStaminaUsed(amount);
+        });
     }
     
+    // New method to track stamina used during player's turn
+    trackStaminaUsed(amount) {
+        const state = this.stateManager.getState();
+        const currentStaminaUsed = state.battle.staminaUsed || 0;
+        
+        this.stateManager.updateState({
+            battle: {
+                staminaUsed: currentStaminaUsed + amount
+            }
+        });
+        
+        console.log(`Tracked ${amount} stamina used. Total this turn: ${currentStaminaUsed + amount}`);
+    }
+    
+    // Start a new battle
     // Start a new battle
     startBattle() {
         const state = this.stateManager.getState();
@@ -172,13 +191,14 @@ export default class BattleManager {
             return;
         }
         
-        // Initialize battle state
+        // Initialize battle state with staminaUsed tracker
         this.stateManager.updateState({
             battle: {
                 inProgress: true,
                 currentTurn: 'PLAYER',
                 enemy: enemy,
-                selectedGems: []
+                selectedGems: [],
+                staminaUsed: 0 // Initialize stamina tracking
             }
         });
         
@@ -472,6 +492,7 @@ export default class BattleManager {
     }
     
     // Process end of turn effects
+    // Process end of turn effects
     processEndOfTurn() {
         const state = this.stateManager.getState();
         const { battle, player } = state;
@@ -496,10 +517,36 @@ export default class BattleManager {
             // Process buffs and debuffs at end of round
             this.processStatusEffects();
             
-            // Refill player stamina
+            // MODIFIED: Changed stamina recovery system
+            // Instead of refilling to max, recover based on how much was used
+            const staminaUsed = battle.staminaUsed || 0;
+            
+            // For waiting, discarding, or just ending turn (staminaUsed = 0),
+            // provide maximum recovery of 3 stamina
+            let staminaRecovery;
+            if (staminaUsed === 0) {
+                // If player waited, discarded, or just ended turn, recover 3 stamina
+                staminaRecovery = 3;
+            } else {
+                // Otherwise, calculate recovery (75% of used stamina, rounded to nearest integer)
+                staminaRecovery = Math.round(staminaUsed * 0.75);
+                
+                // Cap recovery at 3 stamina
+                staminaRecovery = Math.min(staminaRecovery, 3);
+            }
+            
+            // Calculate new stamina value (don't exceed max)
+            const newStamina = Math.min(player.maxStamina, player.stamina + staminaRecovery);
+            
+            console.log(`Stamina recovery: ${staminaUsed} used, recovering ${staminaRecovery}. New stamina: ${newStamina}/${player.maxStamina}`);
+            
+            // Update player stamina
             this.stateManager.updateState({
                 player: {
-                    stamina: player.maxStamina
+                    stamina: newStamina
+                },
+                battle: {
+                    staminaUsed: 0 // Reset stamina used counter for next turn
                 }
             });
             
@@ -534,9 +581,7 @@ export default class BattleManager {
                 }, 1500);
             }
         }
-    }
-    
-    
+    }    
     
     // Process status effects at end of round
     processStatusEffects() {

@@ -538,6 +538,9 @@ export default class GemManager {
             }
         });
         
+        // Emit event to track stamina used
+        this.eventBus.emit('stamina:used', totalCost);
+        
         // Process each gem effect and emit events
         selectedGems.forEach(gem => {
             // Determine if gem succeeds based on proficiency
