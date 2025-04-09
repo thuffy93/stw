@@ -637,6 +637,34 @@ export default class UIManager {
         });
     }
     
+    // Generate tooltip for a gem
+    generateGemTooltip(gem) {
+        // Basic info always shown
+        const tooltipParts = [`${gem.name}: ${gem.value} ${gem.type}`];
+
+        // Proficiency info for not fully mastered gems
+        if (gem.proficiency < 70) {
+            tooltipParts.push(`Mastery: ${Math.floor(gem.proficiency)}%`);
+        }
+
+        // Special effects
+        if (gem.specialEffect) {
+            tooltipParts.push(`Special: ${
+                {
+                    'draw': 'Draw an extra gem',
+                    // Add more special effects as needed
+                }[gem.specialEffect] || gem.specialEffect
+            }`);
+        }
+
+        // Only show duration for buffs/debuffs
+        if (gem.duration) {
+            tooltipParts.push(`Duration: ${gem.duration} turns`);
+        }
+
+        return tooltipParts.join('\n');
+    }
+
     // Create a gem DOM element
     createGemElement(gem) {
         const gemElement = document.createElement('div');
@@ -680,15 +708,8 @@ export default class UIManager {
         costDiv.textContent = gem.cost;
         gemElement.appendChild(costDiv);
         
-        // Tooltip with additional info
-        let tooltipText = gem.tooltip || `${gem.name}: ${gem.value} ${gem.type}`;
-        
-        // Add proficiency to tooltip if not fully mastered
-        if (gem.proficiency < 70) {
-            tooltipText += `\nMastery: ${Math.floor(gem.proficiency)}%`;
-        }
-        
-        gemElement.setAttribute('data-tooltip', tooltipText);
+        // Generate tooltip
+        gemElement.setAttribute('data-tooltip', this.generateGemTooltip(gem));
         
         return gemElement;
     }
