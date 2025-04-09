@@ -154,6 +154,11 @@ class Game {
             this.eventBus.emit('turn:ended');
         });
         
+        // Connect stamina:used event to battleManager
+        this.eventBus.on('stamina:used', (amount) => {
+            this.battleManager.trackStaminaUsed(amount);
+        });
+        
         // Handle battle flee
         this.eventBus.on('battle:flee', () => {
             this.battleManager.fleeBattle();
@@ -196,7 +201,7 @@ class Game {
         this.eventBus.on('gem:played', (gem) => {
             this.audioManager.play(gem.success ? 'gemPlay' : 'gemFail');
         });
-        
+
         this.eventBus.on('gems:recycle', () => {
             this.gemManager.recycleAllGems();
         });

@@ -769,7 +769,12 @@ export default class UIManager {
     
     // Wait action (gains focus)
     waitAction() {
+        // When player waits, they should get 3 stamina recovery
+        // Track with special value 0 to indicate waiting/skipping
+        this.eventBus.emit('stamina:used', 0);
         this.eventBus.emit('player:wait');
+        
+        console.log("Player chose to wait (focus) - will recover 3 stamina");
     }
     
     // Discard selected gems and end turn
@@ -782,6 +787,12 @@ export default class UIManager {
         // Emit discard event
         this.eventBus.emit('gems:discard', this.selectedGems);
         
+        // When discarding, player should get 3 stamina recovery
+        // Track with special value 0 to indicate waiting/skipping
+        this.eventBus.emit('stamina:used', 0);
+        
+        console.log("Player discarded gems and ended turn - will recover 3 stamina");
+        
         // Clear selection and end turn
         this.selectedGems = [];
         this.endTurn();
@@ -789,6 +800,21 @@ export default class UIManager {
     
     // End player turn
     endTurn() {
+        // If player directly ends turn without playing gems,
+        // track with special value 0 to get the 3 stamina recovery
+        const state = this.stateManager.getState();
+        const battle = state.battle;
+        
+        // Only emit if this is actually the player's turn
+        if (battle && battle.currentTurn === 'PLAYER') {
+            // Only emit if we haven't already tracked stamina usage this turn
+            // This prevents double-counting when called from discardAndEndTurn or waitAction
+            if (!battle.staminaUsed || battle.staminaUsed === 0) {
+                this.eventBus.emit('stamina:used', 0);
+                console.log("Player directly ended turn - will recover 3 stamina");
+            }
+        }
+        
         this.eventBus.emit('turn:ended');
     }
     
