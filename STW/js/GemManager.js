@@ -124,6 +124,7 @@ export default class GemManager {
                 baseSuccess: 15, // Changed from 90% to 15%
                 tooltip: 'Apply 4 poison damage per turn for 3 turns. Rogue class bonus: 50% extra poison damage.'
             },
+            
         };
         
         // Set up event listeners
