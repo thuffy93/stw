@@ -520,7 +520,7 @@ export default class GemManager {
         
         // Calculate total stamina cost
         const totalCost = selectedGems.reduce((sum, gem) => sum + gem.cost, 0);
-        
+
         // Check if enough stamina
         if (totalCost > playerStamina) {
             this.eventBus.emit('message:show', {
@@ -761,6 +761,12 @@ export default class GemManager {
     upgradeGem(gemInstanceId, newGemId) {
         const state = this.stateManager.getState();
         
+        // Add validation for undefined gemInstanceId
+        if (!gemInstanceId) {
+            console.error('Cannot upgrade gem: gemInstanceId is undefined');
+            return null;
+        }
+        
         // Since we're only upgrading from the hand in the shop, only look in hand
         const handGems = state.gems.hand;
         
@@ -775,149 +781,51 @@ export default class GemManager {
         // Get the original gem for reference
         const originalGem = handGems[gemIndex];
         
-        // Handle specialized variants with dynamic IDs
-        if (newGemId.includes('-efficient') || 
-            newGemId.includes('-powerful') || 
-            newGemId.includes('-piercing') || 
-            newGemId.includes('-regen') || 
-            newGemId.includes('-reflect') || 
-            newGemId.includes('-spread') || 
-            newGemId.includes('-drawing')) {
-            
-            // Extract the base gem ID and variant type
-            const baseGemId = newGemId.split('-')[0] + '-' + newGemId.split('-')[1];
-            const variantType = newGemId.split('-')[2]; // efficient, powerful, etc.
-            
-            // Get the base gem definition
-            const baseGemDef = this.gemDefinitions[baseGemId];
-            
-            if (!baseGemDef) {
-                console.error(`Base gem not found for variant: ${baseGemId}`);
-                return null;
-            }
-            
-            // Create a new gem instance with modified properties based on variant
-            let newGem = {
-                ...baseGemDef,
-                id: newGemId,
-                instanceId: `${newGemId}-${Date.now()}-${Math.floor(Math.random() * 1000)}`
-            };
-            
-            // Apply variant-specific modifications
-            switch(variantType) {
-                case 'efficient':
-                    newGem.name = `Efficient ${baseGemDef.name}`;
-                    newGem.cost = Math.max(1, baseGemDef.cost - 1);
-                    break;
-                    
-                case 'powerful':
-                    newGem.name = `Powerful ${baseGemDef.name}`;
-                    newGem.value = Math.floor(baseGemDef.value * 1.75);
-                    newGem.cost = baseGemDef.cost + 1;
-                    break;
-                    
-                case 'piercing':
-                    newGem.name = `Piercing ${baseGemDef.name}`;
-                    newGem.specialEffect = 'pierce';
-                    break;
-                    
-                case 'regen':
-                    newGem.name = `Regenerative ${baseGemDef.name}`;
-                    newGem.value = Math.floor(baseGemDef.value * 0.8);
-                    newGem.specialEffect = 'regen';
-                    newGem.duration = 2;
-                    break;
-                    
-                case 'reflect':
-                    newGem.name = `Reflective ${baseGemDef.name}`;
-                    newGem.value = Math.floor(baseGemDef.value * 0.8);
-                    newGem.specialEffect = 'reflect';
-                    break;
-                    
-                case 'spread':
-                    newGem.name = `Spreading ${baseGemDef.name}`;
-                    newGem.specialEffect = 'spread';
-                    break;
-                    
-                case 'drawing':
-                    newGem.name = `Drawing ${baseGemDef.name}`;
-                    newGem.specialEffect = 'draw';
-                    break;
-                    
-                default:
-                    // For unknown variants, just use the original properties
-                    newGem.name = `Enhanced ${baseGemDef.name}`;
-            }
-            
-            // Replace in hand
-            const newHand = [...handGems];
-            newHand[gemIndex] = newGem;
-            
-            // Update state, only changing the hand
-            this.stateManager.updateState({
-                gems: {
-                    hand: newHand,
-                    bag: state.gems.bag,
-                    discarded: state.gems.discarded,
-                    played: state.gems.played
-                }
-            });
-            
-            // Emit event
-            this.eventBus.emit('gem:upgraded', {
-                oldGem: originalGem,
-                newGem
-            });
-            
-            // Show success message
-            this.eventBus.emit('message:show', {
-                text: `Upgraded ${originalGem.name} to ${newGem.name}!`,
-                type: 'success'
-            });
-            
-            return newGem;
-        } 
-        // Handle direct upgrades (already in gemDefinitions) or standard upgrades
-        else {
-            // Create new gem using existing definition
-            const newGem = this.createGem(newGemId);
-            
-            if (!newGem) {
-                console.error(`Failed to create new gem: ${newGemId}`);
-                return null;
-            }
-            
-            console.log(`Upgrading gem ${originalGem.name} (${gemInstanceId}) to ${newGem.name} (${newGemId})`);
-            
-            // Replace in hand
-            const newHand = [...handGems];
-            newHand[gemIndex] = newGem;
-            
-            // Update state, only changing the hand
-            this.stateManager.updateState({
-                gems: {
-                    hand: newHand,
-                    bag: state.gems.bag,
-                    discarded: state.gems.discarded,
-                    played: state.gems.played
-                }
-            });
-            
-            // Emit event
-            this.eventBus.emit('gem:upgraded', {
-                oldGem: originalGem,
-                newGem
-            });
-            
-            // Show success message
-            this.eventBus.emit('message:show', {
-                text: `Upgraded ${originalGem.name} to ${newGem.name}!`,
-                type: 'success'
-            });
-            
-            return newGem;
+        // Validate newGemId
+        if (!newGemId) {
+            console.error('Cannot upgrade gem: newGemId is undefined');
+            return null;
         }
+        
+        // Create new gem
+        const newGem = this.createGem(newGemId);
+        
+        if (!newGem) {
+            console.error(`Failed to create new gem: ${newGemId}`);
+            return null;
+        }
+        
+        console.log(`Upgrading gem ${originalGem.name} (${gemInstanceId}) to ${newGem.name} (${newGemId})`);
+        
+        // Replace in hand
+        const newHand = [...handGems];
+        newHand[gemIndex] = newGem;
+        
+        // Update state, only changing the hand
+        this.stateManager.updateState({
+            gems: {
+                hand: newHand,
+                bag: state.gems.bag,
+                discarded: state.gems.discarded,
+                played: state.gems.played
+            }
+        });
+        
+        // Emit event
+        this.eventBus.emit('gem:upgraded', {
+            oldGem: originalGem,
+            newGem
+        });
+        
+        // Show success message
+        this.eventBus.emit('message:show', {
+            text: `Upgraded ${originalGem.name} to ${newGem.name}!`,
+            type: 'success'
+        });
+        
+        return newGem;
     }
+    
     
     // Add a random gem to bag (shop purchase)
     addRandomGem() {

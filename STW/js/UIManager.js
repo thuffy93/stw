@@ -1298,6 +1298,16 @@ export default class UIManager {
     
     // Select an upgrade option
     selectUpgrade(gemInstanceId, upgradeGemId) {
+        // Add validation
+        if (!gemInstanceId || !upgradeGemId) {
+            console.error(`Invalid upgrade parameters: gemInstanceId=${gemInstanceId}, upgradeGemId=${upgradeGemId}`);
+            this.eventBus.emit('message:show', {
+                text: 'Cannot process upgrade: Invalid gem selection',
+                type: 'error'
+            });
+            return;
+        }
+        
         console.log(`Selecting upgrade: ${gemInstanceId} -> ${upgradeGemId}`);
         
         // Handle direct upgrades specially (they have a custom ID format with "-upgraded")

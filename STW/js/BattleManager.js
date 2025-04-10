@@ -420,12 +420,26 @@ export default class BattleManager {
         });
     }
     
+    // Clean version of trackStaminaUsed without debugging code
     trackStaminaUsed(amount) {
-        // Existing code...
-        // No changes needed here
         const state = this.stateManager.getState();
         const currentStaminaUsed = state.battle.staminaUsed || 0;
         
+        // Simple debounce mechanism to prevent double-tracking
+        const now = Date.now();
+        const lastTrackedTime = this._lastStaminaTrackedTime || 0;
+        const lastTrackedAmount = this._lastStaminaAmount || 0;
+        
+        // If the same amount is being tracked within 100ms, it's likely a duplicate
+        if (amount === lastTrackedAmount && (now - lastTrackedTime) < 100) {
+            return; // Skip duplicate tracking
+        }
+        
+        // Store tracking information for debounce checking
+        this._lastStaminaTrackedTime = now;
+        this._lastStaminaAmount = amount;
+        
+        // Update the state
         this.stateManager.updateState({
             battle: {
                 staminaUsed: currentStaminaUsed + amount
@@ -1027,7 +1041,9 @@ export default class BattleManager {
             this.endBattle(false);
         }
     }
-    // Process end of turn effects
+    // This is the updated processEndOfTurn method for BattleManager.js
+    // with the new consistent stamina recovery system
+
     processEndOfTurn() {
         const state = this.stateManager.getState();
         const { battle, player } = state;
@@ -1052,40 +1068,37 @@ export default class BattleManager {
             // FIXED: Process active status effects only, don't reduce durations yet
             this.processStatusEffects();
             
-            // Calculate stamina recovery based on how much was used
             const staminaUsed = battle.staminaUsed || 0;
-            
-            // For waiting, discarding, or just ending turn (staminaUsed = 0),
-            // provide maximum recovery of 3 stamina
+
+            // Debug output to verify the value of staminaUsed
+            console.log(`DEBUG: Stamina actually used this turn: ${staminaUsed}`);
+
+            // New formula with specific handling for case of 2 stamina used
             let staminaRecovery;
-            if (staminaUsed === 0) {
-                // If player waited, discarded, or just ended turn, recover 3 stamina
-                staminaRecovery = 3;
+            if (staminaUsed === 2) {
+                // Explicit handling for 2 stamina used to ensure it recovers 2
+                staminaRecovery = 2;
+                console.log("DEBUG: Using exactly 2 stamina - explicitly setting recovery to 2");
             } else {
-                // Otherwise, calculate recovery based on the specific amount used
-                if (staminaUsed === 1) {
-                    // Recover 2 stamina if 1 was used
-                    staminaRecovery = 2;
-                } else if (staminaUsed === 2) {
-                    // Recover 1 stamina if 2 were used
-                    staminaRecovery = 1;
-                } else {
-                    // Recover 2 stamina if 3+ were used
-                    staminaRecovery = 2;
-                }
+                // Normal formula for other cases
+                staminaRecovery = Math.max(1, 3 - Math.ceil(staminaUsed / 2));
+                
+                // Verify the formula calculation
+                console.log(`DEBUG: Formula calculation: 3 - Math.floor(${staminaUsed} / 2) = ${3 - Math.floor(staminaUsed / 2)}`);
             }
-            
-            // Apply web debuff effect (new enemy ability)
+
+            // Apply web debuff effect (if present)
             if (player.buffs && player.buffs.some(buff => buff.type === 'webbed')) {
+                const oldRecovery = staminaRecovery;
                 staminaRecovery = Math.max(1, Math.floor(staminaRecovery / 2));
-                console.log(`Spider web reduced stamina recovery to ${staminaRecovery}`);
+                console.log(`DEBUG: Spider web reduced stamina recovery from ${oldRecovery} to ${staminaRecovery}`);
             }
-            
+
             // Calculate new stamina value (don't exceed max)
             const newStamina = Math.min(player.maxStamina, player.stamina + staminaRecovery);
-            
+
             console.log(`Stamina recovery: ${staminaUsed} used, recovering ${staminaRecovery}. New stamina: ${newStamina}/${player.maxStamina}`);
-            
+
             // Update player stamina
             this.stateManager.updateState({
                 player: {

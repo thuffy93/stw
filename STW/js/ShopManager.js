@@ -212,11 +212,19 @@ export default class ShopManager {
     }
     
     // Upgrade a gem in the shop
-    upgradeGem(data) {
-        const gemInstanceId = data.gemInstanceId;
-        const newGemId = data.newGemId;
+    upgradeGem(gemInstanceId, newGemId) {
         const state = this.stateManager.getState();
         const { player } = state;
+        
+        // Add validation for missing parameters
+        if (!gemInstanceId || !newGemId) {
+            console.error(`Invalid upgrade parameters: gemInstanceId=${gemInstanceId}, newGemId=${newGemId}`);
+            this.eventBus.emit('message:show', {
+                text: 'Cannot process upgrade: Missing gem information',
+                type: 'error'
+            });
+            return false;
+        }
         
         // Check if player has enough zenny
         if (player.zenny < this.costs.upgradeGem) {
@@ -227,7 +235,7 @@ export default class ShopManager {
             return false;
         }
         
-        // Try to upgrade the gem - send both IDs to the gem manager
+        // Try to upgrade the gem
         const newGem = this.gemManager.upgradeGem(gemInstanceId, newGemId);
         
         if (!newGem) {
@@ -251,7 +259,7 @@ export default class ShopManager {
         });
         
         return true;
-    }
+    }    
     
     // Heal the player
     healPlayer() {
@@ -308,7 +316,7 @@ export default class ShopManager {
         const hand = state.gems.hand;
         
         // Validation
-        if (!state.inUpgradeMode || selectedGems.size !== 1) {
+        if (!state.inUpgradeMode || !selectedGems || selectedGems.size !== 1) {
             this.eventBus.emit('message:show', {
                 text: 'Please select a gem first',
                 type: 'error'
@@ -316,7 +324,7 @@ export default class ShopManager {
             return;
         }
         
-        if (poolIndex < 0 || !gemCatalog.gemPool || poolIndex >= gemCatalog.gemPool.length) {
+        if (poolIndex < 0 || !gemCatalog || !gemCatalog.gemPool || poolIndex >= gemCatalog.gemPool.length) {
             this.eventBus.emit('message:show', {
                 text: 'Invalid upgrade option',
                 type: 'error'
@@ -328,7 +336,7 @@ export default class ShopManager {
         const selectedIndex = Array.from(selectedGems)[0];
         
         // Validate index is in range of hand
-        if (selectedIndex < 0 || selectedIndex >= hand.length) {
+        if (selectedIndex < 0 || !hand || selectedIndex >= hand.length) {
             this.eventBus.emit('message:show', {
                 text: 'Invalid gem selection',
                 type: 'error'
@@ -337,8 +345,15 @@ export default class ShopManager {
         }
         
         const selectedGem = hand[selectedIndex];
-        const upgradeOption = gemCatalog.gemPool[poolIndex];
+        if (!selectedGem) {
+            this.eventBus.emit('message:show', {
+                text: 'Selected gem not found',
+                type: 'error'
+            });
+            return;
+        }
         
+        const upgradeOption = gemCatalog.gemPool[poolIndex];
         if (!upgradeOption) {
             this.eventBus.emit('message:show', {
                 text: 'Upgrade option not available',
