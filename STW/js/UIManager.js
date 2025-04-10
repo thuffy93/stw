@@ -360,27 +360,27 @@ export default class UIManager {
         // Set class-specific starting values
         switch(classType) {
             case 'knight':
-                playerStats.health = 40;
-                playerStats.maxHealth = 40;
-                playerStats.stamina = 3;
-                playerStats.maxStamina = 3;
-                playerStats.zenny = 5;
+                playerStats.health = 50;             // Increased from 40
+                playerStats.maxHealth = 50;          // Increased from 40
+                playerStats.stamina = 3;             // Same
+                playerStats.maxStamina = 3;          // Same
+                playerStats.zenny = 0;               // Same
                 break;
                 
             case 'mage':
-                playerStats.health = 30;
-                playerStats.maxHealth = 30;
-                playerStats.stamina = 4;
-                playerStats.maxStamina = 4;
-                playerStats.zenny = 5;
+                playerStats.health = 30;             // Same
+                playerStats.maxHealth = 30;          // Same
+                playerStats.stamina = 5;             // Increased from 4
+                playerStats.maxStamina = 5;          // Increased from 4
+                playerStats.zenny = 0;               // Same
                 break;
                 
             case 'rogue':
-                playerStats.health = 35;
-                playerStats.maxHealth = 35;
-                playerStats.stamina = 3;
-                playerStats.maxStamina = 3;
-                playerStats.zenny = 8; // Starts with extra currency
+                playerStats.health = 40;             // Increased from 35
+                playerStats.maxHealth = 40;          // Increased from 35
+                playerStats.stamina = 4;             // Increased from 3
+                playerStats.maxStamina = 4;          // Increased from 3
+                playerStats.zenny = 0;               // Same, already higher than others
                 break;
                 
             default:
@@ -708,8 +708,12 @@ export default class UIManager {
         costDiv.textContent = gem.cost;
         gemElement.appendChild(costDiv);
         
-        // Generate tooltip
-        gemElement.setAttribute('data-tooltip', this.generateGemTooltip(gem));
+        // Only add tooltips for the Gem Catalog UI, not the Battle UI
+        const currentScreen = this.stateManager.getState().currentScreen;
+        if (currentScreen === 'gem-catalog-screen' || currentScreen === 'shop-screen') {
+            // Generate tooltip
+            gemElement.setAttribute('data-tooltip', this.generateGemTooltip(gem));
+        }
         
         return gemElement;
     }
@@ -896,6 +900,9 @@ export default class UIManager {
         this.elements.shopGemBagCount.textContent = gems.bag.length;
         const currentBagSize = state.gemBagSize || 30;
         this.elements.shopGemBagTotal.textContent = currentBagSize;
+        
+        // NEW: Get and render shop inventory
+        this.renderShopInventory();
     }
     
     // Update shop UI
@@ -921,7 +928,125 @@ export default class UIManager {
         // Update button states
         this.updateShopButtons();
     }
-    
+    // Render shop inventory
+    renderShopInventory() {
+        // First, check if the shop inventory section exists
+        let shopInventorySection = document.getElementById('shop-inventory-section');
+        
+        // If it doesn't exist, create it
+        if (!shopInventorySection) {
+            // Create a new section for shop inventory
+            shopInventorySection = document.createElement('div');
+            shopInventorySection.id = 'shop-inventory-section';
+            shopInventorySection.className = 'shop-section';
+            shopInventorySection.style.marginTop = '20px';
+            
+            // Add a header
+            const header = document.createElement('h2');
+            header.textContent = 'Gems For Sale';
+            shopInventorySection.appendChild(header);
+            
+            // Create container for inventory items
+            const inventoryContainer = document.createElement('div');
+            inventoryContainer.id = 'shop-inventory-container';
+            inventoryContainer.className = 'gem-container';
+            inventoryContainer.style.display = 'flex';
+            inventoryContainer.style.flexWrap = 'wrap';
+            inventoryContainer.style.justifyContent = 'center';
+            inventoryContainer.style.gap = '15px';
+            inventoryContainer.style.margin = '10px 0';
+            
+            shopInventorySection.appendChild(inventoryContainer);
+            
+            // Insert the new section before the continue button
+            const shopSelections = document.getElementById('shop-selections');
+            const continueBtn = document.getElementById('continue-btn');
+            
+            if (shopSelections && continueBtn) {
+                shopSelections.insertBefore(shopInventorySection, continueBtn);
+            } else {
+                // Fallback
+                if (shopSelections) {
+                    shopSelections.appendChild(shopInventorySection);
+                }
+            }
+        }
+        
+        // Now get the inventory container
+        const inventoryContainer = document.getElementById('shop-inventory-container');
+        
+        if (!inventoryContainer) {
+            console.error('Shop inventory container not found');
+            return;
+        }
+        
+        // Clear existing content
+        inventoryContainer.innerHTML = '';
+        
+        // Get inventory from shop manager
+        this.eventBus.emit('shop:get-inventory', (inventory) => {
+            if (!inventory || inventory.length === 0) {
+                // Show a message if inventory is empty
+                const emptyMsg = document.createElement('div');
+                emptyMsg.textContent = 'No gems available for purchase';
+                emptyMsg.style.padding = '10px';
+                emptyMsg.style.fontStyle = 'italic';
+                inventoryContainer.appendChild(emptyMsg);
+                return;
+            }
+            
+            // Render each gem in the inventory
+            inventory.forEach((gem, index) => {
+                const gemContainer = document.createElement('div');
+                gemContainer.className = 'gem-purchase-container';
+                gemContainer.style.display = 'flex';
+                gemContainer.style.flexDirection = 'column';
+                gemContainer.style.alignItems = 'center';
+                gemContainer.style.margin = '10px';
+                
+                // Create gem element
+                const gemElement = this.createGemElement(gem);
+                gemContainer.appendChild(gemElement);
+                
+                // Add price label
+                const priceLabel = document.createElement('div');
+                priceLabel.className = 'gem-price-label';
+                priceLabel.textContent = `${gem.price} $ZENNY`;
+                priceLabel.style.marginTop = '5px';
+                priceLabel.style.padding = '2px 8px';
+                priceLabel.style.backgroundColor = '#333';
+                priceLabel.style.color = 'white';
+                priceLabel.style.borderRadius = '10px';
+                priceLabel.style.fontSize = '0.8em';
+                gemContainer.appendChild(priceLabel);
+                
+                // Add buy button
+                const buyButton = document.createElement('button');
+                buyButton.textContent = 'Buy';
+                buyButton.style.marginTop = '5px';
+                buyButton.className = 'btn-buy';
+                buyButton.style.padding = '4px 12px';
+                
+                // Disable if not enough zenny
+                const playerZenny = parseInt(this.elements.shopZenny.textContent);
+                if (playerZenny < gem.price) {
+                    buyButton.disabled = true;
+                }
+                
+                // Add click handler
+                buyButton.addEventListener('click', () => {
+                    this.eventBus.emit('shop:purchase-inventory-gem', index);
+                    // Refresh the UI after purchase
+                    setTimeout(() => this.updateShopUI(), 100);
+                });
+                
+                gemContainer.appendChild(buyButton);
+                
+                // Add to the container
+                inventoryContainer.appendChild(gemContainer);
+            });
+        });
+    }
     // Render gems in shop hand
     renderShopHand() {
         const state = this.stateManager.getState();
@@ -1092,6 +1217,18 @@ export default class UIManager {
                             typeLabel.textContent = 'Enhanced';
                             typeLabel.style.color = '#f39c12'; // Orange
                             break;
+                        case 'efficient':
+                            typeLabel.textContent = 'Efficient';
+                            typeLabel.style.color = '#3498db'; // Blue
+                            break;
+                        case 'powerful':
+                            typeLabel.textContent = 'Powerful';
+                            typeLabel.style.color = '#e74c3c'; // Red
+                            break;
+                        case 'special':
+                            typeLabel.textContent = 'Special';
+                            typeLabel.style.color = '#9b59b6'; // Purple
+                            break;
                         case 'class':
                             typeLabel.textContent = 'Class Specific';
                             typeLabel.style.color = '#2ecc71'; // Green
@@ -1114,9 +1251,18 @@ export default class UIManager {
                     wrapper.appendChild(upgradeElement);
                     wrapper.appendChild(typeLabel);
                     
+                    // Store the gem instance ID as a data attribute on the wrapper
+                    wrapper.setAttribute('data-original-gem-id', gemInstanceId);
+                    
                     // Add click handler to select this upgrade
                     wrapper.addEventListener('click', () => {
-                        this.selectUpgrade(gemInstanceId, upgradeGem.id);
+                        // Make sure we have the original gem ID when clicking
+                        const originalGemId = wrapper.getAttribute('data-original-gem-id');
+                        if (originalGemId) {
+                            this.selectUpgrade(originalGemId, upgradeGem.id);
+                        } else {
+                            console.error('Missing original gem ID for upgrade');
+                        }
                     });
                     
                     upgradesContainer.appendChild(wrapper);

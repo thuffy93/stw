@@ -12,19 +12,19 @@ export default class GemManager {
                 name: 'Red Attack',
                 color: 'red',
                 type: 'attack',
-                value: 10, // Damage amount
-                cost: 2, // Stamina cost updated to 2
+                value: 12, // Increased from 10 - Knight's specialty is damage
+                cost: 2,
                 icon: '🗡️',
                 baseSuccess: 100, // Base gems start fully mastered
-                tooltip: 'Deal 10 damage to the enemy. Knight class bonus: 50% extra damage.'
+                tooltip: 'Deal 12 damage to the enemy. Knight class bonus: 50% extra damage.'
             },
             'blue-magic': {
                 id: 'blue-magic',
                 name: 'Blue Magic',
                 color: 'blue',
                 type: 'attack',
-                value: 10,
-                cost: 2, // Stamina cost updated to 2
+                value: 10, // Same
+                cost: 2,
                 icon: '✨',
                 baseSuccess: 100,
                 tooltip: 'Deal 10 magic damage to the enemy. Mage class bonus: 50% extra damage.'
@@ -34,22 +34,22 @@ export default class GemManager {
                 name: 'Green Attack',
                 color: 'green',
                 type: 'attack',
-                value: 8,
-                cost: 1,
+                value: 8, // Same
+                cost: 1, // Low cost is Rogue's advantage
                 icon: '🗡️',
                 baseSuccess: 100,
-                tooltip: 'Deal 8 damage to the enemy. Rogue class bonus: 50% extra damage.'
+                tooltip: 'Deal 8 damage to the enemy. Costs only 1 stamina. Rogue class bonus: 50% extra damage.'
             },
             'grey-heal': {
                 id: 'grey-heal',
                 name: 'Heal',
                 color: 'grey',
                 type: 'heal',
-                value: 8,
+                value: 10, // Increased from 8 - make healing more viable
                 cost: 1,
                 icon: '💚',
                 baseSuccess: 100,
-                tooltip: 'Heal 8 health points.'
+                tooltip: 'Heal 10 health points.'
             },
             
             // Class-specific starting gems
@@ -58,73 +58,72 @@ export default class GemManager {
                 name: 'Strong Attack',
                 color: 'red',
                 type: 'attack',
-                value: 15,
+                value: 18, // Increased from 15 - Knight's powerful attack
                 cost: 2,
                 icon: '⚔️',
                 baseSuccess: 100,
-                tooltip: 'Deal 15 damage to the enemy. Knight class bonus: 50% extra damage.'
+                tooltip: 'Deal 18 damage to the enemy. Knight class bonus: 50% extra damage.'
             },
             'blue-strong-heal': {
                 id: 'blue-strong-heal',
                 name: 'Strong Heal',
                 color: 'blue',
                 type: 'heal',
-                value: 12,
+                value: 15, // Increased from 12 - Mage specializes in healing
                 cost: 2,
                 icon: '❤️',
                 baseSuccess: 100,
-                tooltip: 'Heal 12 health points. Mage class bonus: 50% more healing.'
+                tooltip: 'Heal 15 health points. Mage class bonus: 50% more healing.'
             },
             'green-quick': {
                 id: 'green-quick',
                 name: 'Quick Attack',
                 color: 'green',
                 type: 'attack',
-                value: 8,
+                value: 8, // Same
                 cost: 1,
                 icon: '🏃',
                 baseSuccess: 100,
-                specialEffect: 'draw',
+                specialEffect: 'draw', // Rogue specializes in utility/combos
                 tooltip: 'Deal 8 damage and draw a gem. Rogue class bonus: 50% extra damage.'
             },
             
-            // Advanced gems (unlockable) - UPDATED SUCCESS RATES
+            // Advanced gems (unlockable)
             'red-burst': {
                 id: 'red-burst',
                 name: 'Burst Attack',
                 color: 'red',
                 type: 'attack',
-                value: 20,
+                value: 25, // Increased from 20 - high risk, high reward
                 cost: 3,
                 icon: '💥',
-                baseSuccess: 15, // Changed from 90% to 15%
-                tooltip: 'Deal 20 damage to the enemy. Knight class bonus: 50% extra damage.'
+                baseSuccess: 20, // Slightly increased from 15% but still risky
+                tooltip: 'Deal 25 damage to the enemy. Knight class bonus: 50% extra damage. High risk, high reward!'
             },
             'blue-shield': {
                 id: 'blue-shield',
                 name: 'Shield',
                 color: 'blue',
                 type: 'shield',
-                value: 15,
+                value: 20, // Increased from 15 - better defensive capabilities
                 cost: 2,
                 duration: 2,
                 icon: '🛡️',
-                baseSuccess: 15, // Changed from 90% to 15%
-                tooltip: 'Gain 15 defense for 2 turns. Mage class bonus: 50% more defense.'
+                baseSuccess: 20, // Slightly increased from 15%
+                tooltip: 'Gain 20 defense for 2 turns. Mage class bonus: 50% more defense.'
             },
-            'green-poison': { // Changed to be an unlockable gem for rogue
+            'green-poison': {
                 id: 'green-poison',
                 name: 'Poison',
                 color: 'green',
                 type: 'poison',
-                value: 4,
+                value: 5, // Increased from 4 - better DoT
                 cost: 2,
                 icon: '☠️',
                 duration: 3,
-                baseSuccess: 15, // Changed from 90% to 15%
-                tooltip: 'Apply 4 poison damage per turn for 3 turns. Rogue class bonus: 50% extra poison damage.'
+                baseSuccess: 20, // Slightly increased from 15%
+                tooltip: 'Apply 5 poison damage per turn for 3 turns. Rogue class bonus: 50% extra poison damage.'
             },
-            
         };
         
         // Set up event listeners
@@ -776,46 +775,148 @@ export default class GemManager {
         // Get the original gem for reference
         const originalGem = handGems[gemIndex];
         
-        // Create new gem
-        const newGem = this.createGem(newGemId);
-        
-        if (!newGem) {
-            console.error(`Failed to create new gem: ${newGemId}`);
-            return null;
-        }
-        
-        console.log(`Upgrading gem ${originalGem.name} (${gemInstanceId}) to ${newGem.name} (${newGemId})`);
-        
-        // Replace in hand
-        const newHand = [...handGems];
-        newHand[gemIndex] = newGem;
-        
-        // Update state, only changing the hand
-        this.stateManager.updateState({
-            gems: {
-                hand: newHand,
-                bag: state.gems.bag,
-                discarded: state.gems.discarded,
-                played: state.gems.played
+        // Handle specialized variants with dynamic IDs
+        if (newGemId.includes('-efficient') || 
+            newGemId.includes('-powerful') || 
+            newGemId.includes('-piercing') || 
+            newGemId.includes('-regen') || 
+            newGemId.includes('-reflect') || 
+            newGemId.includes('-spread') || 
+            newGemId.includes('-drawing')) {
+            
+            // Extract the base gem ID and variant type
+            const baseGemId = newGemId.split('-')[0] + '-' + newGemId.split('-')[1];
+            const variantType = newGemId.split('-')[2]; // efficient, powerful, etc.
+            
+            // Get the base gem definition
+            const baseGemDef = this.gemDefinitions[baseGemId];
+            
+            if (!baseGemDef) {
+                console.error(`Base gem not found for variant: ${baseGemId}`);
+                return null;
             }
-        });
-        
-        // Fixed: Don't deduct cost here - let ShopManager handle it
-        // ShopManager already deducts the cost after calling this method
-        
-        // Emit event
-        this.eventBus.emit('gem:upgraded', {
-            oldGem: originalGem,
-            newGem
-        });
-        
-        // Show success message
-        this.eventBus.emit('message:show', {
-            text: `Upgraded ${originalGem.name} to ${newGem.name}!`,
-            type: 'success'
-        });
-        
-        return newGem;
+            
+            // Create a new gem instance with modified properties based on variant
+            let newGem = {
+                ...baseGemDef,
+                id: newGemId,
+                instanceId: `${newGemId}-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+            };
+            
+            // Apply variant-specific modifications
+            switch(variantType) {
+                case 'efficient':
+                    newGem.name = `Efficient ${baseGemDef.name}`;
+                    newGem.cost = Math.max(1, baseGemDef.cost - 1);
+                    break;
+                    
+                case 'powerful':
+                    newGem.name = `Powerful ${baseGemDef.name}`;
+                    newGem.value = Math.floor(baseGemDef.value * 1.75);
+                    newGem.cost = baseGemDef.cost + 1;
+                    break;
+                    
+                case 'piercing':
+                    newGem.name = `Piercing ${baseGemDef.name}`;
+                    newGem.specialEffect = 'pierce';
+                    break;
+                    
+                case 'regen':
+                    newGem.name = `Regenerative ${baseGemDef.name}`;
+                    newGem.value = Math.floor(baseGemDef.value * 0.8);
+                    newGem.specialEffect = 'regen';
+                    newGem.duration = 2;
+                    break;
+                    
+                case 'reflect':
+                    newGem.name = `Reflective ${baseGemDef.name}`;
+                    newGem.value = Math.floor(baseGemDef.value * 0.8);
+                    newGem.specialEffect = 'reflect';
+                    break;
+                    
+                case 'spread':
+                    newGem.name = `Spreading ${baseGemDef.name}`;
+                    newGem.specialEffect = 'spread';
+                    break;
+                    
+                case 'drawing':
+                    newGem.name = `Drawing ${baseGemDef.name}`;
+                    newGem.specialEffect = 'draw';
+                    break;
+                    
+                default:
+                    // For unknown variants, just use the original properties
+                    newGem.name = `Enhanced ${baseGemDef.name}`;
+            }
+            
+            // Replace in hand
+            const newHand = [...handGems];
+            newHand[gemIndex] = newGem;
+            
+            // Update state, only changing the hand
+            this.stateManager.updateState({
+                gems: {
+                    hand: newHand,
+                    bag: state.gems.bag,
+                    discarded: state.gems.discarded,
+                    played: state.gems.played
+                }
+            });
+            
+            // Emit event
+            this.eventBus.emit('gem:upgraded', {
+                oldGem: originalGem,
+                newGem
+            });
+            
+            // Show success message
+            this.eventBus.emit('message:show', {
+                text: `Upgraded ${originalGem.name} to ${newGem.name}!`,
+                type: 'success'
+            });
+            
+            return newGem;
+        } 
+        // Handle direct upgrades (already in gemDefinitions) or standard upgrades
+        else {
+            // Create new gem using existing definition
+            const newGem = this.createGem(newGemId);
+            
+            if (!newGem) {
+                console.error(`Failed to create new gem: ${newGemId}`);
+                return null;
+            }
+            
+            console.log(`Upgrading gem ${originalGem.name} (${gemInstanceId}) to ${newGem.name} (${newGemId})`);
+            
+            // Replace in hand
+            const newHand = [...handGems];
+            newHand[gemIndex] = newGem;
+            
+            // Update state, only changing the hand
+            this.stateManager.updateState({
+                gems: {
+                    hand: newHand,
+                    bag: state.gems.bag,
+                    discarded: state.gems.discarded,
+                    played: state.gems.played
+                }
+            });
+            
+            // Emit event
+            this.eventBus.emit('gem:upgraded', {
+                oldGem: originalGem,
+                newGem
+            });
+            
+            // Show success message
+            this.eventBus.emit('message:show', {
+                text: `Upgraded ${originalGem.name} to ${newGem.name}!`,
+                type: 'success'
+            });
+            
+            return newGem;
+        }
     }
     
     // Add a random gem to bag (shop purchase)
@@ -981,7 +1082,102 @@ export default class GemManager {
         };
         upgrades.push(directUpgrade);
         
-        // 2. Only offer class-specific upgrades for base gems
+        // NEW: Add specialized enhancements
+        
+        // 2. Efficiency Option: Reduce stamina cost (minimum 1)
+        if (gem.cost > 1) {
+            const efficientVersion = {
+                ...this.gemDefinitions[gem.id],
+                id: `${gem.id}-efficient`,
+                name: `Efficient ${gem.name}`,
+                value: gem.value,
+                cost: gem.cost - 1, // Reduce cost by 1
+                upgradeType: 'efficient'
+            };
+            upgrades.push(efficientVersion);
+        }
+        
+        // 3. Power Option: Increase value but also increase cost
+        const powerVersion = {
+            ...this.gemDefinitions[gem.id],
+            id: `${gem.id}-powerful`,
+            name: `Powerful ${gem.name}`,
+            value: Math.floor(gem.value * 1.75), // 75% power increase
+            cost: gem.cost + 1, // Increase cost by 1
+            upgradeType: 'powerful'
+        };
+        upgrades.push(powerVersion);
+        
+        // 4. Special Effect Option: Add a special effect based on gem type
+        let specialVersion;
+        switch(gem.type) {
+            case 'attack':
+                specialVersion = {
+                    ...this.gemDefinitions[gem.id],
+                    id: `${gem.id}-piercing`,
+                    name: `Piercing ${gem.name}`,
+                    value: gem.value,
+                    cost: gem.cost,
+                    specialEffect: 'pierce', // Ignores some defense
+                    upgradeType: 'special'
+                };
+                break;
+                
+            case 'heal':
+                specialVersion = {
+                    ...this.gemDefinitions[gem.id],
+                    id: `${gem.id}-regen`,
+                    name: `Regenerative ${gem.name}`,
+                    value: Math.floor(gem.value * 0.8), // Lower immediate healing
+                    cost: gem.cost,
+                    specialEffect: 'regen', // Also adds healing over time effect
+                    duration: 2, // Healing for 2 turns
+                    upgradeType: 'special'
+                };
+                break;
+                
+            case 'shield':
+                specialVersion = {
+                    ...this.gemDefinitions[gem.id],
+                    id: `${gem.id}-reflect`,
+                    name: `Reflective ${gem.name}`,
+                    value: Math.floor(gem.value * 0.8), // Lower shield value
+                    cost: gem.cost,
+                    specialEffect: 'reflect', // Reflects some damage
+                    upgradeType: 'special'
+                };
+                break;
+                
+            case 'poison':
+                specialVersion = {
+                    ...this.gemDefinitions[gem.id],
+                    id: `${gem.id}-spread`,
+                    name: `Spreading ${gem.name}`,
+                    value: gem.value,
+                    cost: gem.cost,
+                    specialEffect: 'spread', // Has a chance to affect multiple targets
+                    upgradeType: 'special'
+                };
+                break;
+                
+            default:
+                // For any other gem types, add a draw option
+                specialVersion = {
+                    ...this.gemDefinitions[gem.id],
+                    id: `${gem.id}-drawing`,
+                    name: `Drawing ${gem.name}`,
+                    value: gem.value,
+                    cost: gem.cost,
+                    specialEffect: 'draw', // Draw a card when used
+                    upgradeType: 'special'
+                };
+        }
+        
+        if (specialVersion) {
+            upgrades.push(specialVersion);
+        }
+        
+        // 5. Only offer class-specific upgrades for base gems
         // For example, red-attack can upgrade to red-strong for Knights
         const baseToClassUpgradeMap = {
             'knight': {
@@ -1004,7 +1200,7 @@ export default class GemManager {
             upgrades.push(classUpgrade);
         }
         
-        // 3. Add unlocked gems of the same color (but only if they're actually unlocked)
+        // 6. Add unlocked gems of the same color (but only if they're actually unlocked)
         // Fix for the error: Handle both array and object structure of unlockedGems
         let unlockedGemsList = [];
         const { meta } = state;
