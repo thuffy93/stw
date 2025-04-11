@@ -637,7 +637,7 @@ export default class UIManager {
         });
     }
     
-    // Generate tooltip for a gem
+    // Generate tooltip for a gem - updated to include augmentation info
     generateGemTooltip(gem) {
         // Basic info always shown
         const tooltipParts = [`${gem.name}: ${gem.value} ${gem.type}`];
@@ -657,13 +657,24 @@ export default class UIManager {
             }`);
         }
 
+        // Defense bypass for piercing gems
+        if (gem.defenseBypass) {
+            tooltipParts.push(`Piercing: Bypasses ${gem.defenseBypass * 100}% of enemy defense`);
+        }
+
         // Only show duration for buffs/debuffs
         if (gem.duration) {
             tooltipParts.push(`Duration: ${gem.duration} turns`);
         }
 
+        // Augmentation info
+        if (gem.augmentation) {
+            tooltipParts.push(`Augmentation: ${gem.augmentation}`);
+        }
+
         return tooltipParts.join('\n');
     }
+
 
     // Create a gem DOM element
     createGemElement(gem) {
@@ -708,15 +719,38 @@ export default class UIManager {
         costDiv.textContent = gem.cost;
         gemElement.appendChild(costDiv);
         
-        // Only add tooltips for the Gem Catalog UI, not the Battle UI
-        const currentScreen = this.stateManager.getState().currentScreen;
-        if (currentScreen === 'gem-catalog-screen' || currentScreen === 'shop-screen') {
-            // Generate tooltip
-            gemElement.setAttribute('data-tooltip', this.generateGemTooltip(gem));
+        // NEW: Add augmentation badge if gem is augmented
+        if (gem.augmentation && gem.badgeIcon) {
+            const badgeDiv = document.createElement('div');
+            badgeDiv.classList.add('gem-badge');
+            badgeDiv.textContent = gem.badgeIcon;
+            
+            // Position the badge in the top-left corner
+            badgeDiv.style.position = 'absolute';
+            badgeDiv.style.top = '5px';
+            badgeDiv.style.left = '5px';
+            badgeDiv.style.backgroundColor = 'rgba(255, 255, 255, 0.7)';
+            badgeDiv.style.borderRadius = '50%';
+            badgeDiv.style.width = '24px';
+            badgeDiv.style.height = '24px';
+            badgeDiv.style.display = 'flex';
+            badgeDiv.style.alignItems = 'center';
+            badgeDiv.style.justifyContent = 'center';
+            badgeDiv.style.fontSize = '14px';
+            badgeDiv.style.boxShadow = '0 1px 3px rgba(0,0,0,0.3)';
+            
+            // Add a class for the specific augmentation type
+            badgeDiv.classList.add(`badge-${gem.augmentation}`);
+            
+            gemElement.appendChild(badgeDiv);
         }
+        
+        // Generate tooltip
+        gemElement.setAttribute('data-tooltip', this.generateGemTooltip(gem));
         
         return gemElement;
     }
+    
     
     // Update battle action buttons
     updateBattleButtons() {
@@ -1298,49 +1332,51 @@ export default class UIManager {
     
     // Select an upgrade option
     selectUpgrade(gemInstanceId, upgradeGemId) {
-        // Add validation
-        if (!gemInstanceId || !upgradeGemId) {
-            console.error(`Invalid upgrade parameters: gemInstanceId=${gemInstanceId}, upgradeGemId=${upgradeGemId}`);
-            this.eventBus.emit('message:show', {
-                text: 'Cannot process upgrade: Invalid gem selection',
-                type: 'error'
-            });
+        console.log(`Selecting upgrade: ${gemInstanceId} -> ${upgradeGemId}`);
+        
+        // Get the selected gem from state
+        const state = this.stateManager.getState();
+        const handGems = state.gems.hand;
+        const originalGem = handGems.find(g => g.instanceId === gemInstanceId);
+        
+        if (!originalGem) {
+            console.error(`Original gem not found: ${gemInstanceId}`);
             return;
         }
         
-        console.log(`Selecting upgrade: ${gemInstanceId} -> ${upgradeGemId}`);
+        // FIXED: For augmentation upgrades, pass the full augmentation info
+        // Check if this is an augmented gem selected from upgrade options
+        const upgrades = this.shopState.upgradeOptions || [];
+        const selectedUpgrade = upgrades.find(u => u.instanceId === upgradeGemId);
         
-        // Handle direct upgrades specially (they have a custom ID format with "-upgraded")
-        let finalGemId = upgradeGemId;
-        if (upgradeGemId.endsWith('-upgraded')) {
-            // For direct upgrades, we need to get the original gem's data and create an enhanced version
-            const state = this.stateManager.getState();
-            const originalGem = state.gems.hand.find(g => g.instanceId === gemInstanceId);
+        if (selectedUpgrade && selectedUpgrade.upgradeType === 'augmentation' && selectedUpgrade.augmentation) {
+            console.log(`Selected augmentation upgrade: ${selectedUpgrade.augmentation}`);
             
-            if (originalGem) {
-                // Instead of using the "-upgraded" ID, use the original gem's ID
-                // The ShopManager will handle enhancing its values
-                finalGemId = originalGem.id;
-                
-                console.log(`Direct upgrade of ${originalGem.name} (${originalGem.id})`);
-                
-                // Emit special direct upgrade event
-                this.eventBus.emit('shop:direct-upgrade-gem', {
-                    gemInstanceId,
-                    originalGemId: originalGem.id
-                });
-                
-                // Exit upgrade mode
-                this.cancelUpgrade();
-                return;
-            }
+            // Pass the full upgrade object which contains the augmentation type
+            this.eventBus.emit('shop:upgrade-gem', {
+                gemInstanceId,
+                newGemId: selectedUpgrade // Pass the full object instead of just the ID
+            });
         }
-        
+        // Handle direct upgrades specially (they have a custom ID format with "-upgraded")
+        else if (upgradeGemId.endsWith('-upgraded')) {
+            console.log(`Direct upgrade selected: ${upgradeGemId}`);
+            
+            // For direct upgrades, use the original gem's ID
+            this.eventBus.emit('shop:direct-upgrade-gem', {
+                gemInstanceId,
+                originalGemId: originalGem.id
+            });
+        }
         // For regular upgrades, proceed normally
-        this.eventBus.emit('shop:upgrade-gem', {
-            gemInstanceId,
-            newGemId: finalGemId
-        });
+        else {
+            console.log(`Regular upgrade to: ${upgradeGemId}`);
+            
+            this.eventBus.emit('shop:upgrade-gem', {
+                gemInstanceId,
+                newGemId: upgradeGemId
+            });
+        }
         
         // Exit upgrade mode
         this.cancelUpgrade();

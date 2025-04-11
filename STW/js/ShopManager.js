@@ -32,8 +32,19 @@ export default class ShopManager {
             this.discardGem(gemInstanceId);
         });
         
+        // UPDATED: Improve handling of gem upgrades
         this.eventBus.on('shop:upgrade-gem', (data) => {
-            this.upgradeGem(data.gemInstanceId, data.newGemId);
+            console.log("Shop received upgrade request:", data); // Debug
+            
+            // Check if we received an object or just an ID
+            if (typeof data.newGemId === 'object' && data.newGemId.augmentation) {
+                console.log(`Processing augmentation upgrade: ${data.newGemId.augmentation}`);
+                // This is an augmentation upgrade
+                this.upgradeGem(data.gemInstanceId, data.newGemId);
+            } else {
+                // This is a regular ID-based upgrade
+                this.upgradeGem(data.gemInstanceId, data.newGemId);
+            }
         });
         
         this.eventBus.on('shop:heal-player', () => {
@@ -43,21 +54,12 @@ export default class ShopManager {
         this.eventBus.on('shop:continue', () => {
             this.continueJourney();
         });
-
+    
         this.eventBus.on('shop:direct-upgrade-gem', (data) => {
             this.directUpgradeGem(data.gemInstanceId, data.originalGemId);
         });
-        
-        // NEW: Listen for shop inventory purchase
-        this.eventBus.on('shop:purchase-inventory-gem', (gemIndex) => {
-            this.purchaseGemFromInventory(gemIndex);
-        });
-        
-        // NEW: Get shop inventory
-        this.eventBus.on('shop:get-inventory', (callback) => {
-            callback(this.shopInventory);
-        });
     }
+    
 
     prepareShop() {
         console.log("Preparing shop");
@@ -216,16 +218,6 @@ export default class ShopManager {
         const state = this.stateManager.getState();
         const { player } = state;
         
-        // Add validation for missing parameters
-        if (!gemInstanceId || !newGemId) {
-            console.error(`Invalid upgrade parameters: gemInstanceId=${gemInstanceId}, newGemId=${newGemId}`);
-            this.eventBus.emit('message:show', {
-                text: 'Cannot process upgrade: Missing gem information',
-                type: 'error'
-            });
-            return false;
-        }
-        
         // Check if player has enough zenny
         if (player.zenny < this.costs.upgradeGem) {
             this.eventBus.emit('message:show', {
@@ -259,7 +251,8 @@ export default class ShopManager {
         });
         
         return true;
-    }    
+    }
+        
     
     // Heal the player
     healPlayer() {

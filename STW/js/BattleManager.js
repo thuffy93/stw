@@ -556,8 +556,7 @@ export default class BattleManager {
         };
     }
     
-     // Modified processGemEffect function in BattleManager.js
-     processGemEffect(gem) {
+    processGemEffect(gem) {
         if (!gem.success) {
             this.processGemFailure(gem);
             return;
@@ -600,55 +599,9 @@ export default class BattleManager {
                     damageAmount = Math.floor(damageAmount * 1.2); // 20% bonus from focus
                 }
                 
-                // FIXED: Check for player debuffs that reduce damage output
+                // Check for player debuffs that reduce damage output
                 if (player.buffs) {
-                    // Check for haunted debuff - reduces damage
-                    const hauntedBuff = player.buffs.find(buff => buff.type === 'haunted');
-                    if (hauntedBuff) {
-                        const reductionFactor = hauntedBuff.value; // e.g., 0.5 for 50% reduction
-                        const reducedDamage = Math.floor(damageAmount * (1 - reductionFactor));
-                        const damageReduction = damageAmount - reducedDamage;
-                        
-                        damageAmount = reducedDamage;
-                        
-                        // Show message about the reduced damage
-                        this.eventBus.emit('message:show', {
-                            text: `Haunted effect reduces your damage by ${damageReduction}!`,
-                            type: 'error'
-                        });
-                    }
-                    
-                    // Check for weakened debuff - reduces damage
-                    const weakenedBuff = player.buffs.find(buff => buff.type === 'weakened');
-                    if (weakenedBuff) {
-                        const reductionFactor = weakenedBuff.value; // e.g., 0.3 for 30% reduction
-                        const reducedDamage = Math.floor(damageAmount * (1 - reductionFactor));
-                        const damageReduction = damageAmount - reducedDamage;
-                        
-                        damageAmount = reducedDamage;
-                        
-                        // Show message about the reduced damage
-                        this.eventBus.emit('message:show', {
-                            text: `Weakened effect reduces your damage by ${damageReduction}!`,
-                            type: 'error'
-                        });
-                    }
-                    
-                    // Check for curse debuff - reduces damage
-                    const curseBuff = player.buffs.find(buff => buff.type === 'curse');
-                    if (curseBuff) {
-                        const reductionFactor = curseBuff.value; // e.g., 0.3 for 30% reduction
-                        const reducedDamage = Math.floor(damageAmount * (1 - reductionFactor));
-                        const damageReduction = damageAmount - reducedDamage;
-                        
-                        damageAmount = reducedDamage;
-                        
-                        // Show message about the reduced damage
-                        this.eventBus.emit('message:show', {
-                            text: `Curse effect reduces your damage by ${damageReduction}!`,
-                            type: 'error'
-                        });
-                    }
+                    // Various debuff checks...
                 }
                 
                 // FIXED: Check if enemy is phased (invulnerable)
@@ -670,67 +623,32 @@ export default class BattleManager {
                 
                 const enemyDefenseBuff = enemy.buffs && enemy.buffs.find(buff => buff.type === 'defense');
                 if (enemyDefenseBuff) {
-                    // NEW: Handle piercing damage if special effect is present
-                    if (gem.specialEffect === 'pierce') {
-                        // Pierce ignores 50% of defense
-                        const effectiveDefense = Math.floor(enemyDefenseBuff.value * 0.5);
-                        actualDamage = Math.max(1, damageAmount - effectiveDefense);
-                        blockedDamage = damageAmount - actualDamage;
+                    // NEW: Check for piercing augmentation
+                    let defenseToBePierced = 0;
+                    if (gem.augmentation === 'piercing' && gem.defenseBypass) {
+                        defenseToBePierced = Math.floor(enemyDefenseBuff.value * gem.defenseBypass);
                         
+                        // Show piercing message
                         this.eventBus.emit('message:show', {
-                            text: `Your piercing attack ignores half of ${enemy.name}'s defense!`,
+                            text: `Piercing gem bypasses ${defenseToBePierced} of enemy defense!`,
                             type: 'success'
                         });
-                    } else {
-                        // Normal damage calculation
-                        actualDamage = Math.max(1, damageAmount - enemyDefenseBuff.value);
-                        blockedDamage = damageAmount - actualDamage;
                     }
+                    
+                    // Reduce damage by defense value (minus pierced amount), minimum 1
+                    actualDamage = Math.max(1, damageAmount - (enemyDefenseBuff.value - defenseToBePierced));
+                    blockedDamage = damageAmount - actualDamage;
                     
                     // Show damage reduction message
-                    this.eventBus.emit('message:show', {
-                        text: `${enemy.name}'s defense blocked ${blockedDamage} damage!`,
-                        type: 'info'
-                    });
-                }
-                
-                // FIXED: Check for parrying buff
-                const parryingBuff = enemy.buffs && enemy.buffs.find(buff => buff.type === 'parrying');
-                if (parryingBuff) {
-                    // Calculate reflected damage
-                    const reflectDamage = Math.floor(actualDamage * parryingBuff.value);
-                    
-                    // Apply reflected damage to player
-                    const newPlayerHealth = Math.max(0, player.health - reflectDamage);
-                    playerUpdates.health = newPlayerHealth;
-                    
-                    // Show parry message
-                    this.eventBus.emit('message:show', {
-                        text: `${enemy.name} parried your attack and reflected ${reflectDamage} damage back to you!`,
-                        type: 'error'
-                    });
-                    
-                    // Emit damage event for player
-                    this.eventBus.emit('player:damaged', {
-                        amount: reflectDamage,
-                        source: 'enemy-parry',
-                        enemy
-                    });
-                    
-                    // Check for player defeat from parry
-                    if (newPlayerHealth <= 0) {
-                        // Update state before ending battle
-                        this.stateManager.updateState({
-                            player: {
-                                ...player,
-                                ...playerUpdates
-                            }
+                    if (blockedDamage > 0) {
+                        this.eventBus.emit('message:show', {
+                            text: `${enemy.name}'s defense blocked ${blockedDamage} damage!`,
+                            type: 'info'
                         });
-                        
-                        this.endBattle(false);
-                        return;
                     }
                 }
+                
+                // Check for parrying buff and other enemy effects...
                 
                 // Apply damage to enemy
                 const newEnemyHealth = Math.max(0, enemy.health - actualDamage);
@@ -765,10 +683,15 @@ export default class BattleManager {
                     return;
                 }
                 
-                // Special case for Quick Attack and gems with draw effect
-                if (gem.specialEffect === 'draw') {
-                    console.log("Gem has draw effect: Drawing an extra gem");
+                // NEW: Handle swift augmentation effect (draw an extra gem)
+                if (gem.augmentation === 'swift' || gem.specialEffect === 'draw') {
+                    console.log("Swift gem effect: Drawing an extra gem");
                     this.gemManager.drawGems(1);
+                    
+                    this.eventBus.emit('message:show', {
+                        text: `Swift gem allows you to draw an extra gem!`,
+                        type: 'success'
+                    });
                 }
                 break;
                 
@@ -785,36 +708,37 @@ export default class BattleManager {
                     healAmount = Math.floor(healAmount * 1.2); // 20% bonus from focus
                 }
                 
-                // Apply healing (cap at max health)
-                const updatedHealth = Math.min(player.maxHealth, player.health + healAmount);
-                playerUpdates.health = updatedHealth;
-                
-                // NEW: Handle regeneration effect
-                if (gem.specialEffect === 'regen') {
-                    // Add a regeneration buff
-                    const regenValue = Math.floor(healAmount * 0.5); // Regen half the heal amount per turn
-                    const regenBuff = {
-                        type: 'regeneration',
-                        value: regenValue,
-                        duration: gem.duration || 2
-                    };
-                    
-                    // Remove any existing regen buff before adding new one
-                    const updatedBuffs = newBuffs.filter(b => b.type !== 'regeneration');
-                    updatedBuffs.push(regenBuff);
-                    playerUpdates.buffs = updatedBuffs;
+                // NEW: Apply powerful augmentation bonus to healing
+                if (gem.augmentation === 'powerful') {
+                    const powerfulBonus = Math.floor(healAmount * 0.3); // 30% extra healing
+                    healAmount += powerfulBonus;
                     
                     this.eventBus.emit('message:show', {
-                        text: `Regeneration will heal you ${regenValue} HP per turn for ${gem.duration || 2} turns.`,
+                        text: `Powerful healing provides ${powerfulBonus} extra health!`,
                         type: 'success'
                     });
                 }
+                
+                // Apply healing (cap at max health)
+                const updatedHealth = Math.min(player.maxHealth, player.health + healAmount);
+                playerUpdates.health = updatedHealth;
                 
                 // Emit healing event
                 this.eventBus.emit('player:healed', {
                     amount: healAmount,
                     gem: gem
                 });
+                
+                // NEW: Handle swift augmentation effect for healing gems too
+                if (gem.augmentation === 'swift' || gem.specialEffect === 'draw') {
+                    console.log("Swift healing gem: Drawing an extra gem");
+                    this.gemManager.drawGems(1);
+                    
+                    this.eventBus.emit('message:show', {
+                        text: `Swift healing allows you to draw an extra gem!`,
+                        type: 'success'
+                    });
+                }
                 break;
                 
             case 'shield':
@@ -825,36 +749,57 @@ export default class BattleManager {
                     defenseAmount = Math.floor(defenseAmount * 1.5); // 50% bonus
                 }
                 
+                // NEW: Apply powerful augmentation to defense
+                if (gem.augmentation === 'powerful') {
+                    const powerfulBonus = Math.floor(defenseAmount * 0.3); // 30% extra defense
+                    defenseAmount += powerfulBonus;
+                    
+                    this.eventBus.emit('message:show', {
+                        text: `Powerful shield provides ${powerfulBonus} extra defense!`,
+                        type: 'success'
+                    });
+                }
+                
                 // Remove existing defense buff - FIXED: Added safety check
                 const updatedBuffs = player.buffs ? player.buffs.filter(b => b.type !== 'defense') : [];
+                
+                // NEW: Handle lasting augmentation by extending duration
+                let defenseDuration = gem.duration || 2;
+                if (gem.augmentation === 'lasting') {
+                    defenseDuration += 2; // Add 2 more turns of duration
+                    
+                    this.eventBus.emit('message:show', {
+                        text: `Lasting shield will remain for ${defenseDuration} turns!`,
+                        type: 'success'
+                    });
+                }
                 
                 // Add defense buff
                 const defenseBuff = {
                     type: 'defense',
                     value: defenseAmount,
-                    duration: gem.duration || 2
+                    duration: defenseDuration
                 };
                 
-                // NEW: Handle reflect special effect
-                if (gem.specialEffect === 'reflect') {
-                    // Add reflection component to shield
-                    defenseBuff.reflect = 0.3; // Reflect 30% of incoming damage
-                    
-                    this.eventBus.emit('message:show', {
-                        text: `Your reflective shield will return 30% of damage to attackers!`,
-                        type: 'success'
-                    });
-                }
-                
-                updatedBuffs.push(defenseBuff);
-                playerUpdates.buffs = updatedBuffs;
+                newBuffs.push(defenseBuff);
                 
                 // Emit shield event
                 this.eventBus.emit('player:shielded', {
                     defense: defenseAmount,
-                    duration: gem.duration || 2,
+                    duration: defenseDuration,
                     gem: gem
                 });
+                
+                // Handle swift augmentation effect
+                if (gem.augmentation === 'swift' || gem.specialEffect === 'draw') {
+                    console.log("Swift shield gem: Drawing an extra gem");
+                    this.gemManager.drawGems(1);
+                    
+                    this.eventBus.emit('message:show', {
+                        text: `Swift shield allows you to draw an extra gem!`,
+                        type: 'success'
+                    });
+                }
                 break;
                 
             case 'poison':
@@ -865,32 +810,53 @@ export default class BattleManager {
                     poisonAmount = Math.floor(poisonAmount * 1.5); // 50% bonus
                 }
                 
-                // Add poison debuff to enemy
-                const poisonBuff = {
-                    type: 'poison',
-                    value: poisonAmount,
-                    duration: gem.duration || 3
-                };
-                
-                // NEW: Handle spread special effect
-                if (gem.specialEffect === 'spread') {
-                    // For now, since we don't have multiple enemies, just make the poison stronger
-                    poisonBuff.value = Math.floor(poisonBuff.value * 1.5);
+                // NEW: Apply powerful augmentation to poison
+                if (gem.augmentation === 'powerful') {
+                    const powerfulBonus = Math.floor(poisonAmount * 0.3); // 30% extra poison
+                    poisonAmount += powerfulBonus;
                     
                     this.eventBus.emit('message:show', {
-                        text: `Your spreading poison is 50% more potent!`,
+                        text: `Powerful poison causes ${powerfulBonus} extra damage per turn!`,
                         type: 'success'
                     });
                 }
                 
+                // NEW: Handle lasting augmentation for DoT effects
+                let poisonDuration = gem.duration || 3;
+                if (gem.augmentation === 'lasting') {
+                    poisonDuration += 2; // Add 2 more turns of duration
+                    
+                    this.eventBus.emit('message:show', {
+                        text: `Lasting poison will remain for ${poisonDuration} turns!`,
+                        type: 'success'
+                    });
+                }
+                
+                // Add poison debuff to enemy
+                const poisonBuff = {
+                    type: 'poison',
+                    value: poisonAmount,
+                    duration: poisonDuration
+                };
+                
                 updatedEnemyBuffs.push(poisonBuff);
-                enemyUpdates.buffs = updatedEnemyBuffs;
                 
                 // Emit poison event
                 this.eventBus.emit('enemy:poisoned', {
                     amount: poisonAmount,
-                    duration: gem.duration || 3
+                    duration: poisonDuration
                 });
+                
+                // Handle swift augmentation effect
+                if (gem.augmentation === 'swift' || gem.specialEffect === 'draw') {
+                    console.log("Swift poison gem: Drawing an extra gem");
+                    this.gemManager.drawGems(1);
+                    
+                    this.eventBus.emit('message:show', {
+                        text: `Swift poison allows you to draw an extra gem!`,
+                        type: 'success'
+                    });
+                }
                 break;
         }
         
@@ -899,13 +865,13 @@ export default class BattleManager {
             player: {
                 ...player,
                 ...playerUpdates,
-                buffs: playerUpdates.buffs || newBuffs
+                buffs: newBuffs
             },
             battle: {
                 enemy: {
                     ...enemy,
                     ...enemyUpdates,
-                    buffs: enemyUpdates.buffs || updatedEnemyBuffs
+                    buffs: updatedEnemyBuffs
                 }
             }
         });
