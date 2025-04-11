@@ -851,8 +851,6 @@ export default class GemManager {
         const state = this.stateManager.getState();
         const handGems = state.gems.hand;
         
-        console.log(`Upgrading gem: ${gemInstanceId} to:`, newGemId); // Debug log the entire newGemId object/value
-        
         // Find the gem to upgrade in hand
         const gemIndex = handGems.findIndex(gem => gem.instanceId === gemInstanceId);
         
@@ -930,9 +928,6 @@ export default class GemManager {
             console.error(`Failed to create upgraded gem`);
             return null;
         }
-        
-        console.log(`Successfully created: ${newGem.name} (augmentation: ${newGem.augmentation || 'none'})`);
-        
         // Replace in hand
         const newHand = [...handGems];
         newHand[gemIndex] = newGem;
@@ -1100,7 +1095,7 @@ export default class GemManager {
         // Create the new gem
         return this.createGem(randomGemDef.id);
     }
-    // Get upgrade options for a gem - modified to use augmentations
+    // Get upgrade options for a gem - modified to use augmentations and limit to 3 random options
     getUpgradeOptions(gemInstanceId) {
         const state = this.stateManager.getState();
         const handGems = state.gems.hand;
@@ -1108,39 +1103,40 @@ export default class GemManager {
         const gem = handGems.find(g => g.instanceId === gemInstanceId);
         const playerClass = state.player.class;
         
-        const upgrades = [];
+        // Get all possible upgrade options
+        const allPossibleUpgrades = [];
         
-        // 1. Instead of direct stat upgrade, offer powerful augmentation
+        // 1. Add powerful augmentation
         const powerfulGem = this.applyAugmentation({...gem}, 'powerful');
         powerfulGem.upgradeType = 'augmentation';
-        upgrades.push(powerfulGem);
+        allPossibleUpgrades.push(powerfulGem);
         
         // 2. For attack gems, also offer piercing augmentation
         if (gem.type === 'attack') {
             const piercingGem = this.applyAugmentation({...gem}, 'piercing');
             piercingGem.upgradeType = 'augmentation';
-            upgrades.push(piercingGem);
+            allPossibleUpgrades.push(piercingGem);
         }
         
         // 3. For any gem with cost > 1, offer efficient augmentation
         if (gem.cost > 1) {
             const efficientGem = this.applyAugmentation({...gem}, 'efficient');
             efficientGem.upgradeType = 'augmentation';
-            upgrades.push(efficientGem);
+            allPossibleUpgrades.push(efficientGem);
         }
         
         // 4. For DoT or shield/buff gems, offer lasting augmentation
         if (gem.duration) {
             const lastingGem = this.applyAugmentation({...gem}, 'lasting');
             lastingGem.upgradeType = 'augmentation';
-            upgrades.push(lastingGem);
+            allPossibleUpgrades.push(lastingGem);
         }
         
         // 5. For all gems, offer swift augmentation if they don't already have it
         if (!gem.specialEffect || gem.specialEffect !== 'draw') {
             const swiftGem = this.applyAugmentation({...gem}, 'swift');
             swiftGem.upgradeType = 'augmentation';
-            upgrades.push(swiftGem);
+            allPossibleUpgrades.push(swiftGem);
         }
         
         // 6. Still offer class-specific upgrades for base gems
@@ -1162,7 +1158,7 @@ export default class GemManager {
                 ...this.gemDefinitions[classUpgradeId],
                 upgradeType: 'class'
             };
-            upgrades.push(classUpgrade);
+            allPossibleUpgrades.push(classUpgrade);
         }
         
         // 7. Still offer unlockable gems if they're available
@@ -1182,25 +1178,83 @@ export default class GemManager {
                 ...this.gemDefinitions['red-burst'],
                 upgradeType: 'unlocked'
             };
-            upgrades.push(burstUpgrade);
+            allPossibleUpgrades.push(burstUpgrade);
         }
         else if (gem.color === 'blue' && playerClass === 'mage' && unlockedGemsList.includes('blue-shield')) {
             const shieldUpgrade = {
                 ...this.gemDefinitions['blue-shield'],
                 upgradeType: 'unlocked'
             };
-            upgrades.push(shieldUpgrade);
+            allPossibleUpgrades.push(shieldUpgrade);
         }
         else if (gem.color === 'green' && playerClass === 'rogue' && unlockedGemsList.includes('green-poison')) {
             const poisonUpgrade = {
                 ...this.gemDefinitions['green-poison'],
                 upgradeType: 'unlocked'
             };
-            upgrades.push(poisonUpgrade);
+            allPossibleUpgrades.push(poisonUpgrade);
         }
         
-        console.log(`Generated ${upgrades.length} upgrade options for ${gem.name}`);
-        return upgrades;
+        // NEW: Check if we already have a rotating set of options for this gem
+        // First ensure we have the rotation tracking structure
+        if (!state.gemUpgradeRotation) {
+            // Initialize rotation tracking in state
+            this.stateManager.updateState({
+                gemUpgradeRotation: {
+                    currentOptions: {},
+                    visitCount: 0
+                }
+            });
+        }
+        
+        // Get updated state after potential initialization
+        const updatedState = this.stateManager.getState();
+        const rotation = updatedState.gemUpgradeRotation;
+        
+        // Check if we already have options for this specific gem
+        if (rotation.currentOptions[gemInstanceId]) {
+            // Return existing options for this gem
+            console.log(`Using existing ${rotation.currentOptions[gemInstanceId].length} rotation options for ${gem.name}`);
+            return rotation.currentOptions[gemInstanceId];
+        }
+        
+        // Select 3 random upgrade options (or fewer if not enough options available)
+        const numOptions = Math.min(3, allPossibleUpgrades.length);
+        const selectedUpgrades = [];
+        
+        // Create a copy of options to select from randomly
+        const availableOptions = [...allPossibleUpgrades];
+        
+        // Select random options without duplicates
+        for (let i = 0; i < numOptions; i++) {
+            if (availableOptions.length === 0) break;
+            
+            // Pick a random option
+            const randomIndex = Math.floor(Math.random() * availableOptions.length);
+            const selectedOption = availableOptions[randomIndex];
+            
+            // Remove the selected option to prevent duplicates
+            availableOptions.splice(randomIndex, 1);
+            
+            // Add to selected upgrades
+            selectedUpgrades.push(selectedOption);
+        }
+        
+        // Store the selected options in the rotation structure
+        const newRotation = {
+            ...rotation,
+            currentOptions: {
+                ...rotation.currentOptions,
+                [gemInstanceId]: selectedUpgrades
+            }
+        };
+        
+        this.stateManager.updateState({
+            gemUpgradeRotation: newRotation
+        });
+        
+        console.log(`Generated ${selectedUpgrades.length} new rotating upgrade options for ${gem.name}`);
+        return selectedUpgrades;
     }
     
     // Unlock a new gem in the meta progression
