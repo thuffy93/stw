@@ -34,11 +34,8 @@ export default class ShopManager {
         
         // UPDATED: Improve handling of gem upgrades
         this.eventBus.on('shop:upgrade-gem', (data) => {
-            console.log("Shop received upgrade request:", data); // Debug
-            
             // Check if we received an object or just an ID
             if (typeof data.newGemId === 'object' && data.newGemId.augmentation) {
-                console.log(`Processing augmentation upgrade: ${data.newGemId.augmentation}`);
                 // This is an augmentation upgrade
                 this.upgradeGem(data.gemInstanceId, data.newGemId);
             } else {

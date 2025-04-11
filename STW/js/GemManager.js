@@ -495,10 +495,7 @@ export default class GemManager {
         if (!augmentation) {
             console.error(`Unknown augmentation type: ${augmentationType}`);
             return gem;
-        }
-        
-        console.log(`Applying ${augmentationType} augmentation to ${gem.name}`);
-        
+        } 
         // Create a new gem with the augmentation applied
         const augmentedGem = { 
             ...gem,
@@ -535,7 +532,7 @@ export default class GemManager {
         }
         
         // Update tooltip to include augmentation effect
-        augmentedGem.tooltip = `${gem.tooltip} ${augmentation.tooltip}`;
+        augmentedGem.tooltip = `${gem.tooltip || ''} ${augmentation.tooltip}`;
         
         return augmentedGem;
     }
@@ -854,7 +851,7 @@ export default class GemManager {
         const state = this.stateManager.getState();
         const handGems = state.gems.hand;
         
-        console.log(`Upgrading gem: ${gemInstanceId} to ${newGemId}`); // Debug
+        console.log(`Upgrading gem: ${gemInstanceId} to:`, newGemId); // Debug log the entire newGemId object/value
         
         // Find the gem to upgrade in hand
         const gemIndex = handGems.findIndex(gem => gem.instanceId === gemInstanceId);
@@ -868,56 +865,73 @@ export default class GemManager {
         const originalGem = handGems[gemIndex];
         let newGem = null;
         
-        // FIXED: Improved detection for augmentation types
-        const knownAugmentations = Object.keys(this.augmentationTypes);
-        let detectedAugmentation = null;
-        
-        // First check if this ID contains a known augmentation type
-        for (const type of knownAugmentations) {
-            if (newGemId.includes(`-${type}-`)) {
-                detectedAugmentation = type;
-                break;
+        // CASE 1: If newGemId is a complete object with an augmentation property
+        if (typeof newGemId === 'object' && newGemId !== null) {
+            console.log(`Processing object-based upgrade with properties:`, 
+                        `upgradeType=${newGemId.upgradeType}`,
+                        `augmentation=${newGemId.augmentation}`);
+            
+            if (newGemId.upgradeType === 'augmentation' && newGemId.augmentation) {
+                // Apply the specified augmentation
+                newGem = this.applyAugmentation({...originalGem}, newGemId.augmentation);
+                console.log(`Applied ${newGemId.augmentation} augmentation to create ${newGem.name}`);
+            } 
+            else if (newGemId.id && this.gemDefinitions[newGemId.id]) {
+                // Use the ID from the object to create a new gem
+                newGem = this.createGem(newGemId.id);
+                console.log(`Created new gem from object's id: ${newGemId.id}`);
+            }
+            else {
+                console.error(`Invalid upgrade object:`, newGemId);
+                return null;
             }
         }
-        
-        // If we found an augmentation type in the ID
-        if (detectedAugmentation) {
-            console.log(`Detected augmentation: ${detectedAugmentation}`); // Debug
+        // CASE 2: If newGemId is a string with a known augmentation pattern
+        else if (typeof newGemId === 'string') {
+            // Check for augmentation pattern in the ID
+            const knownAugmentations = Object.keys(this.augmentationTypes);
+            let detectedAugmentation = null;
             
-            // Create augmented gem
-            newGem = this.applyAugmentation({...originalGem}, detectedAugmentation);
-        } 
-        // If it's a standard gem definition
-        else if (this.gemDefinitions[newGemId]) {
-            console.log(`Creating new gem from definition: ${newGemId}`); // Debug
-            newGem = this.createGem(newGemId);
-        }
-        // Handle direct upgrades (with "-upgraded" suffix)
-        else if (newGemId.endsWith('-upgraded')) {
-            console.log(`Creating direct upgrade for: ${originalGem.id}`); // Debug
+            for (const type of knownAugmentations) {
+                if (newGemId.includes(`-${type}-`)) {
+                    detectedAugmentation = type;
+                    break;
+                }
+            }
             
-            // Apply powerful augmentation as the default for direct upgrades
-            newGem = this.applyAugmentation({...originalGem}, 'powerful');
+            if (detectedAugmentation) {
+                // Apply the detected augmentation
+                newGem = this.applyAugmentation({...originalGem}, detectedAugmentation);
+                console.log(`Detected and applied ${detectedAugmentation} augmentation from ID pattern`);
+            }
+            // Check if it's a standard gem definition
+            else if (this.gemDefinitions[newGemId]) {
+                // Create new gem from definition
+                newGem = this.createGem(newGemId);
+                console.log(`Created new gem from definition ID: ${newGemId}`);
+            }
+            // Handle direct upgrades (with "-upgraded" suffix)
+            else if (newGemId.endsWith('-upgraded')) {
+                // Apply powerful augmentation as the default for direct upgrades
+                newGem = this.applyAugmentation({...originalGem}, 'powerful');
+                console.log(`Applied powerful augmentation as default for -upgraded suffix`);
+            }
+            else {
+                console.error(`Unrecognized upgrade ID format: ${newGemId}`);
+                return null;
+            }
         }
-        // CRITICAL FIX: If the front-end sends a complete gem object instead of just an ID
-        else if (typeof newGemId === 'object' && newGemId.upgradeType === 'augmentation' && newGemId.augmentation) {
-            console.log(`Using provided augmentation object: ${newGemId.augmentation}`); // Debug
-            
-            // Apply the augmentation specified in the object
-            newGem = this.applyAugmentation({...originalGem}, newGemId.augmentation);
-        }
-        // Unknown upgrade type
         else {
-            console.error(`Unrecognized upgrade format: ${newGemId}`);
+            console.error(`Invalid newGemId type: ${typeof newGemId}`);
             return null;
         }
         
         if (!newGem) {
-            console.error(`Failed to create upgraded gem from: ${newGemId}`);
+            console.error(`Failed to create upgraded gem`);
             return null;
         }
         
-        console.log(`Successfully created upgraded gem: ${newGem.name}`); // Debug
+        console.log(`Successfully created: ${newGem.name} (augmentation: ${newGem.augmentation || 'none'})`);
         
         // Replace in hand
         const newHand = [...handGems];
@@ -1093,11 +1107,6 @@ export default class GemManager {
         
         const gem = handGems.find(g => g.instanceId === gemInstanceId);
         const playerClass = state.player.class;
-        
-        if (!gem) {
-            console.error(`Gem not found in hand for upgrade options: ${gemInstanceId}`);
-            return [];
-        }
         
         const upgrades = [];
         

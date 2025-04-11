@@ -1036,34 +1036,25 @@ export default class BattleManager {
             
             const staminaUsed = battle.staminaUsed || 0;
 
-            // Debug output to verify the value of staminaUsed
-            console.log(`DEBUG: Stamina actually used this turn: ${staminaUsed}`);
-
             // New formula with specific handling for case of 2 stamina used
             let staminaRecovery;
             if (staminaUsed === 2) {
                 // Explicit handling for 2 stamina used to ensure it recovers 2
                 staminaRecovery = 2;
-                console.log("DEBUG: Using exactly 2 stamina - explicitly setting recovery to 2");
             } else {
                 // Normal formula for other cases
                 staminaRecovery = Math.max(1, 3 - Math.ceil(staminaUsed / 2));
                 
-                // Verify the formula calculation
-                console.log(`DEBUG: Formula calculation: 3 - Math.floor(${staminaUsed} / 2) = ${3 - Math.floor(staminaUsed / 2)}`);
             }
 
             // Apply web debuff effect (if present)
             if (player.buffs && player.buffs.some(buff => buff.type === 'webbed')) {
                 const oldRecovery = staminaRecovery;
                 staminaRecovery = Math.max(1, Math.floor(staminaRecovery / 2));
-                console.log(`DEBUG: Spider web reduced stamina recovery from ${oldRecovery} to ${staminaRecovery}`);
             }
 
             // Calculate new stamina value (don't exceed max)
             const newStamina = Math.min(player.maxStamina, player.stamina + staminaRecovery);
-
-            console.log(`Stamina recovery: ${staminaUsed} used, recovering ${staminaRecovery}. New stamina: ${newStamina}/${player.maxStamina}`);
 
             // Update player stamina
             this.stateManager.updateState({
