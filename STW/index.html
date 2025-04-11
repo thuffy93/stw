@@ -183,7 +183,29 @@
     </div>
     
     <button id="audio-button">🔊</button>
-    
+
+    <div id="gem-bag-overlay" class="overlay">
+        <div class="overlay-content">
+            <div class="overlay-header">
+                <h2>Gem Bag</h2>
+                <span class="close-button">&times;</span>
+            </div>
+            <div class="gem-stats-summary">
+                <p><span id="available-gems-count">0</span> available gems, <span id="played-gems-count">0</span> played gems</p>
+            </div>
+            <div class="gem-sections">
+                <div class="gem-section">
+                    <h3>Available Gems</h3>
+                    <div id="available-gems-container" class="gem-container"></div>
+                </div>
+                <div class="gem-section">
+                    <h3>Played Gems</h3>
+                    <div id="played-gems-container" class="gem-container"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script type="module" src="js/main.js"></script>
 </body>
