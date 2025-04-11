@@ -360,27 +360,27 @@ export default class UIManager {
         // Set class-specific starting values
         switch(classType) {
             case 'knight':
-                playerStats.health = 40;
-                playerStats.maxHealth = 40;
-                playerStats.stamina = 3;
-                playerStats.maxStamina = 3;
-                playerStats.zenny = 5;
+                playerStats.health = 50;             // Increased from 40
+                playerStats.maxHealth = 50;          // Increased from 40
+                playerStats.stamina = 3;             // Same
+                playerStats.maxStamina = 3;          // Same
+                playerStats.zenny = 0;               // Same
                 break;
                 
             case 'mage':
-                playerStats.health = 30;
-                playerStats.maxHealth = 30;
-                playerStats.stamina = 4;
-                playerStats.maxStamina = 4;
-                playerStats.zenny = 5;
+                playerStats.health = 30;             // Same
+                playerStats.maxHealth = 30;          // Same
+                playerStats.stamina = 5;             // Increased from 4
+                playerStats.maxStamina = 5;          // Increased from 4
+                playerStats.zenny = 0;               // Same
                 break;
                 
             case 'rogue':
-                playerStats.health = 35;
-                playerStats.maxHealth = 35;
-                playerStats.stamina = 3;
-                playerStats.maxStamina = 3;
-                playerStats.zenny = 8; // Starts with extra currency
+                playerStats.health = 40;             // Increased from 35
+                playerStats.maxHealth = 40;          // Increased from 35
+                playerStats.stamina = 4;             // Increased from 3
+                playerStats.maxStamina = 4;          // Increased from 3
+                playerStats.zenny = 0;               // Same, already higher than others
                 break;
                 
             default:
@@ -616,7 +616,7 @@ export default class UIManager {
         this.elements.hand.innerHTML = '';
         
         hand.forEach(gem => {
-            const gemElement = this.createGemElement(gem);
+            const gemElement = this.createGemElement(gem, 'battle'); // Specify battle context
             
             // Add selection handler
             gemElement.addEventListener('click', () => {
@@ -637,7 +637,7 @@ export default class UIManager {
         });
     }
     
-    // Generate tooltip for a gem
+    // Generate tooltip for a gem - updated to include augmentation info
     generateGemTooltip(gem) {
         // Basic info always shown
         const tooltipParts = [`${gem.name}: ${gem.value} ${gem.type}`];
@@ -657,16 +657,27 @@ export default class UIManager {
             }`);
         }
 
+        // Defense bypass for piercing gems
+        if (gem.defenseBypass) {
+            tooltipParts.push(`Piercing: Bypasses ${gem.defenseBypass * 100}% of enemy defense`);
+        }
+
         // Only show duration for buffs/debuffs
         if (gem.duration) {
             tooltipParts.push(`Duration: ${gem.duration} turns`);
         }
 
+        // Augmentation info
+        if (gem.augmentation) {
+            tooltipParts.push(`Augmentation: ${gem.augmentation}`);
+        }
+
         return tooltipParts.join('\n');
     }
 
+
     // Create a gem DOM element
-    createGemElement(gem) {
+    createGemElement(gem, context = 'battle') {
         const gemElement = document.createElement('div');
         gemElement.classList.add('gem', gem.color);
         gemElement.setAttribute('data-gem-id', gem.instanceId);
@@ -708,11 +719,43 @@ export default class UIManager {
         costDiv.textContent = gem.cost;
         gemElement.appendChild(costDiv);
         
-        // Generate tooltip
-        gemElement.setAttribute('data-tooltip', this.generateGemTooltip(gem));
+        // Add augmentation badge if gem is augmented
+        if (gem.augmentation && gem.badgeIcon) {
+            const badgeDiv = document.createElement('div');
+            badgeDiv.classList.add('gem-badge');
+            badgeDiv.textContent = gem.badgeIcon;
+            
+            // Position the badge in the top-left corner
+            badgeDiv.style.position = 'absolute';
+            badgeDiv.style.top = '5px';
+            badgeDiv.style.left = '5px';
+            badgeDiv.style.backgroundColor = 'rgba(255, 255, 255, 0.7)';
+            badgeDiv.style.borderRadius = '50%';
+            badgeDiv.style.width = '24px';
+            badgeDiv.style.height = '24px';
+            badgeDiv.style.display = 'flex';
+            badgeDiv.style.alignItems = 'center';
+            badgeDiv.style.justifyContent = 'center';
+            badgeDiv.style.fontSize = '14px';
+            badgeDiv.style.boxShadow = '0 1px 3px rgba(0,0,0,0.3)';
+            
+            // Add a class for the specific augmentation type
+            badgeDiv.classList.add(`badge-${gem.augmentation}`);
+            
+            gemElement.appendChild(badgeDiv);
+        }
+        
+        // MODIFIED: Only add tooltips in non-battle contexts
+        if (context === 'shop' || context === 'catalog') {
+            // Generate tooltip
+            gemElement.setAttribute('data-tooltip', this.generateGemTooltip(gem));
+            
+            // Add tooltip-enabled class to apply hover styles
+            gemElement.classList.add('tooltip-enabled');
+        }
         
         return gemElement;
-    }
+    }    
     
     // Update battle action buttons
     updateBattleButtons() {
@@ -896,6 +939,9 @@ export default class UIManager {
         this.elements.shopGemBagCount.textContent = gems.bag.length;
         const currentBagSize = state.gemBagSize || 30;
         this.elements.shopGemBagTotal.textContent = currentBagSize;
+        
+        // NEW: Get and render shop inventory
+        this.renderShopInventory();
     }
     
     // Update shop UI
@@ -921,17 +967,135 @@ export default class UIManager {
         // Update button states
         this.updateShopButtons();
     }
-    
+    // Render shop inventory
+    renderShopInventory() {
+        // First, check if the shop inventory section exists
+        let shopInventorySection = document.getElementById('shop-inventory-section');
+        
+        // If it doesn't exist, create it
+        if (!shopInventorySection) {
+            // Create a new section for shop inventory
+            shopInventorySection = document.createElement('div');
+            shopInventorySection.id = 'shop-inventory-section';
+            shopInventorySection.className = 'shop-section';
+            shopInventorySection.style.marginTop = '20px';
+            
+            // Add a header
+            const header = document.createElement('h2');
+            header.textContent = 'Gems For Sale';
+            shopInventorySection.appendChild(header);
+            
+            // Create container for inventory items
+            const inventoryContainer = document.createElement('div');
+            inventoryContainer.id = 'shop-inventory-container';
+            inventoryContainer.className = 'gem-container';
+            inventoryContainer.style.display = 'flex';
+            inventoryContainer.style.flexWrap = 'wrap';
+            inventoryContainer.style.justifyContent = 'center';
+            inventoryContainer.style.gap = '15px';
+            inventoryContainer.style.margin = '10px 0';
+            
+            shopInventorySection.appendChild(inventoryContainer);
+            
+            // Insert the new section before the continue button
+            const shopSelections = document.getElementById('shop-selections');
+            const continueBtn = document.getElementById('continue-btn');
+            
+            if (shopSelections && continueBtn) {
+                shopSelections.insertBefore(shopInventorySection, continueBtn);
+            } else {
+                // Fallback
+                if (shopSelections) {
+                    shopSelections.appendChild(shopInventorySection);
+                }
+            }
+        }
+        
+        // Now get the inventory container
+        const inventoryContainer = document.getElementById('shop-inventory-container');
+        
+        if (!inventoryContainer) {
+            console.error('Shop inventory container not found');
+            return;
+        }
+        
+        // Clear existing content
+        inventoryContainer.innerHTML = '';
+        
+        // Get inventory from shop manager
+        this.eventBus.emit('shop:get-inventory', (inventory) => {
+            if (!inventory || inventory.length === 0) {
+                // Show a message if inventory is empty
+                const emptyMsg = document.createElement('div');
+                emptyMsg.textContent = 'No gems available for purchase';
+                emptyMsg.style.padding = '10px';
+                emptyMsg.style.fontStyle = 'italic';
+                inventoryContainer.appendChild(emptyMsg);
+                return;
+            }
+            
+            // Render each gem in the inventory
+            inventory.forEach((gem, index) => {
+                const gemContainer = document.createElement('div');
+                gemContainer.className = 'gem-purchase-container';
+                gemContainer.style.display = 'flex';
+                gemContainer.style.flexDirection = 'column';
+                gemContainer.style.alignItems = 'center';
+                gemContainer.style.margin = '10px';
+                
+                // Create gem element
+                const gemElement = this.createGemElement(gem);
+                gemContainer.appendChild(gemElement);
+                
+                // Add price label
+                const priceLabel = document.createElement('div');
+                priceLabel.className = 'gem-price-label';
+                priceLabel.textContent = `${gem.price} $ZENNY`;
+                priceLabel.style.marginTop = '5px';
+                priceLabel.style.padding = '2px 8px';
+                priceLabel.style.backgroundColor = '#333';
+                priceLabel.style.color = 'white';
+                priceLabel.style.borderRadius = '10px';
+                priceLabel.style.fontSize = '0.8em';
+                gemContainer.appendChild(priceLabel);
+                
+                // Add buy button
+                const buyButton = document.createElement('button');
+                buyButton.textContent = 'Buy';
+                buyButton.style.marginTop = '5px';
+                buyButton.className = 'btn-buy';
+                buyButton.style.padding = '4px 12px';
+                
+                // Disable if not enough zenny
+                const playerZenny = parseInt(this.elements.shopZenny.textContent);
+                if (playerZenny < gem.price) {
+                    buyButton.disabled = true;
+                }
+                
+                // Add click handler
+                buyButton.addEventListener('click', () => {
+                    this.eventBus.emit('shop:purchase-inventory-gem', index);
+                    // Refresh the UI after purchase
+                    setTimeout(() => this.updateShopUI(), 100);
+                });
+                
+                gemContainer.appendChild(buyButton);
+                
+                // Add to the container
+                inventoryContainer.appendChild(gemContainer);
+            });
+        });
+    }
     // Render gems in shop hand
     renderShopHand() {
         const state = this.stateManager.getState();
         const { gems } = state;
-        const { hand } = gems; // Use 'hand' instead of 'bag'
+        const { hand } = gems;
         
         this.elements.shopHand.innerHTML = '';
         
         hand.forEach(gem => {
-            const gemElement = this.createGemElement(gem);
+            const gemElement = this.createGemElement(gem, 'shop'); // Specify shop context
             
             // Add selection handler
             gemElement.addEventListener('click', () => {
@@ -1077,7 +1241,7 @@ export default class UIManager {
                 
                 // Add all options to the container
                 options.forEach(upgradeGem => {
-                    const upgradeElement = this.createGemElement(upgradeGem);
+                    const upgradeElement = this.createGemElement(upgradeGem, 'shop');
                     
                     // Add upgrade type label
                     const typeLabel = document.createElement('div');
@@ -1087,7 +1251,16 @@ export default class UIManager {
                     typeLabel.style.padding = '2px';
                     typeLabel.style.marginTop = '5px';
                     
-                    switch(upgradeGem.upgradeType) {
+                    // Determine label and color based on upgrade type
+                    let upgradeType = upgradeGem.upgradeType || 'unknown';
+                    
+                    switch(upgradeType) {
+                        case 'augmentation':
+                            // For augmented gems, show the augmentation type
+                            const augType = upgradeGem.augmentation || 'unknown';
+                            typeLabel.textContent = augType.charAt(0).toUpperCase() + augType.slice(1);
+                            typeLabel.style.color = '#f39c12'; // Orange for augmentations
+                            break;
                         case 'direct':
                             typeLabel.textContent = 'Enhanced';
                             typeLabel.style.color = '#f39c12'; // Orange
@@ -1114,9 +1287,17 @@ export default class UIManager {
                     wrapper.appendChild(upgradeElement);
                     wrapper.appendChild(typeLabel);
                     
+                    // *** CRITICAL FIX: Store the FULL upgrade gem object in a data attribute ***
+                    wrapper.setAttribute('data-upgrade-id', upgradeGem.instanceId || upgradeGem.id);
+                    wrapper.setAttribute('data-augmentation', upgradeGem.augmentation || '');
+                    wrapper.setAttribute('data-upgrade-type', upgradeType);
+                    
                     // Add click handler to select this upgrade
                     wrapper.addEventListener('click', () => {
-                        this.selectUpgrade(gemInstanceId, upgradeGem.id);
+                        // *** CRITICAL FIX: Pass the full instance ID, not just the base ID ***
+                        const selectedId = upgradeGem.instanceId || upgradeGem.id;
+                        console.log(`Selected upgrade option: ${selectedId} (${upgradeType}${upgradeGem.augmentation ? ', ' + upgradeGem.augmentation : ''})`);
+                        this.selectUpgrade(gemInstanceId, selectedId);
                     });
                     
                     upgradesContainer.appendChild(wrapper);
@@ -1152,39 +1333,75 @@ export default class UIManager {
     
     // Select an upgrade option
     selectUpgrade(gemInstanceId, upgradeGemId) {
-        console.log(`Selecting upgrade: ${gemInstanceId} -> ${upgradeGemId}`);
+        // Get the selected gem from state
+        const state = this.stateManager.getState();
+        const handGems = state.gems.hand;
+        const originalGem = handGems.find(g => g.instanceId === gemInstanceId);
         
-        // Handle direct upgrades specially (they have a custom ID format with "-upgraded")
-        let finalGemId = upgradeGemId;
-        if (upgradeGemId.endsWith('-upgraded')) {
-            // For direct upgrades, we need to get the original gem's data and create an enhanced version
-            const state = this.stateManager.getState();
-            const originalGem = state.gems.hand.find(g => g.instanceId === gemInstanceId);
-            
-            if (originalGem) {
-                // Instead of using the "-upgraded" ID, use the original gem's ID
-                // The ShopManager will handle enhancing its values
-                finalGemId = originalGem.id;
+        if (!originalGem) {
+            console.error(`Original gem not found: ${gemInstanceId}`);
+            return;
+        }
+        
+        // Get the upgrade options array we stored earlier
+        const upgrades = this.shopState.upgradeOptions || [];
+        
+        // CRITICAL FIX: Find the EXACT upgrade object that matches the selected ID
+        const selectedUpgrade = upgrades.find(u => {
+            return (u.instanceId === upgradeGemId) || (u.id === upgradeGemId);
+        });
+        
+        console.log("Found selected upgrade:", selectedUpgrade); // Debugging
+        
+        // If we found the matching upgrade object, use its properties to determine the type
+        if (selectedUpgrade) {
+            // Process augmented gem upgrade
+            if (selectedUpgrade.upgradeType === 'augmentation' && selectedUpgrade.augmentation) {
+                console.log(`Processing augmentation upgrade: ${selectedUpgrade.augmentation}`);
                 
-                console.log(`Direct upgrade of ${originalGem.name} (${originalGem.id})`);
+                // Pass the complete upgrade object to ensure all augmentation info is included
+                this.eventBus.emit('shop:upgrade-gem', {
+                    gemInstanceId,
+                    newGemId: selectedUpgrade // Pass the whole object, not just ID
+                });
+            }
+            // Process direct upgrade (enhanced version of the same gem)
+            else if (selectedUpgrade.upgradeType === 'direct' || upgradeGemId.endsWith('-upgraded')) {
+                console.log("Processing direct enhancement upgrade");
                 
-                // Emit special direct upgrade event
                 this.eventBus.emit('shop:direct-upgrade-gem', {
                     gemInstanceId,
                     originalGemId: originalGem.id
                 });
+            }
+            // Process class-specific or unlocked gem upgrade
+            else if (selectedUpgrade.upgradeType === 'class' || selectedUpgrade.upgradeType === 'unlocked') {
+                console.log(`Processing gem replacement upgrade: ${selectedUpgrade.id}`);
                 
-                // Exit upgrade mode
-                this.cancelUpgrade();
-                return;
+                this.eventBus.emit('shop:upgrade-gem', {
+                    gemInstanceId,
+                    newGemId: selectedUpgrade.id // Use the gem definition ID
+                });
+            }
+            // Fallback - just use the ID
+            else {
+                console.log(`Processing standard upgrade with ID: ${upgradeGemId}`);
+                
+                this.eventBus.emit('shop:upgrade-gem', {
+                    gemInstanceId,
+                    newGemId: upgradeGemId
+                });
             }
         }
-        
-        // For regular upgrades, proceed normally
-        this.eventBus.emit('shop:upgrade-gem', {
-            gemInstanceId,
-            newGemId: finalGemId
-        });
+        // If we couldn't find the upgrade in our options, use fallback
+        else {
+            console.warn(`Upgrade not found in options array, using ID directly: ${upgradeGemId}`);
+            
+            this.eventBus.emit('shop:upgrade-gem', {
+                gemInstanceId,
+                newGemId: upgradeGemId
+            });
+        }
         
         // Exit upgrade mode
         this.cancelUpgrade();
@@ -1337,7 +1554,7 @@ export default class UIManager {
                 baseGems.forEach(gemId => {
                     const gemDef = definitions[gemId];
                     if (gemDef) {
-                        const gemElement = this.createGemElement(gemDef);
+                        const gemElement = this.createGemElement(gemDef, 'catalog');
                         this.elements.unlockedGems.appendChild(gemElement);
                     }
                 });
@@ -1353,7 +1570,7 @@ export default class UIManager {
                 starterGems.forEach(gemId => {
                     const gemDef = definitions[gemId];
                     if (gemDef) {
-                        const gemElement = this.createGemElement(gemDef);
+                        const gemElement = this.createGemElement(gemDef, 'catalog');
                         this.elements.unlockedGems.appendChild(gemElement);
                     }
                 });
@@ -1368,7 +1585,7 @@ export default class UIManager {
                     
                     const gemDef = definitions[gemId];
                     if (gemDef) {
-                        const gemElement = this.createGemElement(gemDef);
+                        const gemElement = this.createGemElement(gemDef, 'catalog');
                         this.elements.unlockedGems.appendChild(gemElement);
                     }
                 });

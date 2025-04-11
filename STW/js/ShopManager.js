@@ -7,12 +7,16 @@ export default class ShopManager {
         
         // Costs for shop actions
         this.costs = {
-            buyRandomGem: 3,
-            discardGem: 3,
-            upgradeGem: 5,
-            swapGem: 2,
-            healPlayer: 3
+            buyRandomGem: 4,   // Increased from 3 - buying gems should be a meaningful investment
+            discardGem: 2,     // Decreased from 3 - encourage removal of unwanted gems
+            upgradeGem: 6,     // Increased from 5 - upgrades are powerful
+            swapGem: 3,        // Increased from 2 - swapping is valuable
+            healPlayer: 4      // Increased from 3 - healing is now more valuable with increased player stats
         };
+        
+        // NEW: Shop inventory system
+        this.shopInventory = [];
+        this.inventorySize = 3; // Number of gems to offer in shop
         
         // Set up event listeners
         this.setupEventListeners();
@@ -28,8 +32,16 @@ export default class ShopManager {
             this.discardGem(gemInstanceId);
         });
         
+        // UPDATED: Improve handling of gem upgrades
         this.eventBus.on('shop:upgrade-gem', (data) => {
-            this.upgradeGem(data.gemInstanceId, data.newGemId);
+            // Check if we received an object or just an ID
+            if (typeof data.newGemId === 'object' && data.newGemId.augmentation) {
+                // This is an augmentation upgrade
+                this.upgradeGem(data.gemInstanceId, data.newGemId);
+            } else {
+                // This is a regular ID-based upgrade
+                this.upgradeGem(data.gemInstanceId, data.newGemId);
+            }
         });
         
         this.eventBus.on('shop:heal-player', () => {
@@ -39,12 +51,12 @@ export default class ShopManager {
         this.eventBus.on('shop:continue', () => {
             this.continueJourney();
         });
-
+    
         this.eventBus.on('shop:direct-upgrade-gem', (data) => {
             this.directUpgradeGem(data.gemInstanceId, data.originalGemId);
         });
-        
     }
+    
 
     prepareShop() {
         console.log("Preparing shop");
@@ -59,6 +71,9 @@ export default class ShopManager {
                 gemPool: []
             }
         });
+        
+        // Generate new shop inventory
+        this.generateShopInventory();
         
         // Update shop UI
         if (this.uiManager && this.uiManager.updateShopScreen) {
@@ -234,6 +249,7 @@ export default class ShopManager {
         
         return true;
     }
+        
     
     // Heal the player
     healPlayer() {
@@ -290,7 +306,7 @@ export default class ShopManager {
         const hand = state.gems.hand;
         
         // Validation
-        if (!state.inUpgradeMode || selectedGems.size !== 1) {
+        if (!state.inUpgradeMode || !selectedGems || selectedGems.size !== 1) {
             this.eventBus.emit('message:show', {
                 text: 'Please select a gem first',
                 type: 'error'
@@ -298,7 +314,7 @@ export default class ShopManager {
             return;
         }
         
-        if (poolIndex < 0 || !gemCatalog.gemPool || poolIndex >= gemCatalog.gemPool.length) {
+        if (poolIndex < 0 || !gemCatalog || !gemCatalog.gemPool || poolIndex >= gemCatalog.gemPool.length) {
             this.eventBus.emit('message:show', {
                 text: 'Invalid upgrade option',
                 type: 'error'
@@ -310,7 +326,7 @@ export default class ShopManager {
         const selectedIndex = Array.from(selectedGems)[0];
         
         // Validate index is in range of hand
-        if (selectedIndex < 0 || selectedIndex >= hand.length) {
+        if (selectedIndex < 0 || !hand || selectedIndex >= hand.length) {
             this.eventBus.emit('message:show', {
                 text: 'Invalid gem selection',
                 type: 'error'
@@ -319,8 +335,15 @@ export default class ShopManager {
         }
         
         const selectedGem = hand[selectedIndex];
-        const upgradeOption = gemCatalog.gemPool[poolIndex];
+        if (!selectedGem) {
+            this.eventBus.emit('message:show', {
+                text: 'Selected gem not found',
+                type: 'error'
+            });
+            return;
+        }
         
+        const upgradeOption = gemCatalog.gemPool[poolIndex];
         if (!upgradeOption) {
             this.eventBus.emit('message:show', {
                 text: 'Upgrade option not available',
@@ -615,5 +638,212 @@ export default class ShopManager {
         
         // Unlock the gem via gem manager - this handles updating the specific class's unlocks
         return this.gemManager.unlockGem(gemId, cost);
+    }
+    // Generate shop inventory when entering shop
+    generateShopInventory() {
+        const state = this.stateManager.getState();
+        const playerClass = state.player.class;
+        const day = state.journey.day || 1;
+        
+        // Clear existing inventory
+        this.shopInventory = [];
+        
+        // Get all available gems
+        const allGemDefinitions = this.gemManager.gemDefinitions;
+        
+        // Filter gems based on player class and unlocked gems
+        const availableGems = [];
+        const { meta } = state;
+        
+        // Get unlocked gems list (handling both array and object structure)
+        let unlockedGemsList = [];
+        if (Array.isArray(meta.unlockedGems)) {
+            // Old structure - simple array
+            unlockedGemsList = meta.unlockedGems;
+        } else if (meta.unlockedGems && typeof meta.unlockedGems === 'object') {
+            // New structure - combine global and class-specific unlocks
+            const globalGems = meta.unlockedGems.global || [];
+            const classGems = meta.unlockedGems[playerClass] || [];
+            unlockedGemsList = [...globalGems, ...classGems];
+        }
+        
+        // Base gems that are always available to all classes
+        const baseGems = [
+            'red-attack', 'blue-magic', 'green-attack', 'grey-heal'
+        ];
+        
+        // Class-specific starter gems
+        const classStarterGems = {
+            'knight': ['red-strong'],
+            'mage': ['blue-strong-heal'],
+            'rogue': ['green-quick']
+        };
+        
+        // Combine all available gems
+        let possibleGems = [...baseGems];
+        if (classStarterGems[playerClass]) {
+            possibleGems = [...possibleGems, ...classStarterGems[playerClass]];
+        }
+        
+        // Add unlocked gems the player has specifically unlocked
+        possibleGems = [...possibleGems, ...unlockedGemsList];
+        
+        // Filter to only include gems that have definitions
+        possibleGems = possibleGems.filter(gemId => allGemDefinitions[gemId]);
+        
+        // Create the available gems list from definitions
+        possibleGems.forEach(gemId => {
+            if (allGemDefinitions[gemId]) {
+                availableGems.push({
+                    ...allGemDefinitions[gemId],
+                    price: this.calculateGemPrice(allGemDefinitions[gemId], day)
+                });
+            }
+        });
+        
+        // Rare chance (20%) to include an advanced gem even if not unlocked
+        if (Math.random() < 0.2) {
+            const advancedGems = {
+                'knight': ['red-burst'],
+                'mage': ['blue-shield'],
+                'rogue': ['green-poison']
+            };
+            
+            // Add a class-appropriate advanced gem if available
+            if (advancedGems[playerClass]) {
+                const randomAdvancedGemId = advancedGems[playerClass][Math.floor(Math.random() * advancedGems[playerClass].length)];
+                if (allGemDefinitions[randomAdvancedGemId] && !availableGems.some(g => g.id === randomAdvancedGemId)) {
+                    // Higher price for advanced gems
+                    availableGems.push({
+                        ...allGemDefinitions[randomAdvancedGemId],
+                        price: this.calculateGemPrice(allGemDefinitions[randomAdvancedGemId], day) + 2
+                    });
+                }
+            }
+        }
+        
+        // Randomly select gems for inventory
+        const selectedGems = [];
+        const inventorySize = Math.min(this.inventorySize, availableGems.length);
+        
+        for (let i = 0; i < inventorySize; i++) {
+            // Randomly select a gem that's not already in the inventory
+            const availableForSelection = availableGems.filter(gem => !selectedGems.some(g => g.id === gem.id));
+            if (availableForSelection.length === 0) break;
+            
+            const randomIndex = Math.floor(Math.random() * availableForSelection.length);
+            selectedGems.push(availableForSelection[randomIndex]);
+        }
+        
+        // Set the shop inventory
+        this.shopInventory = selectedGems;
+        
+        console.log(`Generated shop inventory with ${this.shopInventory.length} gems`);
+        
+        return this.shopInventory;
+    }
+    
+    // Calculate gem price based on its stats and the current day
+    calculateGemPrice(gemDef, day) {
+        if (!gemDef) return 0;
+        
+        // Base price calculation
+        let price = 0;
+        
+        // Value-based pricing
+        if (gemDef.type === 'attack' || gemDef.type === 'heal') {
+            price += Math.ceil(gemDef.value / 4); // Every 4 points of value = 1 zenny
+        } else if (gemDef.type === 'shield') {
+            price += Math.ceil(gemDef.value / 3); // Defense is slightly more valuable
+        } else if (gemDef.type === 'poison') {
+            price += Math.ceil((gemDef.value * gemDef.duration) / 3); // Total damage potential
+        }
+        
+        // Special effects are valuable
+        if (gemDef.specialEffect) {
+            price += 2;
+        }
+        
+        // Adjust for stamina cost (cheaper gems cost less)
+        price += gemDef.cost - 1;
+        
+        // Scale price based on day (later days = slightly more expensive)
+        price = Math.max(1, Math.floor(price * (1 + (day - 1) * 0.1)));
+        
+        return price;
+    }
+    
+    // Purchase a specific gem from the shop inventory
+    purchaseGemFromInventory(gemIndex) {
+        if (gemIndex < 0 || gemIndex >= this.shopInventory.length) {
+            this.eventBus.emit('message:show', {
+                text: 'Invalid gem selection!',
+                type: 'error'
+            });
+            return false;
+        }
+        
+        const selectedGem = this.shopInventory[gemIndex];
+        const state = this.stateManager.getState();
+        const { player, gems } = state;
+        
+        // Check if player has enough zenny
+        if (player.zenny < selectedGem.price) {
+            this.eventBus.emit('message:show', {
+                text: `Not enough $ZENNY! Need ${selectedGem.price}.`,
+                type: 'error'
+            });
+            return false;
+        }
+        
+        // Check gem bag capacity
+        const totalGems = gems.bag.length + gems.hand.length;
+        const maxGemBagSize = state.gemBagSize || 30;
+        
+        if (totalGems >= maxGemBagSize) {
+            // Auto-expand the bag
+            this.gemManager.increaseGemBagSize(1);
+        }
+        
+        // Create the gem
+        const newGem = this.gemManager.createGem(selectedGem.id);
+        
+        if (!newGem) {
+            this.eventBus.emit('message:show', {
+                text: 'Failed to create gem!',
+                type: 'error'
+            });
+            return false;
+        }
+        
+        // Add to gem bag
+        const newBag = [...gems.bag, newGem];
+        
+        // Deduct cost and update state
+        this.stateManager.updateState({
+            player: {
+                zenny: player.zenny - selectedGem.price
+            },
+            gems: {
+                bag: newBag,
+                hand: gems.hand,
+                discarded: gems.discarded,
+                played: gems.played
+            }
+        });
+        
+        // Remove gem from inventory
+        this.shopInventory.splice(gemIndex, 1);
+        
+        // Show success message
+        this.eventBus.emit('message:show', {
+            text: `Purchased ${newGem.name} for ${selectedGem.price} $ZENNY!`,
+            type: 'success'
+        });
+        
+        // Emit event
+        this.eventBus.emit('gem:purchased', newGem);
+        
+        return newGem;
     }
 }

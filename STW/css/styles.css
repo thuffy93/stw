@@ -1051,3 +1051,59 @@
                 background-color: #2d2b20;
             }
         }
+        /* Augmentation Badge Styles */
+        .gem-badge {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+
+        /* Specific augmentation styles */
+        .badge-powerful {
+            background-color: rgba(255, 215, 0, 0.8);
+        }
+
+        .badge-efficient {
+            background-color: rgba(100, 200, 255, 0.8);
+        }
+
+        .badge-piercing {
+            background-color: rgba(255, 100, 100, 0.8);
+        }
+
+        .badge-swift {
+            background-color: rgba(200, 255, 200, 0.8);
+        }
+
+        .badge-lasting {
+            background-color: rgba(180, 180, 255, 0.8);
+        }
+
+        /* Make augmented gems stand out more */
+        .gem[data-gem-id*="powerful"],
+        .gem[data-gem-id*="piercing"],
+        .gem[data-gem-id*="efficient"],
+        .gem[data-gem-id*="swift"],
+        .gem[data-gem-id*="lasting"] {
+            box-shadow: 0 5px 15px rgba(255,215,0,0.5);
+            transform: translateY(-3px);
+        }
+
+        .gem[data-gem-id*="powerful"]:hover,
+        .gem[data-gem-id*="piercing"]:hover,
+        .gem[data-gem-id*="efficient"]:hover,
+        .gem[data-gem-id*="swift"]:hover,
+        .gem[data-gem-id*="lasting"]:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 8px 20px rgba(255,215,0,0.7);
+        }

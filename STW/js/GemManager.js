@@ -4,7 +4,41 @@ export default class GemManager {
         this.eventBus = eventBus;
         this.stateManager = stateManager;
         
-        // Initialize with base gem definitions
+        // Define possible augmentations
+        this.augmentationTypes = {
+            'powerful': {
+                namePrefix: 'Powerful',
+                valueMultiplier: 1.5,
+                badgeIcon: '⚡',
+                tooltip: 'Increases power by 50%'
+            },
+            'efficient': {
+                namePrefix: 'Efficient',
+                costReduction: 1,
+                badgeIcon: '🔋',
+                tooltip: 'Reduces stamina cost by 1 (minimum 1)'
+            },
+            'piercing': {
+                namePrefix: 'Piercing',
+                defenseBypass: 0.3,
+                badgeIcon: '🔪',
+                tooltip: 'Bypasses 30% of enemy defense'
+            },
+            'swift': {
+                namePrefix: 'Swift',
+                drawEffect: true,
+                badgeIcon: '💨',
+                tooltip: 'Draw a gem when used'
+            },
+            'lasting': {
+                namePrefix: 'Lasting',
+                durationBonus: 2,
+                badgeIcon: '⏱️',
+                tooltip: 'Increases effect duration by 2 turns'
+            }
+        };
+        
+        // Initialize with base gem definitions (unchanged)
         this.gemDefinitions = {
             // Base gems (always available)
             'red-attack': {
@@ -124,7 +158,6 @@ export default class GemManager {
                 baseSuccess: 15, // Changed from 90% to 15%
                 tooltip: 'Apply 4 poison damage per turn for 3 turns. Rogue class bonus: 50% extra poison damage.'
             },
-            
         };
         
         // Set up event listeners
@@ -147,9 +180,9 @@ export default class GemManager {
             'rogue': ['green-poison']
         };
         
-        // NEW: Initialize starting bag size
+        // Initialize starting bag size
         this.initializeGemBagSize();
-    }    
+    }      
     
     setupEventListeners() {
         // Listen for class selection to initialize starter gems
@@ -430,8 +463,8 @@ export default class GemManager {
         return result;
     }    
 
-    // Create a gem instance based on its definition
-    createGem(gemId) {
+    // Create a gem instance based on its definition, now with optional augmentation
+    createGem(gemId, augmentation = null) {
         const definition = this.gemDefinitions[gemId];
         if (!definition) {
             console.error(`Unknown gem ID: ${gemId}`);
@@ -442,11 +475,66 @@ export default class GemManager {
         const meta = this.stateManager.getState('meta');
         const proficiency = meta.gemProficiency[gemId] || definition.baseSuccess;
         
-        return {
+        // Start with the base gem
+        let gem = {
             ...definition,
             instanceId: `${gemId}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
             proficiency
         };
+        
+        // Apply augmentation if provided
+        if (augmentation && this.augmentationTypes[augmentation]) {
+            gem = this.applyAugmentation(gem, augmentation);
+        }
+        
+        return gem;
+    }
+    // New method to apply augmentation to a gem
+    applyAugmentation(gem, augmentationType) {
+        const augmentation = this.augmentationTypes[augmentationType];
+        if (!augmentation) {
+            console.error(`Unknown augmentation type: ${augmentationType}`);
+            return gem;
+        } 
+        // Create a new gem with the augmentation applied
+        const augmentedGem = { 
+            ...gem,
+            // Add the augmentation type to the gem
+            augmentation: augmentationType,
+            // Add badge icon to show the augmentation visually
+            badgeIcon: augmentation.badgeIcon,
+            // Modify name to indicate the augmentation
+            name: `${augmentation.namePrefix} ${gem.name}`,
+            // Instance ID includes the augmentation type
+            instanceId: `${gem.id}-${augmentationType}-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+        };
+        
+        // Apply specific effects based on augmentation type
+        if (augmentation.valueMultiplier) {
+            augmentedGem.value = Math.floor(gem.value * augmentation.valueMultiplier);
+        }
+        
+        if (augmentation.costReduction) {
+            // Ensure cost doesn't go below 1
+            augmentedGem.cost = Math.max(1, gem.cost - augmentation.costReduction);
+        }
+        
+        if (augmentation.defenseBypass) {
+            augmentedGem.defenseBypass = augmentation.defenseBypass;
+        }
+        
+        if (augmentation.drawEffect) {
+            augmentedGem.specialEffect = 'draw';
+        }
+        
+        if (augmentation.durationBonus && gem.duration) {
+            augmentedGem.duration = gem.duration + augmentation.durationBonus;
+        }
+        
+        // Update tooltip to include augmentation effect
+        augmentedGem.tooltip = `${gem.tooltip || ''} ${augmentation.tooltip}`;
+        
+        return augmentedGem;
     }
     
     // Draw gems from the bag to the hand
@@ -521,7 +609,7 @@ export default class GemManager {
         
         // Calculate total stamina cost
         const totalCost = selectedGems.reduce((sum, gem) => sum + gem.cost, 0);
-        
+
         // Check if enough stamina
         if (totalCost > playerStamina) {
             this.eventBus.emit('message:show', {
@@ -761,9 +849,9 @@ export default class GemManager {
     // Upgrade a gem (in shop)
     upgradeGem(gemInstanceId, newGemId) {
         const state = this.stateManager.getState();
-        
-        // Since we're only upgrading from the hand in the shop, only look in hand
         const handGems = state.gems.hand;
+        
+        console.log(`Upgrading gem: ${gemInstanceId} to:`, newGemId); // Debug log the entire newGemId object/value
         
         // Find the gem to upgrade in hand
         const gemIndex = handGems.findIndex(gem => gem.instanceId === gemInstanceId);
@@ -775,16 +863,75 @@ export default class GemManager {
         
         // Get the original gem for reference
         const originalGem = handGems[gemIndex];
+        let newGem = null;
         
-        // Create new gem
-        const newGem = this.createGem(newGemId);
-        
-        if (!newGem) {
-            console.error(`Failed to create new gem: ${newGemId}`);
+        // CASE 1: If newGemId is a complete object with an augmentation property
+        if (typeof newGemId === 'object' && newGemId !== null) {
+            console.log(`Processing object-based upgrade with properties:`, 
+                        `upgradeType=${newGemId.upgradeType}`,
+                        `augmentation=${newGemId.augmentation}`);
+            
+            if (newGemId.upgradeType === 'augmentation' && newGemId.augmentation) {
+                // Apply the specified augmentation
+                newGem = this.applyAugmentation({...originalGem}, newGemId.augmentation);
+                console.log(`Applied ${newGemId.augmentation} augmentation to create ${newGem.name}`);
+            } 
+            else if (newGemId.id && this.gemDefinitions[newGemId.id]) {
+                // Use the ID from the object to create a new gem
+                newGem = this.createGem(newGemId.id);
+                console.log(`Created new gem from object's id: ${newGemId.id}`);
+            }
+            else {
+                console.error(`Invalid upgrade object:`, newGemId);
+                return null;
+            }
+        }
+        // CASE 2: If newGemId is a string with a known augmentation pattern
+        else if (typeof newGemId === 'string') {
+            // Check for augmentation pattern in the ID
+            const knownAugmentations = Object.keys(this.augmentationTypes);
+            let detectedAugmentation = null;
+            
+            for (const type of knownAugmentations) {
+                if (newGemId.includes(`-${type}-`)) {
+                    detectedAugmentation = type;
+                    break;
+                }
+            }
+            
+            if (detectedAugmentation) {
+                // Apply the detected augmentation
+                newGem = this.applyAugmentation({...originalGem}, detectedAugmentation);
+                console.log(`Detected and applied ${detectedAugmentation} augmentation from ID pattern`);
+            }
+            // Check if it's a standard gem definition
+            else if (this.gemDefinitions[newGemId]) {
+                // Create new gem from definition
+                newGem = this.createGem(newGemId);
+                console.log(`Created new gem from definition ID: ${newGemId}`);
+            }
+            // Handle direct upgrades (with "-upgraded" suffix)
+            else if (newGemId.endsWith('-upgraded')) {
+                // Apply powerful augmentation as the default for direct upgrades
+                newGem = this.applyAugmentation({...originalGem}, 'powerful');
+                console.log(`Applied powerful augmentation as default for -upgraded suffix`);
+            }
+            else {
+                console.error(`Unrecognized upgrade ID format: ${newGemId}`);
+                return null;
+            }
+        }
+        else {
+            console.error(`Invalid newGemId type: ${typeof newGemId}`);
             return null;
         }
         
-        console.log(`Upgrading gem ${originalGem.name} (${gemInstanceId}) to ${newGem.name} (${newGemId})`);
+        if (!newGem) {
+            console.error(`Failed to create upgraded gem`);
+            return null;
+        }
+        
+        console.log(`Successfully created: ${newGem.name} (augmentation: ${newGem.augmentation || 'none'})`);
         
         // Replace in hand
         const newHand = [...handGems];
@@ -800,9 +947,6 @@ export default class GemManager {
             }
         });
         
-        // Fixed: Don't deduct cost here - let ShopManager handle it
-        // ShopManager already deducts the cost after calling this method
-        
         // Emit event
         this.eventBus.emit('gem:upgraded', {
             oldGem: originalGem,
@@ -817,6 +961,7 @@ export default class GemManager {
         
         return newGem;
     }
+
     
     // Add a random gem to bag (shop purchase)
     addRandomGem() {
@@ -955,7 +1100,7 @@ export default class GemManager {
         // Create the new gem
         return this.createGem(randomGemDef.id);
     }
-    // Get upgrade options for a gem
+    // Get upgrade options for a gem - modified to use augmentations
     getUpgradeOptions(gemInstanceId) {
         const state = this.stateManager.getState();
         const handGems = state.gems.hand;
@@ -963,26 +1108,42 @@ export default class GemManager {
         const gem = handGems.find(g => g.instanceId === gemInstanceId);
         const playerClass = state.player.class;
         
-        if (!gem) {
-            console.error(`Gem not found in hand for upgrade options: ${gemInstanceId}`);
-            return [];
-        }
-        
         const upgrades = [];
         
-        // 1. Add direct stat upgrade option for the same gem type
-        const directUpgrade = {
-            ...this.gemDefinitions[gem.id],
-            id: `${gem.id}-upgraded`,
-            name: `Upgraded ${gem.name}`,
-            value: Math.floor(gem.value * 1.5), // 50% power increase
-            cost: gem.cost, // Keep the same cost
-            upgradeType: 'direct'
-        };
-        upgrades.push(directUpgrade);
+        // 1. Instead of direct stat upgrade, offer powerful augmentation
+        const powerfulGem = this.applyAugmentation({...gem}, 'powerful');
+        powerfulGem.upgradeType = 'augmentation';
+        upgrades.push(powerfulGem);
         
-        // 2. Only offer class-specific upgrades for base gems
-        // For example, red-attack can upgrade to red-strong for Knights
+        // 2. For attack gems, also offer piercing augmentation
+        if (gem.type === 'attack') {
+            const piercingGem = this.applyAugmentation({...gem}, 'piercing');
+            piercingGem.upgradeType = 'augmentation';
+            upgrades.push(piercingGem);
+        }
+        
+        // 3. For any gem with cost > 1, offer efficient augmentation
+        if (gem.cost > 1) {
+            const efficientGem = this.applyAugmentation({...gem}, 'efficient');
+            efficientGem.upgradeType = 'augmentation';
+            upgrades.push(efficientGem);
+        }
+        
+        // 4. For DoT or shield/buff gems, offer lasting augmentation
+        if (gem.duration) {
+            const lastingGem = this.applyAugmentation({...gem}, 'lasting');
+            lastingGem.upgradeType = 'augmentation';
+            upgrades.push(lastingGem);
+        }
+        
+        // 5. For all gems, offer swift augmentation if they don't already have it
+        if (!gem.specialEffect || gem.specialEffect !== 'draw') {
+            const swiftGem = this.applyAugmentation({...gem}, 'swift');
+            swiftGem.upgradeType = 'augmentation';
+            upgrades.push(swiftGem);
+        }
+        
+        // 6. Still offer class-specific upgrades for base gems
         const baseToClassUpgradeMap = {
             'knight': {
                 'red-attack': 'red-strong'
@@ -1004,22 +1165,18 @@ export default class GemManager {
             upgrades.push(classUpgrade);
         }
         
-        // 3. Add unlocked gems of the same color (but only if they're actually unlocked)
-        // Fix for the error: Handle both array and object structure of unlockedGems
+        // 7. Still offer unlockable gems if they're available
         let unlockedGemsList = [];
         const { meta } = state;
         
         if (Array.isArray(meta.unlockedGems)) {
-            // Old structure - simple array
             unlockedGemsList = meta.unlockedGems;
         } else if (meta.unlockedGems && typeof meta.unlockedGems === 'object') {
-            // New structure - combine global and class-specific unlocks
             const globalGems = meta.unlockedGems.global || [];
             const classGems = meta.unlockedGems[playerClass] || [];
             unlockedGemsList = [...globalGems, ...classGems];
         }
         
-        // Now we have unlockedGemsList as an array, we can safely use includes()
         if (gem.color === 'red' && playerClass === 'knight' && unlockedGemsList.includes('red-burst')) {
             const burstUpgrade = {
                 ...this.gemDefinitions['red-burst'],
