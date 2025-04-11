@@ -1200,7 +1200,7 @@ export default class UIManager {
         this.updateShopButtons();
     }
     
-    // Render upgrade options in the gem pool
+    // Render upgrade options in the gem pool - modified to show rotation notice
     renderUpgradeOptions(gemInstanceId) {
         // Clear gem pool
         this.elements.gemPool.innerHTML = '';
@@ -1241,7 +1241,7 @@ export default class UIManager {
                 originalGemContainer.appendChild(upgradeArrow);
                 
                 this.elements.gemPool.appendChild(originalGemContainer);
-                
+        
                 // Add options header
                 const optionsHeader = document.createElement('div');
                 optionsHeader.textContent = 'Available Upgrades:';
@@ -1336,7 +1336,6 @@ export default class UIManager {
             }
         });
     }
-    
     
     // Cancel upgrade mode
     cancelUpgrade() {

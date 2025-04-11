@@ -61,6 +61,21 @@ export default class ShopManager {
     prepareShop() {
         console.log("Preparing shop");
         
+        // Get current state
+        const state = this.stateManager.getState();
+        
+        // NEW: Reset the rotation counter and gem options
+        // This will cause new random options to be generated on the next upgrade request
+        if (state.gemUpgradeRotation) {
+            this.stateManager.updateState({
+                gemUpgradeRotation: {
+                    currentOptions: {}, // Clear all current options
+                    visitCount: (state.gemUpgradeRotation.visitCount || 0) + 1 // Increment visit counter
+                }
+            });
+            console.log("Reset gem upgrade rotation options for new shop visit");
+        }
+        
         // Reset shop-specific state only
         this.stateManager.updateState({
             inUpgradeMode: false,
