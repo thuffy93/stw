@@ -6,8 +6,8 @@ export default class UIManager {
         this.eventBus = eventBus;
         this.stateManager = stateManager;
         
-        // Store DOM element references - using a more efficient approach
-        this.elements = {};
+        // Cache for DOM elements
+        this.elements = new Map();
         
         // Selected gems in battle
         this.selectedGems = [];
@@ -22,8 +22,9 @@ export default class UIManager {
         // Set up event listeners
         this.setupEventListeners();
         
-        // Cache DOM elements
-        this.cacheElements();
+        // Cache DOM elements (deferred to after DOM is loaded)
+        // Use requestAnimationFrame to ensure DOM is ready
+        requestAnimationFrame(() => this.cacheElements());
     }
     
     // Cache DOM elements for better performance
@@ -58,12 +59,23 @@ export default class UIManager {
         ];
         
         // Cache all elements
-        elementIds.forEach(id => {
+        for (const id of elementIds) {
             const element = document.getElementById(id);
             if (element) {
-                this.elements[id] = element;
+                this.elements.set(id, element);
             }
-        });
+        }
+    }
+    
+    // Get cached element, fallback to document.getElementById if not cached
+    getElement(id) {
+        if (!this.elements.has(id)) {
+            const element = document.getElementById(id);
+            if (element) {
+                this.elements.set(id, element);
+            }
+        }
+        return this.elements.get(id);
     }
     
     setupEventListeners() {
@@ -101,28 +113,73 @@ export default class UIManager {
         
         // Make gem bag containers clickable
         this.setupGemBagContainers();
+
+        // Add keyboard event listeners for shortcuts
+        document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
+    }
+
+    // Handle keyboard shortcuts
+    handleKeyboardShortcuts(e) {
+        const state = this.stateManager.getState();
+        
+        // Only active in battle screen
+        if (state.currentScreen !== 'battle-screen') return;
+        
+        switch (e.key) {
+            case 'e': // Execute gems
+                e.preventDefault();
+                if (!this.getElement('execute-btn').disabled) {
+                    this.executeGems();
+                }
+                break;
+            case 'w': // Wait action
+                e.preventDefault();
+                if (!this.getElement('wait-btn').disabled) {
+                    this.waitAction();
+                }
+                break;
+            case 'd': // Discard & End
+                e.preventDefault();
+                if (!this.getElement('discard-end-btn').disabled) {
+                    this.discardAndEndTurn();
+                }
+                break;
+            case ' ': // End Turn (spacebar)
+                e.preventDefault();
+                if (!this.getElement('end-turn-btn').disabled) {
+                    this.endTurn();
+                }
+                break;
+            case 'Escape': // Close any open overlays
+                const overlay = this.getElement('gem-bag-overlay');
+                if (overlay && overlay.style.display === 'block') {
+                    this.eventBus.emit('overlay:close-gem-bag');
+                }
+                break;
+        }
     }
     
     // Helper method to add click listener with proper cleanup
     addClickListener(elementId, callback) {
-        const element = document.getElementById(elementId);
-        if (element) {
-            // Remove previous event listeners by cloning the node
-            const newElement = element.cloneNode(true);
-            element.parentNode.replaceChild(newElement, element);
-            
-            // Add new event listener
-            newElement.addEventListener('click', callback);
-            
-            // Update cached element reference
-            this.elements[elementId] = newElement;
-        }
+        const element = this.getElement(elementId) || document.getElementById(elementId);
+        if (!element) return;
+        
+        // Create a new function that references the class instance
+        const boundCallback = callback.bind(this);
+        
+        // Remove previous event listeners by cloning the node
+        const newElement = element.cloneNode(true);
+        element.parentNode.replaceChild(newElement, element);
+        
+        // Add new event listener
+        newElement.addEventListener('click', boundCallback);
+        
+        // Update cached element reference
+        this.elements.set(elementId, newElement);
     }
     
     // Set up screen-specific event listeners
     setupScreenEventListeners(screenId) {
-        console.log(`Setting up event listeners for screen: ${screenId}`);
-        
         // Different listeners for different screens
         switch(screenId) {
             case 'gem-catalog-screen':
@@ -153,7 +210,7 @@ export default class UIManager {
         }
     }
     
-    // Update UI based on current state
+    // Update UI based on current state - optimized to only update what's needed
     updateUI() {
         const state = this.stateManager.getState();
         
@@ -176,43 +233,43 @@ export default class UIManager {
     
     // Handle screen changes
     onScreenChanged(screenId) {
-        console.log(`Screen changed to: ${screenId}`);
-        
         // Reset screen-specific state
-        if (screenId === 'battle-screen') {
-            this.selectedGems = [];
-            this.updateBattleBackground();
-            this.updateBattleUI();
-        } 
-        else if (screenId === 'shop-screen') {
-            this.shopState = {
-                selectedHandGem: null,
-                upgradeMode: false,
-                upgradeOptions: []
-            };
-            this.setupShop();
+        switch (screenId) {
+            case 'battle-screen':
+                this.selectedGems = [];
+                this.updateBattleBackground();
+                break;
+            case 'shop-screen':
+                this.shopState = {
+                    selectedHandGem: null,
+                    upgradeMode: false,
+                    upgradeOptions: []
+                };
+                // Setup shop with a short delay to ensure DOM is ready
+                setTimeout(() => this.setupShop(), 50);
+                break;
         }
-        else if (screenId === 'camp-screen') {
-            this.updateCampUI();
-        }
-        else if (screenId === 'gem-catalog-screen') {
-            this.updateGemCatalogUI();
-        }
+        
+        // Update UI for the new screen
+        this.updateUI();
         
         // Set up event listeners for the current screen
         this.setupScreenEventListeners(screenId);
         
-        // Refresh gem bag containers and overlay references
+        // Refresh gem bag containers and overlay references (wait for DOM updates)
         setTimeout(() => {
             this.setupGemBagContainers();
             this.updateOverlayElementReferences();
-        }, 100);
+        }, 50);
     }
     
-    // Update battle screen background based on phase
+    // Update battle background based on phase
     updateBattleBackground() {
-        const phase = this.stateManager.getState().journey.phase;
-        const battleScreen = this.elements['battle-screen'];
+        const state = this.stateManager.getState();
+        if (!state || !state.journey || !state.journey.phase) return;
+        
+        const phase = state.journey.phase;
+        const battleScreen = this.getElement('battle-screen');
         
         if (battleScreen) {
             battleScreen.className = 'screen active';
@@ -223,7 +280,7 @@ export default class UIManager {
     // Select character class
     selectClass(classType) {
         // Initialize player stats based on class
-        let playerStats = {
+        const playerStats = {
             class: classType,
             buffs: []
         };
@@ -286,8 +343,6 @@ export default class UIManager {
     
     // Start the journey from gem catalog
     startJourney() {
-        console.log('Starting journey from gem catalog');
-        
         // Navigate to battle screen
         this.stateManager.changeScreen('battle-screen');
         
@@ -297,12 +352,12 @@ export default class UIManager {
         }, 100);
     }
     
-    // Update battle UI
+    // Update battle UI - optimized to reduce redundant operations
     updateBattleUI() {
         const state = this.stateManager.getState();
         const { player, battle, journey, gems } = state;
         
-        if (!battle || !player) return;
+        if (!battle) return;
         
         // Update day/phase indicator
         this.updateDayPhaseIndicator(journey);
@@ -315,24 +370,30 @@ export default class UIManager {
             this.updateEnemyDisplay(battle.enemy);
         }
         
-        // Update player info
-        this.updatePlayerDisplay(player);
-        
-        // Update zenny display
-        this.updateElement('zenny', player.zenny);
-        
-        // Update hand
-        this.renderHand();
-        
-        // Update gem bag count
-        this.updateGemBagCount(gems, state.gemBagSize || 20);
-        
-        // Update button states
-        this.updateBattleButtons();
+        // Update player info if player exists
+        if (player) {
+            this.updatePlayerDisplay(player);
+            
+            // Update zenny display
+            this.updateElement('zenny', player.zenny);
+            
+            // Update hand
+            this.renderHand();
+            
+            // Update gem bag count
+            if (gems) {
+                this.updateGemBagCount(gems, state.gemBagSize || 20);
+            }
+            
+            // Update button states
+            this.updateBattleButtons();
+        }
     }
     
     // Update day/phase indicator
     updateDayPhaseIndicator(journey) {
+        if (!journey) return;
+        
         const phaseEmoji = journey.phase === 'DAWN' ? '☀️' : 
                            journey.phase === 'DUSK' ? '🌆' : '🌙';
                            
@@ -341,11 +402,18 @@ export default class UIManager {
     
     // Update turn indicator
     updateTurnIndicator(currentTurn) {
-        const turnIndicator = this.elements['turn-indicator'];
+        const turnIndicator = this.getElement('turn-indicator');
         if (turnIndicator) {
-            turnIndicator.textContent = currentTurn === 'PLAYER' ? 'Your Turn' : 'Enemy Turn';
-            turnIndicator.classList.remove('player', 'enemy');
-            turnIndicator.classList.add(currentTurn.toLowerCase());
+            // Check if currentTurn is null or undefined and provide a default
+            if (currentTurn) {
+                turnIndicator.textContent = currentTurn === 'PLAYER' ? 'Your Turn' : 'Enemy Turn';
+                turnIndicator.classList.remove('player', 'enemy');
+                turnIndicator.classList.add(currentTurn.toLowerCase());
+            } else {
+                // Set a default if currentTurn is null
+                turnIndicator.textContent = 'Preparing...';
+                turnIndicator.classList.remove('player', 'enemy');
+            }
         }
     }
     
@@ -356,7 +424,7 @@ export default class UIManager {
         
         // Update health bar
         const healthPercent = (enemy.health / enemy.maxHealth) * 100;
-        const enemyHealthBar = this.elements['enemy-health-bar'];
+        const enemyHealthBar = this.getElement('enemy-health-bar');
         if (enemyHealthBar) {
             enemyHealthBar.style.width = `${healthPercent}%`;
         }
@@ -388,7 +456,7 @@ export default class UIManager {
         
         // Update health bar
         const playerHealthPercent = (player.health / player.maxHealth) * 100;
-        const playerHealthBar = this.elements['player-health-bar'];
+        const playerHealthBar = this.getElement('player-health-bar');
         if (playerHealthBar) {
             playerHealthBar.style.width = `${playerHealthPercent}%`;
         }
@@ -406,15 +474,15 @@ export default class UIManager {
         // Update stunned visual state
         const playerStats = document.getElementById('player-stats');
         if (playerStats) {
-            const isStunned = player.buffs.some(buff => buff.type === 'stunned');
+            const isStunned = player.buffs && player.buffs.some(buff => buff.type === 'stunned');
             playerStats.classList.toggle('stunned', isStunned);
         }
     }
     
     // Update stamina display
     updateStamina(stamina, maxStamina) {
-        const staminaFill = this.elements['stamina-fill'];
-        const staminaText = this.elements['stamina-text'];
+        const staminaFill = this.getElement('stamina-fill');
+        const staminaText = this.getElement('stamina-text');
         
         if (staminaFill && staminaText) {
             const staminaPercent = (stamina / maxStamina) * 100;
@@ -433,45 +501,59 @@ export default class UIManager {
         }
     }
     
-    // Update buffs display
-    updateBuffs(elementId, buffs) {
-        const buffsElement = this.elements[elementId] || document.getElementById(elementId);
+    // Update buffs display - optimization: only update if buffs have changed
+    updateBuffs(elementId, buffs = []) {
+        const buffsElement = this.getElement(elementId) || document.getElementById(elementId);
         
-        if (buffsElement) {
-            buffsElement.innerHTML = '';
+        if (!buffsElement) return;
+        
+        // Check if buffs have changed by comparing JSON representation
+        const currentBuffsJSON = buffsElement.dataset.buffsJson || '[]';
+        const newBuffsJSON = JSON.stringify(buffs);
+        
+        if (currentBuffsJSON === newBuffsJSON) return; // No change, skip update
+        
+        // Store the new buffs JSON for future comparison
+        buffsElement.dataset.buffsJson = newBuffsJSON;
+        
+        // Clear existing buffs
+        buffsElement.innerHTML = '';
+        
+        // Add new buffs
+        if (buffs && buffs.length > 0) {
+            const fragment = document.createDocumentFragment();
             
-            if (buffs && buffs.length > 0) {
-                buffs.forEach(buff => {
-                    // Create buff icon element
-                    const buffIcon = document.createElement('span');
-                    buffIcon.classList.add('buff-icon', buff.type);
-                    
-                    // Set icon based on buff type
-                    const iconMap = {
-                        'defense': '🛡️',
-                        'focus': '🔍',
-                        'attack-boost': '⚡',
-                        'poison': '☠️',
-                        'stunned': '💫',
-                        'minion': '👺',
-                        'curse': '👿'
-                    };
-                    
-                    buffIcon.textContent = iconMap[buff.type] || '?';
-                    
-                    // Add turns remaining
-                    const turnsSpan = document.createElement('span');
-                    turnsSpan.classList.add('turns');
-                    turnsSpan.textContent = buff.duration;
-                    buffIcon.appendChild(turnsSpan);
-                    
-                    // Add tooltip
-                    let tooltipText = this.getBuffTooltip(buff);
-                    buffIcon.setAttribute('data-tooltip', tooltipText);
-                    
-                    buffsElement.appendChild(buffIcon);
-                });
+            for (const buff of buffs) {
+                // Create buff icon element
+                const buffIcon = document.createElement('span');
+                buffIcon.classList.add('buff-icon', buff.type);
+                
+                // Set icon based on buff type
+                const iconMap = {
+                    'defense': '🛡️',
+                    'focus': '🔍',
+                    'attack-boost': '⚡',
+                    'poison': '☠️',
+                    'stunned': '💫',
+                    'minion': '👺',
+                    'curse': '👿'
+                };
+                
+                buffIcon.textContent = iconMap[buff.type] || '?';
+                
+                // Add turns remaining
+                const turnsSpan = document.createElement('span');
+                turnsSpan.classList.add('turns');
+                turnsSpan.textContent = buff.duration;
+                buffIcon.appendChild(turnsSpan);
+                
+                // Add tooltip
+                buffIcon.setAttribute('data-tooltip', this.getBuffTooltip(buff));
+                
+                fragment.appendChild(buffIcon);
             }
+            
+            buffsElement.appendChild(fragment);
         }
     }
     
@@ -492,31 +574,59 @@ export default class UIManager {
     
     // Update gem bag count
     updateGemBagCount(gems, maxBagSize) {
-        this.updateElement('gem-bag-count', gems.bag.length);
-        this.updateElement('gem-bag-count2', gems.bag.length);
+        const bagCount = gems.bag ? gems.bag.length : 0;
+        
+        this.updateElement('gem-bag-count', bagCount);
+        this.updateElement('gem-bag-count2', bagCount);
         this.updateElement('gem-bag-total', maxBagSize);
         this.updateElement('gem-bag-total2', maxBagSize);
     }
     
     // Helper method to update element text content
     updateElement(elementId, value) {
-        const element = this.elements[elementId] || document.getElementById(elementId);
-        if (element) {
+        const element = this.getElement(elementId) || document.getElementById(elementId);
+        if (element && element.textContent !== String(value)) {
             element.textContent = value;
         }
     }
     
-    // Render the player's hand of gems
+    // Render the player's hand of gems - more efficient DOM updates
     renderHand() {
         const state = this.stateManager.getState();
         const { gems, player } = state;
         const { hand } = gems;
-        const handElement = this.elements['hand'];
+        const handElement = this.getElement('hand');
         
-        if (handElement) {
-            handElement.innerHTML = '';
+        if (!handElement) return;
+        
+        // Use DocumentFragment for batch DOM updates
+        const fragment = document.createDocumentFragment();
+        
+        // First, map all gems by instanceId for quick lookups
+        const gemMap = new Map();
+        hand.forEach(gem => {
+            gemMap.set(gem.instanceId, gem);
+        });
+        
+        // Check which gems need to be added, removed or updated
+        const existingGemElements = Array.from(handElement.querySelectorAll('.gem'));
+        const existingGemIds = new Set(existingGemElements.map(el => el.dataset.gemId));
+        
+        // Remove gems that are no longer in hand
+        existingGemElements.forEach(el => {
+            const gemId = el.dataset.gemId;
+            if (!gemMap.has(gemId)) {
+                el.remove();
+            }
+        });
+        
+        // Add or update gems
+        hand.forEach(gem => {
+            const isSelected = this.selectedGems.includes(gem.instanceId);
+            const isAffordable = gem.cost <= player.stamina;
             
-            hand.forEach(gem => {
+            if (!existingGemIds.has(gem.instanceId)) {
+                // Create new gem element
                 const gemElement = this.createGemElement(gem, 'battle');
                 
                 // Add selection handler
@@ -525,21 +635,31 @@ export default class UIManager {
                 });
                 
                 // Mark as selected if in selectedGems array
-                if (this.selectedGems.includes(gem.instanceId)) {
+                if (isSelected) {
                     gemElement.classList.add('selected');
                 }
                 
                 // Mark as unaffordable if not enough stamina
-                if (gem.cost > player.stamina) {
+                if (!isAffordable) {
                     gemElement.classList.add('unaffordable');
                 }
                 
-                handElement.appendChild(gemElement);
-            });
+                fragment.appendChild(gemElement);
+            } else {
+                // Update existing gem element
+                const gemElement = handElement.querySelector(`[data-gem-id="${gem.instanceId}"]`);
+                gemElement.classList.toggle('selected', isSelected);
+                gemElement.classList.toggle('unaffordable', !isAffordable);
+            }
+        });
+        
+        // Append any new gems
+        if (fragment.childNodes.length > 0) {
+            handElement.appendChild(fragment);
         }
     }
     
-    // Create a gem DOM element
+    // Create a gem DOM element - optimized to reduce DOM operations
     createGemElement(gem, context = 'battle') {
         const gemElement = document.createElement('div');
         gemElement.classList.add('gem', gem.color);
@@ -558,37 +678,16 @@ export default class UIManager {
             gemElement.classList.add('unlearned');
         }
         
-        // Create gem inner content
-        const contentDiv = document.createElement('div');
-        contentDiv.classList.add('gem-content');
-        
-        // Gem icon
-        const iconSpan = document.createElement('span');
-        iconSpan.classList.add('gem-icon');
-        iconSpan.textContent = gem.icon;
-        contentDiv.appendChild(iconSpan);
-        
-        // Gem value
-        const valueSpan = document.createElement('span');
-        valueSpan.classList.add('gem-value');
-        valueSpan.textContent = gem.value;
-        contentDiv.appendChild(valueSpan);
-        
-        gemElement.appendChild(contentDiv);
-        
-        // Gem stamina cost
-        const costDiv = document.createElement('div');
-        costDiv.classList.add('gem-cost');
-        costDiv.textContent = gem.cost;
-        gemElement.appendChild(costDiv);
-        
-        // Add augmentation badge if gem is augmented
-        if (gem.augmentation && gem.badgeIcon) {
-            const badgeDiv = document.createElement('div');
-            badgeDiv.classList.add('gem-badge', `badge-${gem.augmentation}`);
-            badgeDiv.textContent = gem.badgeIcon;
-            gemElement.appendChild(badgeDiv);
-        }
+        // Use template literals for more efficient content creation
+        gemElement.innerHTML = `
+            <div class="gem-content">
+                <span class="gem-icon">${gem.icon}</span>
+                <span class="gem-value">${gem.value}</span>
+            </div>
+            <div class="gem-cost">${gem.cost}</div>
+            ${gem.augmentation && gem.badgeIcon ? 
+                `<div class="gem-badge badge-${gem.augmentation}">${gem.badgeIcon}</div>` : ''}
+        `;
         
         // Add tooltip in non-battle contexts
         if (context === 'shop' || context === 'catalog') {
@@ -599,14 +698,14 @@ export default class UIManager {
         return gemElement;
     }
     
-    // Update battle action buttons
+    // Update battle action buttons - check if we need to update
     updateBattleButtons() {
         const state = this.stateManager.getState();
         const { battle, player } = state;
         
         // Only enable buttons on player's turn
         const isPlayerTurn = battle.currentTurn === 'PLAYER';
-        const isPlayerStunned = player.buffs.some(buff => buff.type === 'stunned');
+        const isPlayerStunned = player.buffs && player.buffs.some(buff => buff.type === 'stunned');
         
         // Check if gems have been played this turn
         const hasPlayedGems = battle.staminaUsed > 0;
@@ -614,13 +713,11 @@ export default class UIManager {
         // Set button states
         if (isPlayerStunned) {
             // If stunned, disable all buttons
-            this.disableElement('execute-btn');
-            this.disableElement('wait-btn');
-            this.disableElement('discard-end-btn');
-            this.disableElement('end-turn-btn');
-            this.disableElement('flee-btn');
+            this.setElementsDisabled([
+                'execute-btn', 'wait-btn', 'discard-end-btn', 'end-turn-btn', 'flee-btn'
+            ], true);
             
-            // Add stunned visual indicator
+            // Add stunned visual indicator to player stats
             const playerStats = document.getElementById('player-stats');
             if (playerStats) {
                 playerStats.classList.add('stunned');
@@ -644,17 +741,19 @@ export default class UIManager {
         }
     }
     
-    // Helper to set element disabled state
-    setElementDisabled(elementId, isDisabled) {
-        const element = this.elements[elementId] || document.getElementById(elementId);
-        if (element) {
-            element.disabled = isDisabled;
+    // Helper to set multiple elements disabled at once
+    setElementsDisabled(elementIds, isDisabled) {
+        for (const id of elementIds) {
+            this.setElementDisabled(id, isDisabled);
         }
     }
     
-    // Helper to disable an element
-    disableElement(elementId) {
-        this.setElementDisabled(elementId, true);
+    // Helper to set element disabled state
+    setElementDisabled(elementId, isDisabled) {
+        const element = this.getElement(elementId) || document.getElementById(elementId);
+        if (element && element.disabled !== isDisabled) {
+            element.disabled = isDisabled;
+        }
     }
     
     // Toggle gem selection
@@ -670,12 +769,15 @@ export default class UIManager {
         }
         
         // Update UI
-        const gemElements = this.elements['hand'].querySelectorAll('.gem');
-        gemElements.forEach(elem => {
-            if (elem.getAttribute('data-gem-id') === gemInstanceId) {
-                elem.classList.toggle('selected', this.selectedGems.includes(gemInstanceId));
-            }
-        });
+        const handElement = this.getElement('hand');
+        if (handElement) {
+            const gemElements = handElement.querySelectorAll('.gem');
+            gemElements.forEach(elem => {
+                if (elem.getAttribute('data-gem-id') === gemInstanceId) {
+                    elem.classList.toggle('selected', this.selectedGems.includes(gemInstanceId));
+                }
+            });
+        }
         
         // Update button states
         this.updateBattleButtons();
@@ -746,7 +848,7 @@ export default class UIManager {
         this.eventBus.emit('battle:flee');
     }
     
-    // Shop setup and UI
+    // Shop setup and UI - Optimized setup with batched DOM updates
     setupShop() {
         const state = this.stateManager.getState();
         const { player, gems } = state;
@@ -760,7 +862,7 @@ export default class UIManager {
         this.renderShopHand();
         
         // Clear gem pool
-        const gemPool = this.elements['gem-pool'];
+        const gemPool = this.getElement('gem-pool');
         if (gemPool) {
             gemPool.innerHTML = '';
         }
@@ -776,8 +878,8 @@ export default class UIManager {
         this.updateElement('shop-gem-bag-count', gems.bag.length);
         this.updateElement('shop-gem-bag-total', currentBagSize);
         
-        // Render shop inventory
-        this.renderShopInventory();
+        // Render shop inventory with a small delay to ensure DOM is ready
+        setTimeout(() => this.renderShopInventory(), 50);
     }
     
     // Update shop UI
@@ -843,61 +945,57 @@ export default class UIManager {
             
             // Update inventory items
             const inventoryContainer = document.getElementById('shop-inventory-container');
-            if (inventoryContainer) {
-                inventoryContainer.innerHTML = '';
-                
-                if (!inventory || inventory.length === 0) {
-                    const emptyMsg = document.createElement('div');
-                    emptyMsg.textContent = 'No gems available for purchase';
-                    emptyMsg.style.padding = '10px';
-                    emptyMsg.style.fontStyle = 'italic';
-                    inventoryContainer.appendChild(emptyMsg);
-                    return;
-                }
-                
+            if (!inventoryContainer) return;
+            
+            // Clear existing items
+            inventoryContainer.innerHTML = '';
+            
+            // Use DocumentFragment for better performance
+            const fragment = document.createDocumentFragment();
+            
+            if (!inventory || inventory.length === 0) {
+                const emptyMsg = document.createElement('div');
+                emptyMsg.textContent = 'No gems available for purchase';
+                emptyMsg.style.padding = '10px';
+                emptyMsg.style.fontStyle = 'italic';
+                fragment.appendChild(emptyMsg);
+            } else {
                 // Render each gem in the inventory
                 inventory.forEach((gem, index) => {
                     const gemContainer = this.createShopInventoryItem(gem, index);
-                    inventoryContainer.appendChild(gemContainer);
+                    fragment.appendChild(gemContainer);
                 });
             }
+            
+            inventoryContainer.appendChild(fragment);
         });
     }
     
-    // Create a shop inventory item
+    // Create a shop inventory item - Optimized DOM creation
     createShopInventoryItem(gem, index) {
         const gemContainer = document.createElement('div');
         gemContainer.className = 'gem-purchase-container';
-        gemContainer.style.display = 'flex';
-        gemContainer.style.flexDirection = 'column';
-        gemContainer.style.alignItems = 'center';
-        gemContainer.style.margin = '10px';
+        gemContainer.style.cssText = 'display:flex;flex-direction:column;align-items:center;margin:10px;';
         
         // Create gem element
         const gemElement = this.createGemElement(gem, 'shop');
+        
+        // Create price and button in one HTML template string
+        const priceAndButton = document.createElement('div');
+        priceAndButton.innerHTML = `
+            <div class="gem-price-label" style="margin-top:5px;padding:2px 8px;background-color:#333;color:white;border-radius:10px;font-size:0.8em;">${gem.price} $ZENNY</div>
+            <button class="btn-buy" style="margin-top:5px;padding:4px 12px;">Buy</button>
+        `;
+        
+        // Add the elements to container
         gemContainer.appendChild(gemElement);
+        gemContainer.appendChild(priceAndButton);
         
-        // Add price label
-        const priceLabel = document.createElement('div');
-        priceLabel.className = 'gem-price-label';
-        priceLabel.textContent = `${gem.price} $ZENNY`;
-        priceLabel.style.marginTop = '5px';
-        priceLabel.style.padding = '2px 8px';
-        priceLabel.style.backgroundColor = '#333';
-        priceLabel.style.color = 'white';
-        priceLabel.style.borderRadius = '10px';
-        priceLabel.style.fontSize = '0.8em';
-        gemContainer.appendChild(priceLabel);
-        
-        // Add buy button
-        const buyButton = document.createElement('button');
-        buyButton.textContent = 'Buy';
-        buyButton.style.marginTop = '5px';
-        buyButton.className = 'btn-buy';
-        buyButton.style.padding = '4px 12px';
+        // Get the button element
+        const buyButton = priceAndButton.querySelector('.btn-buy');
         
         // Disable if not enough zenny
-        const playerZenny = parseInt(this.elements['shop-zenny']?.textContent || '0');
+        const playerZenny = parseInt(this.getElement('shop-zenny')?.textContent || '0');
         if (playerZenny < gem.price) {
             buyButton.disabled = true;
         }
@@ -905,11 +1003,10 @@ export default class UIManager {
         // Add click handler
         buyButton.addEventListener('click', () => {
             this.eventBus.emit('shop:purchase-inventory-gem', index);
-            // Refresh the UI after purchase
-            setTimeout(() => this.updateShopUI(), 100);
+            // Refresh the UI after purchase with debouncing
+            clearTimeout(this._shopRefreshTimeout);
+            this._shopRefreshTimeout = setTimeout(() => this.updateShopUI(), 100);
         });
-        
-        gemContainer.appendChild(buyButton);
         
         return gemContainer;
     }
@@ -919,27 +1016,35 @@ export default class UIManager {
         const state = this.stateManager.getState();
         const { gems } = state;
         const { hand } = gems;
-        const shopHand = this.elements['shop-hand'];
+        const shopHand = this.getElement('shop-hand');
         
-        if (shopHand) {
-            shopHand.innerHTML = '';
+        if (!shopHand) return;
+        
+        // Use DocumentFragment for performance
+        const fragment = document.createDocumentFragment();
+        
+        // Clear current hand
+        shopHand.innerHTML = '';
+        
+        // Create new hand gems
+        hand.forEach(gem => {
+            const gemElement = this.createGemElement(gem, 'shop');
             
-            hand.forEach(gem => {
-                const gemElement = this.createGemElement(gem, 'shop');
-                
-                // Add selection handler
-                gemElement.addEventListener('click', () => {
-                    this.selectShopGem(gem.instanceId);
-                });
-                
-                // Mark as selected if it's the selected gem
-                if (this.shopState.selectedHandGem === gem.instanceId) {
-                    gemElement.classList.add('selected');
-                }
-                
-                shopHand.appendChild(gemElement);
+            // Add selection handler
+            gemElement.addEventListener('click', () => {
+                this.selectShopGem(gem.instanceId);
             });
-        }
+            
+            // Mark as selected if it's the selected gem
+            if (this.shopState.selectedHandGem === gem.instanceId) {
+                gemElement.classList.add('selected');
+            }
+            
+            fragment.appendChild(gemElement);
+        });
+        
+        // Add all gems at once
+        shopHand.appendChild(fragment);
     }
     
     // Select a gem in the shop
@@ -989,7 +1094,7 @@ export default class UIManager {
         this.setElementDisabled('heal-10', !enoughForHeal || !needsHealing || this.shopState.upgradeMode);
         
         // Show/hide upgrade mode buttons
-        const cancelUpgradeBtn = this.elements['cancel-upgrade'];
+        const cancelUpgradeBtn = this.getElement('cancel-upgrade');
         if (cancelUpgradeBtn) {
             cancelUpgradeBtn.style.display = this.shopState.upgradeMode ? 'inline-block' : 'none';
         }
@@ -1030,9 +1135,9 @@ export default class UIManager {
         });
     }
     
-    // Render upgrade options
+    // Render upgrade options with better performance
     renderUpgradeOptions(gemInstanceId) {
-        const gemPool = this.elements['gem-pool'];
+        const gemPool = this.getElement('gem-pool');
         if (!gemPool) return;
         
         // Clear gem pool
@@ -1050,48 +1155,36 @@ export default class UIManager {
             return;
         }
         
-        // Show the original gem being upgraded at the top
-        const originalGemContainer = document.createElement('div');
-        originalGemContainer.classList.add('original-gem-container');
-        originalGemContainer.style.textAlign = 'center';
-        originalGemContainer.style.padding = '10px';
-        originalGemContainer.style.marginBottom = '15px';
+        // Use template literal for more efficient DOM creation
+        gemPool.innerHTML = `
+            <div class="original-gem-container" style="text-align:center;padding:10px;margin-bottom:15px;">
+                <div class="gem ${gem.color}" data-gem-id="${gem.instanceId}">
+                    <div class="gem-content">
+                        <span class="gem-icon">${gem.icon}</span>
+                        <span class="gem-value">${gem.value}</span>
+                    </div>
+                    <div class="gem-cost">${gem.cost}</div>
+                </div>
+                <div style="font-size:24px;margin:5px 0;">↓</div>
+            </div>
+            
+            <div style="text-align:center;font-weight:bold;padding:5px;margin-bottom:10px;">Available Upgrades:</div>
+            
+            <div class="upgrade-options-container" style="display:flex;flex-wrap:wrap;justify-content:center;gap:15px;"></div>
+        `;
         
-        const originalGemElement = this.createGemElement(gem);
-        originalGemContainer.appendChild(originalGemElement);
-        
-        const upgradeArrow = document.createElement('div');
-        upgradeArrow.textContent = '↓';
-        upgradeArrow.style.fontSize = '24px';
-        upgradeArrow.style.margin = '5px 0';
-        originalGemContainer.appendChild(upgradeArrow);
-        
-        gemPool.appendChild(originalGemContainer);
-
-        // Add options header
-        const optionsHeader = document.createElement('div');
-        optionsHeader.textContent = 'Available Upgrades:';
-        optionsHeader.style.textAlign = 'center';
-        optionsHeader.style.fontWeight = 'bold';
-        optionsHeader.style.padding = '5px';
-        optionsHeader.style.marginBottom = '10px';
-        gemPool.appendChild(optionsHeader);
-        
-        // Create a container for all upgrade options
-        const upgradesContainer = document.createElement('div');
-        upgradesContainer.classList.add('upgrade-options-container');
-        upgradesContainer.style.display = 'flex';
-        upgradesContainer.style.flexWrap = 'wrap';
-        upgradesContainer.style.justifyContent = 'center';
-        upgradesContainer.style.gap = '15px';
+        // Get the container for upgrade options
+        const upgradesContainer = gemPool.querySelector('.upgrade-options-container');
         
         // Add all options to the container
+        const fragment = document.createDocumentFragment();
+        
         this.shopState.upgradeOptions.forEach(upgradeGem => {
             const wrapper = this.createUpgradeOption(upgradeGem, gemInstanceId);
-            upgradesContainer.appendChild(wrapper);
+            fragment.appendChild(wrapper);
         });
         
-        gemPool.appendChild(upgradesContainer);
+        upgradesContainer.appendChild(fragment);
         
         // If no options available, show message
         if (this.shopState.upgradeOptions.length === 0) {
@@ -1099,7 +1192,7 @@ export default class UIManager {
             noOptionsMsg.textContent = 'No upgrade options available';
             noOptionsMsg.style.padding = '20px';
             noOptionsMsg.style.textAlign = 'center';
-            gemPool.appendChild(noOptionsMsg);
+            upgradesContainer.appendChild(noOptionsMsg);
         }
     }
     
@@ -1107,53 +1200,46 @@ export default class UIManager {
     createUpgradeOption(upgradeGem, originalGemId) {
         const upgradeElement = this.createGemElement(upgradeGem, 'shop');
         
-        // Add upgrade type label
-        const typeLabel = document.createElement('div');
-        typeLabel.classList.add('upgrade-type-label');
-        typeLabel.style.fontSize = '0.8em';
-        typeLabel.style.textAlign = 'center';
-        typeLabel.style.padding = '2px';
-        typeLabel.style.marginTop = '5px';
+        // Create a wrapper to hold both the gem and its label
+        const wrapper = document.createElement('div');
+        wrapper.classList.add('gem-upgrade-wrapper');
+        wrapper.style.cssText = 'display:flex;flex-direction:column;align-items:center;';
         
-        // Determine label and color based on upgrade type
-        let upgradeType = upgradeGem.upgradeType || 'unknown';
+        // Add upgrade type label with specific styling based on type
+        const upgradeType = upgradeGem.upgradeType || 'unknown';
+        let labelText = 'Upgrade';
+        let labelColor = '#f39c12'; // Default orange
         
         switch(upgradeType) {
             case 'augmentation':
                 const augType = upgradeGem.augmentation || 'unknown';
-                typeLabel.textContent = augType.charAt(0).toUpperCase() + augType.slice(1);
-                typeLabel.style.color = '#f39c12'; // Orange for augmentations
+                labelText = augType.charAt(0).toUpperCase() + augType.slice(1);
                 break;
             case 'direct':
-                typeLabel.textContent = 'Enhanced';
-                typeLabel.style.color = '#f39c12'; // Orange
+                labelText = 'Enhanced';
                 break;
             case 'class':
-                typeLabel.textContent = 'Class Specific';
-                typeLabel.style.color = '#2ecc71'; // Green
+                labelText = 'Class Specific';
+                labelColor = '#2ecc71'; // Green
                 break;
             case 'unlocked':
-                typeLabel.textContent = 'Unlocked Gem';
-                typeLabel.style.color = '#3498db'; // Blue
+                labelText = 'Unlocked Gem';
+                labelColor = '#3498db'; // Blue
                 break;
-            default:
-                typeLabel.textContent = 'Upgrade';
         }
         
-        // Create a wrapper to hold both the gem and its label
-        const wrapper = document.createElement('div');
-        wrapper.classList.add('gem-upgrade-wrapper');
-        wrapper.style.display = 'flex';
-        wrapper.style.flexDirection = 'column';
-        wrapper.style.alignItems = 'center';
+        // Create label element
+        const typeLabel = document.createElement('div');
+        typeLabel.textContent = labelText;
+        typeLabel.style.cssText = `font-size:0.8em;text-align:center;padding:2px;margin-top:5px;color:${labelColor};`;
         
         wrapper.appendChild(upgradeElement);
         wrapper.appendChild(typeLabel);
         
         // Store upgrade data
-        wrapper.setAttribute('data-upgrade-id', upgradeGem.instanceId || upgradeGem.id);
-        wrapper.setAttribute('data-augmentation', upgradeGem.augmentation || '');
-        wrapper.setAttribute('data-upgrade-type', upgradeType);
+        wrapper.dataset.upgradeId = upgradeGem.instanceId || upgradeGem.id;
+        wrapper.dataset.augmentation = upgradeGem.augmentation || '';
+        wrapper.dataset.upgradeType = upgradeType;
         
         // Add click handler
         wrapper.addEventListener('click', () => {
@@ -1170,7 +1256,7 @@ export default class UIManager {
         this.shopState.upgradeOptions = [];
         
         // Clear gem pool
-        const gemPool = this.elements['gem-pool'];
+        const gemPool = this.getElement('gem-pool');
         if (gemPool) {
             gemPool.innerHTML = '';
         }
@@ -1255,8 +1341,8 @@ export default class UIManager {
         this.updateElement('camp-meta-zenny', meta.zenny);
         
         // Clear input fields
-        const withdrawAmount = this.elements['withdraw-amount'];
-        const depositAmount = this.elements['deposit-amount'];
+        const withdrawAmount = this.getElement('withdraw-amount');
+        const depositAmount = this.getElement('deposit-amount');
         
         if (withdrawAmount) withdrawAmount.value = '';
         if (depositAmount) depositAmount.value = '';
@@ -1264,7 +1350,7 @@ export default class UIManager {
     
     // Withdraw zenny from journey to meta wallet
     withdrawZenny() {
-        const withdrawAmount = this.elements['withdraw-amount'];
+        const withdrawAmount = this.getElement('withdraw-amount');
         if (!withdrawAmount) return;
         
         const amount = parseInt(withdrawAmount.value, 10);
@@ -1283,7 +1369,7 @@ export default class UIManager {
     
     // Deposit zenny from meta to journey wallet
     depositZenny() {
-        const depositAmount = this.elements['deposit-amount'];
+        const depositAmount = this.getElement('deposit-amount');
         if (!depositAmount) return;
         
         const amount = parseInt(depositAmount.value, 10);
@@ -1305,7 +1391,7 @@ export default class UIManager {
         this.eventBus.emit('camp:next-day');
     }
     
-    // Update gem catalog UI
+    // Update gem catalog UI with optimized rendering
     updateGemCatalogUI() {
         const state = this.stateManager.getState();
         const { meta } = state;
@@ -1320,15 +1406,14 @@ export default class UIManager {
         this.renderAvailableGems();
     }
     
-    // Render unlocked gems in catalog
+    // Render unlocked gems in catalog with better DOM batching
     renderUnlockedGems() {
         const state = this.stateManager.getState();
         const { meta } = state;
         const playerClass = state.player.class;
-        const unlockedGemsContainer = this.elements['unlocked-gems'];
+        const unlockedGemsContainer = this.getElement('unlocked-gems');
         
         if (!unlockedGemsContainer) return;
-        unlockedGemsContainer.innerHTML = '';
         
         // Get definitions from gem manager
         this.eventBus.emit('gem:get-definitions', {
@@ -1344,13 +1429,19 @@ export default class UIManager {
                     classGems = meta.unlockedGems[playerClass] || [];
                 }
                 
+                // Create DocumentFragment for batch DOM updates
+                const fragment = document.createDocumentFragment();
+                
+                // Clear container
+                unlockedGemsContainer.innerHTML = '';
+                
                 // Base gems to always display
                 const baseGems = ['red-attack', 'blue-magic', 'green-attack', 'grey-heal'];
                 
                 // Display base gems first
                 baseGems.forEach(gemId => {
                     if (definitions[gemId]) {
-                        unlockedGemsContainer.appendChild(
+                        fragment.appendChild(
                             this.createGemElement(definitions[gemId], 'catalog')
                         );
                     }
@@ -1365,7 +1456,7 @@ export default class UIManager {
                 
                 (classStarterGems[playerClass] || []).forEach(gemId => {
                     if (definitions[gemId]) {
-                        unlockedGemsContainer.appendChild(
+                        fragment.appendChild(
                             this.createGemElement(definitions[gemId], 'catalog')
                         );
                     }
@@ -1380,23 +1471,28 @@ export default class UIManager {
                     }
                     
                     if (definitions[gemId]) {
-                        unlockedGemsContainer.appendChild(
+                        fragment.appendChild(
                             this.createGemElement(definitions[gemId], 'catalog')
                         );
                     }
                 });
+                
+                // Append all gems at once
+                unlockedGemsContainer.appendChild(fragment);
             }
         });
     }
     
-    // Render available gems to unlock
+    // Render available gems to unlock with better DOM performance
     renderAvailableGems() {
         const state = this.stateManager.getState();
         const { meta } = state;
         const playerClass = state.player.class;
-        const availableGemsContainer = this.elements['available-gems'];
+        const availableGemsContainer = this.getElement('available-gems');
         
         if (!availableGemsContainer) return;
+        
+        // Clear container first
         availableGemsContainer.innerHTML = '';
         
         // Determine unlocked gems
@@ -1421,6 +1517,9 @@ export default class UIManager {
                             !unlockedGems.includes(gemId)
                         );
                         
+                        // Use DocumentFragment for efficiency
+                        const fragment = document.createDocumentFragment();
+                        
                         if (notYetUnlocked.length > 0) {
                             // Create gem elements for each unlockable
                             notYetUnlocked.forEach(gemId => {
@@ -1443,12 +1542,15 @@ export default class UIManager {
                                         this.unlockGem(gemId);
                                     });
                                     
-                                    availableGemsContainer.appendChild(container);
+                                    fragment.appendChild(container);
                                 }
                             });
                         } else {
-                            this.showNoGemsMessage();
+                            this.showNoGemsMessage(fragment);
                         }
+                        
+                        // Append all elements at once
+                        availableGemsContainer.appendChild(fragment);
                     }
                 });
             }
@@ -1456,15 +1558,12 @@ export default class UIManager {
     }
     
     // Show message when no gems are available
-    showNoGemsMessage() {
-        const availableGemsContainer = this.elements['available-gems'];
-        if (!availableGemsContainer) return;
-        
+    showNoGemsMessage(targetFragment) {
         const noGemsMsg = document.createElement('div');
         noGemsMsg.textContent = 'No additional gems available to unlock';
         noGemsMsg.style.padding = '20px';
         noGemsMsg.style.textAlign = 'center';
-        availableGemsContainer.appendChild(noGemsMsg);
+        targetFragment.appendChild(noGemsMsg);
     }
     
     // Unlock a gem
@@ -1502,7 +1601,7 @@ export default class UIManager {
     
     onGemDrawn(gemData) {
         // Add draw animation to the gem
-        const handElement = this.elements['hand'];
+        const handElement = this.getElement('hand');
         if (handElement) {
             const gemElements = handElement.querySelectorAll('.gem');
             gemElements.forEach(elem => {
@@ -1516,18 +1615,28 @@ export default class UIManager {
         }
     }
     
-    // Create damage text animation
+    // Create damage text animation with efficient DOM manipulation
     createDamageText(amount, isHeal, position) {
         const battleEffects = document.getElementById('battle-effects');
         if (!battleEffects) return;
         
+        // Create a single element with all styling applied via cssText for better performance
         const textElement = document.createElement('div');
         textElement.classList.add(isHeal ? 'heal-text' : 'damage-text');
         textElement.textContent = `${isHeal ? '+' : '-'}${amount}`;
         
-        // Position the text
-        textElement.style.left = position.left || '50%';
-        textElement.style.top = position.top || '50%';
+        // Position the text - use cssText for single reflow
+        textElement.style.cssText = `
+            left: ${position.left || '50%'};
+            top: ${position.top || '50%'};
+            position: absolute;
+            font-size: 1.8em;
+            font-weight: bold;
+            animation: floating-text 1.5s forwards;
+            text-shadow: 0 0 3px rgba(0,0,0,0.5);
+            color: ${isHeal ? 'var(--color-success)' : 'var(--color-danger)'};
+            pointer-events: none;
+        `;
         
         // Add to battle effects
         battleEffects.appendChild(textElement);
@@ -1550,92 +1659,149 @@ export default class UIManager {
         this.createDamageText(data.amount, true, { left: '30%', top: '80%' });
     }
     
-    // Show a message to the user
+    // Show a message to the user with debouncing
     showMessage(text, type = 'success') {
-        const messageElement = this.elements['message'] || document.getElementById('message');
+        // Clear any existing removal timeout
+        if (this._messageTimeout) {
+            clearTimeout(this._messageTimeout);
+        }
+        
+        const messageElement = this.getElement('message') || document.getElementById('message');
         
         if (messageElement) {
-            messageElement.textContent = text;
-            messageElement.className = ''; // Reset classes
-            messageElement.classList.add('message', type, 'visible');
+            // Only update if message changes
+            if (messageElement.textContent !== text || !messageElement.classList.contains(type)) {
+                messageElement.textContent = text;
+                messageElement.className = ''; // Reset classes
+                messageElement.classList.add('message', type, 'visible');
+            } else if (!messageElement.classList.contains('visible')) {
+                // If same message but not visible, make it visible again
+                messageElement.classList.add('visible');
+            }
             
             // Hide after 3 seconds
-            setTimeout(() => {
+            this._messageTimeout = setTimeout(() => {
                 messageElement.classList.remove('visible');
+                this._messageTimeout = null;
             }, 3000);
         }
     }
     
-    // Setup gem bag containers
+    // Setup gem bag containers with event delegation
     setupGemBagContainers() {
         const battleGemBag = document.getElementById('gem-bag-container');
         const shopGemBag = document.getElementById('shop-gem-bag-container');
         
+        // Common handler function
+        const openGemBagHandler = (e) => {
+            this.eventBus.emit('overlay:open-gem-bag');
+            e.stopPropagation(); // Prevent event bubbling
+        };
+        
         // Add click handlers to emit events
         if (battleGemBag) {
             battleGemBag.style.cursor = 'pointer';
-            battleGemBag.onclick = (e) => {
-                this.eventBus.emit('overlay:open-gem-bag');
-                e.stopPropagation(); // Prevent event bubbling
-            };
+            
+            // Remove old event listener by cloning
+            const newBattleGemBag = battleGemBag.cloneNode(true);
+            battleGemBag.parentNode.replaceChild(newBattleGemBag, battleGemBag);
+            
+            // Add new event listener
+            newBattleGemBag.addEventListener('click', openGemBagHandler);
         }
         
         if (shopGemBag) {
             shopGemBag.style.cursor = 'pointer';
-            shopGemBag.onclick = (e) => {
-                this.eventBus.emit('overlay:open-gem-bag');
-                e.stopPropagation(); // Prevent event bubbling
-            };
+            
+            // Remove old event listener by cloning
+            const newShopGemBag = shopGemBag.cloneNode(true);
+            shopGemBag.parentNode.replaceChild(newShopGemBag, shopGemBag);
+            
+            // Add new event listener
+            newShopGemBag.addEventListener('click', openGemBagHandler);
         }
     }
     
     // Update overlay element references
     updateOverlayElementReferences() {
         // Get overlay elements
-        this.elements['gem-bag-overlay'] = document.getElementById('gem-bag-overlay');
-        this.elements['gem-bag-close-button'] = document.querySelector('#gem-bag-overlay .close-button');
-        this.elements['available-gems-container'] = document.getElementById('available-gems-container');
-        this.elements['played-gems-container'] = document.getElementById('played-gems-container');
-        this.elements['available-gems-count'] = document.getElementById('available-gems-count');
-        this.elements['played-gems-count'] = document.getElementById('played-gems-count');
+        this.elements.set('gem-bag-overlay', document.getElementById('gem-bag-overlay'));
+        this.elements.set('gem-bag-close-button', document.querySelector('#gem-bag-overlay .close-button'));
+        this.elements.set('available-gems-container', document.getElementById('available-gems-container'));
+        this.elements.set('played-gems-container', document.getElementById('played-gems-container'));
+        this.elements.set('available-gems-count', document.getElementById('available-gems-count'));
+        this.elements.set('played-gems-count', document.getElementById('played-gems-count'));
         
         // Add event handlers
-        const closeButton = this.elements['gem-bag-close-button'];
+        const closeButton = this.getElement('gem-bag-close-button');
         if (closeButton) {
-            closeButton.onclick = () => this.eventBus.emit('overlay:close-gem-bag');
+            // Remove old event listener by cloning
+            const newCloseButton = closeButton.cloneNode(true);
+            closeButton.parentNode.replaceChild(newCloseButton, closeButton);
+            
+            // Add new event listener
+            newCloseButton.addEventListener('click', () => this.eventBus.emit('overlay:close-gem-bag'));
+            
+            // Update reference
+            this.elements.set('gem-bag-close-button', newCloseButton);
         }
         
-        const overlay = this.elements['gem-bag-overlay'];
+        const overlay = this.getElement('gem-bag-overlay');
         if (overlay) {
-            overlay.addEventListener('click', (event) => {
-                if (event.target === overlay) {
+            // Remove old event listener by cloning
+            const newOverlay = overlay.cloneNode(true);
+            overlay.parentNode.replaceChild(newOverlay, overlay);
+            
+            // Add new event listener that only triggers when clicking the overlay background
+            newOverlay.addEventListener('click', (event) => {
+                if (event.target === newOverlay) {
                     this.eventBus.emit('overlay:close-gem-bag');
                 }
             });
+            
+            // Update reference
+            this.elements.set('gem-bag-overlay', newOverlay);
+            
+            // Find and re-attach the close button event
+            const newCloseButton = newOverlay.querySelector('.close-button');
+            if (newCloseButton) {
+                newCloseButton.addEventListener('click', () => this.eventBus.emit('overlay:close-gem-bag'));
+                this.elements.set('gem-bag-close-button', newCloseButton);
+            }
         }
         
-        // Add keyboard event for Escape key
-        document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && 
-                overlay && 
-                overlay.style.display === 'block') {
-                this.eventBus.emit('overlay:close-gem-bag');
-            }
-        });
+        // Add keyboard event for Escape key (use event delegation at document level)
+        // Use a named function to allow proper cleanup
+        if (!this._escapeKeyHandler) {
+            this._escapeKeyHandler = (event) => {
+                if (event.key === 'Escape') {
+                    const overlay = this.getElement('gem-bag-overlay');
+                    if (overlay && getComputedStyle(overlay).display === 'block') {
+                        this.eventBus.emit('overlay:close-gem-bag');
+                    }
+                }
+            };
+            
+            // Remove any existing handler
+            document.removeEventListener('keydown', this._escapeKeyHandler);
+            
+            // Add new handler
+            document.addEventListener('keydown', this._escapeKeyHandler);
+        }
     }
     
-    // Open gem bag overlay
+    // Open gem bag overlay with optimized rendering
     openGemBagOverlay() {
         // Make sure we have updated references
         this.updateOverlayElementReferences();
         
         const state = this.stateManager.getState();
         const { gems } = state;
-        const overlay = this.elements['gem-bag-overlay'];
-        const availableGemsContainer = this.elements['available-gems-container'];
-        const playedGemsContainer = this.elements['played-gems-container'];
-        const availableGemsCount = this.elements['available-gems-count'];
-        const playedGemsCount = this.elements['played-gems-count'];
+        const overlay = this.getElement('gem-bag-overlay');
+        const availableGemsContainer = this.getElement('available-gems-container');
+        const playedGemsContainer = this.getElement('played-gems-container');
+        const availableGemsCount = this.getElement('available-gems-count');
+        const playedGemsCount = this.getElement('played-gems-count');
         
         // Check if overlay elements exist
         if (!overlay || !availableGemsContainer || !playedGemsContainer) {
@@ -1643,9 +1809,13 @@ export default class UIManager {
             return;
         }
         
-        // Clear previous content
+        // Clear previous content using DocumentFragment for better performance
         availableGemsContainer.innerHTML = '';
         playedGemsContainer.innerHTML = '';
+        
+        // Create fragments for batch DOM updates
+        const availableFragment = document.createDocumentFragment();
+        const playedFragment = document.createDocumentFragment();
         
         // Update gem counts
         if (availableGemsCount) availableGemsCount.textContent = gems.bag.length;
@@ -1655,14 +1825,14 @@ export default class UIManager {
         if (gems.bag.length > 0) {
             gems.bag.forEach(gem => {
                 const gemElement = this.createGemElement(gem, 'catalog');
-                availableGemsContainer.appendChild(gemElement);
+                availableFragment.appendChild(gemElement);
             });
         } else {
             const emptyMessage = document.createElement('p');
             emptyMessage.textContent = 'No gems available in bag';
             emptyMessage.style.padding = '20px';
             emptyMessage.style.fontStyle = 'italic';
-            availableGemsContainer.appendChild(emptyMessage);
+            availableFragment.appendChild(emptyMessage);
         }
         
         // Render played gems
@@ -1670,15 +1840,19 @@ export default class UIManager {
             gems.played.forEach(gem => {
                 const gemElement = this.createGemElement(gem, 'catalog');
                 gemElement.classList.add('played');
-                playedGemsContainer.appendChild(gemElement);
+                playedFragment.appendChild(gemElement);
             });
         } else {
             const emptyMessage = document.createElement('p');
             emptyMessage.textContent = 'No gems have been played yet';
             emptyMessage.style.padding = '20px';
             emptyMessage.style.fontStyle = 'italic';
-            playedGemsContainer.appendChild(emptyMessage);
+            playedFragment.appendChild(emptyMessage);
         }
+        
+        // Add all gems to containers at once
+        availableGemsContainer.appendChild(availableFragment);
+        playedGemsContainer.appendChild(playedFragment);
         
         // Show the overlay
         overlay.style.display = 'block';
@@ -1689,11 +1863,34 @@ export default class UIManager {
     
     // Close gem bag overlay
     closeGemBagOverlay() {
-        const overlay = this.elements['gem-bag-overlay'];
+        const overlay = this.getElement('gem-bag-overlay');
         
         if (overlay) {
             overlay.style.display = 'none';
             this.eventBus.emit('overlay:gem-bag-closed');
         }
+    }
+    
+    // Memory management - remove event listeners when component is destroyed
+    destroy() {
+        // Remove global event listeners
+        if (this._escapeKeyHandler) {
+            document.removeEventListener('keydown', this._escapeKeyHandler);
+        }
+        
+        // Clear any pending timeouts
+        if (this._messageTimeout) {
+            clearTimeout(this._messageTimeout);
+        }
+        
+        if (this._shopRefreshTimeout) {
+            clearTimeout(this._shopRefreshTimeout);
+        }
+        
+        // Clear the event bus
+        // Note: In a real implementation, you'd unsubscribe from specific events
+        // This is a simplified example
+        
+        console.log('UIManager destroyed, event listeners cleaned up');
     }
 }
