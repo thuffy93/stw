@@ -572,10 +572,13 @@ export default class UIManager {
         return tooltipTexts[buff.type] || `${buff.type.charAt(0).toUpperCase() + buff.type.slice(1)}\nTurns: ${buff.duration}`;
     }
     
-    // Update gem bag count
+    // Update gem bag count - with improved null checking
     updateGemBagCount(gems, maxBagSize) {
+        if (!gems) return;
+        
         const bagCount = gems.bag ? gems.bag.length : 0;
         
+        // Update all gem bag count elements
         this.updateElement('gem-bag-count', bagCount);
         this.updateElement('gem-bag-count2', bagCount);
         this.updateElement('gem-bag-total', maxBagSize);
@@ -593,6 +596,11 @@ export default class UIManager {
     // Render the player's hand of gems - more efficient DOM updates
     renderHand() {
         const state = this.stateManager.getState();
+        if (!state || !state.gems || !state.gems.hand) {
+            console.warn('Cannot render hand: missing gems data');
+            return;
+        }
+        
         const { gems, player } = state;
         const { hand } = gems;
         const handElement = this.getElement('hand');
@@ -622,8 +630,11 @@ export default class UIManager {
         
         // Add or update gems
         hand.forEach(gem => {
+            // Safety check for player
+            const playerStamina = player ? player.stamina : 0;
+            
             const isSelected = this.selectedGems.includes(gem.instanceId);
-            const isAffordable = gem.cost <= player.stamina;
+            const isAffordable = gem.cost <= playerStamina;
             
             if (!existingGemIds.has(gem.instanceId)) {
                 // Create new gem element
@@ -648,8 +659,10 @@ export default class UIManager {
             } else {
                 // Update existing gem element
                 const gemElement = handElement.querySelector(`[data-gem-id="${gem.instanceId}"]`);
-                gemElement.classList.toggle('selected', isSelected);
-                gemElement.classList.toggle('unaffordable', !isAffordable);
+                if (gemElement) {
+                    gemElement.classList.toggle('selected', isSelected);
+                    gemElement.classList.toggle('unaffordable', !isAffordable);
+                }
             }
         });
         
@@ -1796,6 +1809,11 @@ export default class UIManager {
         this.updateOverlayElementReferences();
         
         const state = this.stateManager.getState();
+        if (!state || !state.gems) {
+            console.warn('Cannot open gem bag overlay: missing gems data');
+            return;
+        }
+        
         const { gems } = state;
         const overlay = this.getElement('gem-bag-overlay');
         const availableGemsContainer = this.getElement('available-gems-container');
@@ -1817,13 +1835,17 @@ export default class UIManager {
         const availableFragment = document.createDocumentFragment();
         const playedFragment = document.createDocumentFragment();
         
+        // Get safe gem counts with null checking
+        const bagGems = gems.bag || [];
+        const playedGems = gems.played || [];
+        
         // Update gem counts
-        if (availableGemsCount) availableGemsCount.textContent = gems.bag.length;
-        if (playedGemsCount) playedGemsCount.textContent = gems.played ? gems.played.length : 0;
+        if (availableGemsCount) availableGemsCount.textContent = bagGems.length;
+        if (playedGemsCount) playedGemsCount.textContent = playedGems.length;
         
         // Render available gems
-        if (gems.bag.length > 0) {
-            gems.bag.forEach(gem => {
+        if (bagGems.length > 0) {
+            bagGems.forEach(gem => {
                 const gemElement = this.createGemElement(gem, 'catalog');
                 availableFragment.appendChild(gemElement);
             });
@@ -1836,8 +1858,8 @@ export default class UIManager {
         }
         
         // Render played gems
-        if (gems.played && gems.played.length > 0) {
-            gems.played.forEach(gem => {
+        if (playedGems.length > 0) {
+            playedGems.forEach(gem => {
                 const gemElement = this.createGemElement(gem, 'catalog');
                 gemElement.classList.add('played');
                 playedFragment.appendChild(gemElement);
