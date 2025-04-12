@@ -128,31 +128,16 @@ class Game {
         
         // Handle player wait action (get focus)
         this.eventBus.on('player:wait', () => {
-            // Add focus buff and defense buff
+            // Add focus buff
             const state = this.stateManager.getState();
             const playerBuffs = state.player.buffs;
             
-            // Create a focus buff - increases damage/healing
-            // Duration: 2 turns so it's still active when player gets their turn back
             const focusBuff = {
                 type: 'focus',
-                duration: 2
-            };
-            
-            // Create a defense buff - provides damage reduction
-            // Duration: 1 turn, just enough to protect during enemy's turn
-            const defenseBuff = {
-                type: 'defense',
-                value: 10, // Grant 10 defense points when waiting
                 duration: 1
             };
             
-            // Remove any existing focus or defense buffs before adding new ones
-            const newBuffs = [
-                ...playerBuffs.filter(b => b.type !== 'focus' && b.type !== 'defense'), 
-                focusBuff,
-                defenseBuff
-            ];
+            const newBuffs = [...playerBuffs.filter(b => b.type !== 'focus'), focusBuff];
             
             this.stateManager.updateState({
                 player: {
@@ -161,7 +146,7 @@ class Game {
             });
             
             this.eventBus.emit('message:show', {
-                text: 'Focused! +20% damage/healing for your next turn and +10 defense until then.',
+                text: 'Focused! +20% damage/healing next turn.',
                 type: 'success'
             });
             
