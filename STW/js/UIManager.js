@@ -1,130 +1,93 @@
-// UIManager.js - Handles UI rendering and interactions
+// UIManager.js - Handles UI rendering and interactions (optimized)
+import { generateGemTooltip, enemyActionIcons } from './utils.js';
+
 export default class UIManager {
     constructor(eventBus, stateManager) {
         this.eventBus = eventBus;
         this.stateManager = stateManager;
         
-        // Store DOM element references
-        this.elements = {
-            // Character select screen
-            characterSelectScreen: document.getElementById('character-select-screen'),
-            knightButton: document.getElementById('knight-btn'),
-            mageButton: document.getElementById('mage-btn'),
-            rogueButton: document.getElementById('rogue-btn'),
-            resetButton: document.getElementById('reset-btn'),
-            
-            // Gem catalog screen
-            gemCatalogScreen: document.getElementById('gem-catalog-screen'),
-            metaZennyDisplay: document.getElementById('meta-zenny-display'),
-            unlockedGems: document.getElementById('unlocked-gems'),
-            availableGemsSection: document.getElementById('available-gems-section'),
-            availableGems: document.getElementById('available-gems'),
-            continueJourneyButton: document.getElementById('continue-journey-btn'),
-            
-            // Battle screen
-            battleScreen: document.getElementById('battle-screen'),
-            dayPhaseIndicator: document.getElementById('day-phase-indicator'),
-            turnIndicator: document.getElementById('turn-indicator'),
-            enemyName: document.getElementById('enemy-name'),
-            enemyHealthBar: document.getElementById('enemy-health-bar'),
-            enemyHealth: document.getElementById('enemy-health'),
-            enemyMaxHealth: document.getElementById('enemy-max-health'),
-            enemyBuffs: document.getElementById('enemy-buffs'),
-            enemyCondition: document.getElementById('enemy-condition'),
-            playerClass: document.getElementById('player-class'),
-            playerHealthBar: document.getElementById('player-health-bar'),
-            playerHealth: document.getElementById('player-health'),
-            playerMaxHealth: document.getElementById('player-max-health'),
-            staminaFill: document.getElementById('stamina-fill'),
-            staminaText: document.getElementById('stamina-text'),
-            playerBuffs: document.getElementById('player-buffs'),
-            zennyDisplay: document.getElementById('zenny'),
-            hand: document.getElementById('hand'),
-            gemBagCount: document.getElementById('gem-bag-count'),
-            gemBagCount2: document.getElementById('gem-bag-count2'),
-            gemBagTotal: document.getElementById('gem-bag-total'),
-            gemBagTotal2: document.getElementById('gem-bag-total2'),
-            executeButton: document.getElementById('execute-btn'),
-            waitButton: document.getElementById('wait-btn'),
-            discardEndButton: document.getElementById('discard-end-btn'),
-            endTurnButton: document.getElementById('end-turn-btn'),
-            fleeButton: document.getElementById('flee-btn'),
-            
-            // Shop screen
-            shopScreen: document.getElementById('shop-screen'),
-            shopHealth: document.getElementById('shop-health'),
-            shopMaxHealth: document.getElementById('shop-max-health'),
-            shopZenny: document.getElementById('shop-zenny'),
-            shopHand: document.getElementById('shop-hand'),
-            gemPool: document.getElementById('gem-pool'),
-            gemPoolInstructions: document.getElementById('gem-pool-instructions'),
-            upgradeGemButton: document.getElementById('upgrade-gem'),
-            discardGemButton: document.getElementById('discard-gem'),
-            buyRandomGemButton: document.getElementById('buy-random-gem'),
-            cancelUpgradeButton: document.getElementById('cancel-upgrade'),
-            swapGemButton: document.getElementById('swap-gem'),
-            healButton: document.getElementById('heal-10'),
-            shopContinueButton: document.getElementById('continue-btn'),
-            shopGemBagCount: document.getElementById('shop-gem-bag-count'),
-            shopGemBagTotal: document.getElementById('shop-gem-bag-total'),
-            
-            // Camp screen
-            campScreen: document.getElementById('camp-screen'),
-            campDay: document.getElementById('camp-day'),
-            campZenny: document.getElementById('camp-zenny'),
-            campMetaZenny: document.getElementById('camp-meta-zenny'),
-            withdrawAmount: document.getElementById('withdraw-amount'),
-            withdrawButton: document.getElementById('withdraw-btn'),
-            depositAmount: document.getElementById('deposit-amount'),
-            depositButton: document.getElementById('deposit-btn'),
-            nextDayButton: document.getElementById('next-day-btn'),
-            
-            // Message display
-            messageElement: document.getElementById('message'),
-            
-            // Overlays
-            loadingOverlay: document.getElementById('loading-overlay'),
-            errorOverlay: document.getElementById('error-overlay'),
-            
-            // Audio button
-            audioButton: document.getElementById('audio-button'),
-
-            gemBagOverlay: document.getElementById('gem-bag-overlay'),
-            gemBagCloseButton: null, // Will be set after overlay is added to DOM
-            availableGemsContainer: null, // Will be set after overlay is added to DOM
-            playedGemsContainer: null, // Will be set after overlay is added to DOM
-            availableGemsCount: null, // Will be set after overlay is added to DOM
-            playedGemsCount: null // Will be set after overlay is added to DOM
-        };
+        // Cache for DOM elements
+        this.elements = new Map();
         
-        // Set up basic event listeners
-        this.setupBasicEventListeners();
-        
-        // Track selected gems in hand
+        // Selected gems in battle
         this.selectedGems = [];
         
-        // Track shop state
+        // Shop state tracking
         this.shopState = {
             selectedHandGem: null,
             upgradeMode: false,
             upgradeOptions: []
         };
+        
+        // Set up event listeners
+        this.setupEventListeners();
+        
+        // Cache DOM elements (deferred to after DOM is loaded)
+        // Use requestAnimationFrame to ensure DOM is ready
+        requestAnimationFrame(() => this.cacheElements());
     }
     
-    // Setup permanent event listeners (those that don't change with screens)
-    setupBasicEventListeners() {
-        // Character selection - these buttons are always in the DOM
-        this.elements.knightButton.addEventListener('click', () => this.selectClass('knight'));
-        this.elements.mageButton.addEventListener('click', () => this.selectClass('mage'));
-        this.elements.rogueButton.addEventListener('click', () => this.selectClass('rogue'));
-        this.elements.resetButton.addEventListener('click', () => this.resetGame());
+    // Cache DOM elements for better performance
+    cacheElements() {
+        // Store commonly used elements
+        const elementIds = [
+            // Character select screen
+            'character-select-screen', 'knight-btn', 'mage-btn', 'rogue-btn', 'reset-btn',
+            
+            // Gem catalog screen
+            'gem-catalog-screen', 'meta-zenny-display', 'unlocked-gems', 'available-gems', 'continue-journey-btn',
+            
+            // Battle screen
+            'battle-screen', 'day-phase-indicator', 'turn-indicator', 
+            'enemy-name', 'enemy-health-bar', 'enemy-health', 'enemy-max-health', 'enemy-buffs',
+            'player-class', 'player-health-bar', 'player-health', 'player-max-health',
+            'stamina-fill', 'stamina-text', 'player-buffs', 'zenny', 'hand',
+            'gem-bag-count', 'gem-bag-count2', 'gem-bag-total', 'gem-bag-total2',
+            'execute-btn', 'wait-btn', 'discard-end-btn', 'end-turn-btn', 'flee-btn',
+            
+            // Shop screen
+            'shop-screen', 'shop-health', 'shop-max-health', 'shop-zenny',
+            'shop-hand', 'gem-pool', 'upgrade-gem', 'discard-gem', 'buy-random-gem',
+            'heal-10', 'continue-btn', 'shop-gem-bag-count', 'shop-gem-bag-total',
+            
+            // Camp screen
+            'camp-screen', 'camp-day', 'camp-zenny', 'camp-meta-zenny',
+            'withdraw-amount', 'withdraw-btn', 'deposit-amount', 'deposit-btn', 'next-day-btn',
+            
+            // Other UI elements
+            'message', 'gem-bag-overlay'
+        ];
         
-        // Event listeners for state changes
+        // Cache all elements
+        for (const id of elementIds) {
+            const element = document.getElementById(id);
+            if (element) {
+                this.elements.set(id, element);
+            }
+        }
+    }
+    
+    // Get cached element, fallback to document.getElementById if not cached
+    getElement(id) {
+        if (!this.elements.has(id)) {
+            const element = document.getElementById(id);
+            if (element) {
+                this.elements.set(id, element);
+            }
+        }
+        return this.elements.get(id);
+    }
+    
+    setupEventListeners() {
+        // Basic event listeners (permanent ones)
+        this.setupBasicEventListeners();
+        
+        // State change events
         this.eventBus.on('state:updated', () => this.updateUI());
         this.eventBus.on('screen:changed', (screenId) => this.onScreenChanged(screenId));
         this.eventBus.on('message:show', (data) => this.showMessage(data.text, data.type));
         
-        // Listen for battle events
+        // Battle events
         this.eventBus.on('battle:started', (data) => this.onBattleStarted(data));
         this.eventBus.on('battle:victory', (data) => this.onBattleVictory(data));
         this.eventBus.on('battle:defeat', (data) => this.onBattleDefeat(data));
@@ -133,199 +96,138 @@ export default class UIManager {
         this.eventBus.on('enemy:damaged', (data) => this.onEnemyDamaged(data));
         this.eventBus.on('player:healed', (data) => this.onPlayerHealed(data));
         
-        // Listen for shop events
+        // Shop events
         this.eventBus.on('shop:enter', () => this.setupShop());
-
-            // Add event listeners for overlay
-            this.eventBus.on('overlay:open-gem-bag', () => this.openGemBagOverlay());
-            this.eventBus.on('overlay:close-gem-bag', () => this.closeGemBagOverlay());
-            
-            // Make gem bag containers clickable to emit overlay:open-gem-bag event
-            this.setupGemBagContainers();
+        
+        // Gem bag overlay events
+        this.eventBus.on('overlay:open-gem-bag', () => this.openGemBagOverlay());
+        this.eventBus.on('overlay:close-gem-bag', () => this.closeGemBagOverlay());
     }
     
-    // Setup screen-specific event listeners
-    setupScreenEventListeners(screenId) {
-        console.log(`Setting up event listeners for screen: ${screenId}`);
+    setupBasicEventListeners() {
+        // Character selection buttons
+        this.addClickListener('knight-btn', () => this.selectClass('knight'));
+        this.addClickListener('mage-btn', () => this.selectClass('mage'));
+        this.addClickListener('rogue-btn', () => this.selectClass('rogue'));
+        this.addClickListener('reset-btn', () => this.resetGame());
         
-        // Clear any existing listeners for screen-specific elements
-        // (this is a preventive measure, though modern browsers typically clean these up
-        // when elements are removed from the DOM)
+        // Make gem bag containers clickable
+        this.setupGemBagContainers();
+
+        // Add keyboard event listeners for shortcuts
+        document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
+    }
+
+    // Handle keyboard shortcuts
+    handleKeyboardShortcuts(e) {
+        const state = this.stateManager.getState();
         
-        switch(screenId) {
-            case 'gem-catalog-screen':
-                // Refresh the reference to the continue button
-                this.elements.continueJourneyButton = document.getElementById('continue-journey-btn');
-                
-                if (this.elements.continueJourneyButton) {
-                    console.log('Found continue journey button, attaching listener');
-                    
-                    // Remove any existing listeners (cloned node approach)
-                    const newButton = this.elements.continueJourneyButton.cloneNode(true);
-                    this.elements.continueJourneyButton.parentNode.replaceChild(newButton, this.elements.continueJourneyButton);
-                    this.elements.continueJourneyButton = newButton;
-                    
-                    // Add the click listener
-                    this.elements.continueJourneyButton.addEventListener('click', () => {
-                        console.log('Continue journey button clicked!');
-                        this.startJourney();
-                    });
-                } else {
-                    console.error('Continue journey button not found in the DOM!');
+        // Only active in battle screen
+        if (state.currentScreen !== 'battle-screen') return;
+        
+        switch (e.key) {
+            case 'e': // Execute gems
+                e.preventDefault();
+                if (!this.getElement('execute-btn').disabled) {
+                    this.executeGems();
                 }
                 break;
-
+            case 'w': // Wait action
+                e.preventDefault();
+                if (!this.getElement('wait-btn').disabled) {
+                    this.waitAction();
+                }
+                break;
+            case 'd': // Discard & End
+                e.preventDefault();
+                if (!this.getElement('discard-end-btn').disabled) {
+                    this.discardAndEndTurn();
+                }
+                break;
+            case ' ': // End Turn (spacebar)
+                e.preventDefault();
+                if (!this.getElement('end-turn-btn').disabled) {
+                    this.endTurn();
+                }
+                break;
+            case 'Escape': // Close any open overlays
+                const overlay = this.getElement('gem-bag-overlay');
+                if (overlay && overlay.style.display === 'block') {
+                    this.eventBus.emit('overlay:close-gem-bag');
+                }
+                break;
+        }
+    }
+    
+    // Helper method to add click listener with proper cleanup
+    addClickListener(elementId, callback) {
+        const element = this.getElement(elementId) || document.getElementById(elementId);
+        if (!element) return;
+        
+        // Create a new function that references the class instance
+        const boundCallback = callback.bind(this);
+        
+        // Remove previous event listeners by cloning the node
+        const newElement = element.cloneNode(true);
+        element.parentNode.replaceChild(newElement, element);
+        
+        // Add new event listener
+        newElement.addEventListener('click', boundCallback);
+        
+        // Update cached element reference
+        this.elements.set(elementId, newElement);
+    }
+    
+    // Set up screen-specific event listeners
+    setupScreenEventListeners(screenId) {
+        // Different listeners for different screens
+        switch(screenId) {
+            case 'gem-catalog-screen':
+                this.addClickListener('continue-journey-btn', () => this.startJourney());
+                break;
+                
             case 'battle-screen':
-                // Refresh the references to buttons 
-                this.elements.executeButton = document.getElementById('execute-btn');
-                this.elements.waitButton = document.getElementById('wait-btn');
-                this.elements.discardEndButton = document.getElementById('discard-end-btn');
-                this.elements.endTurnButton = document.getElementById('end-turn-btn');
-                this.elements.fleeButton = document.getElementById('flee-btn');
-                
-                // Set up battle action event listeners
-                if (this.elements.executeButton) {
-                    const newExecuteBtn = this.elements.executeButton.cloneNode(true);
-                    this.elements.executeButton.parentNode.replaceChild(newExecuteBtn, this.elements.executeButton);
-                    this.elements.executeButton = newExecuteBtn;
-                    this.elements.executeButton.addEventListener('click', () => this.executeGems());
-                }
-                
-                if (this.elements.waitButton) {
-                    const newWaitBtn = this.elements.waitButton.cloneNode(true);
-                    this.elements.waitButton.parentNode.replaceChild(newWaitBtn, this.elements.waitButton);
-                    this.elements.waitButton = newWaitBtn;
-                    this.elements.waitButton.addEventListener('click', () => this.waitAction());
-                }
-                
-                if (this.elements.discardEndButton) {
-                    const newDiscardBtn = this.elements.discardEndButton.cloneNode(true);
-                    this.elements.discardEndButton.parentNode.replaceChild(newDiscardBtn, this.elements.discardEndButton);
-                    this.elements.discardEndButton = newDiscardBtn;
-                    this.elements.discardEndButton.addEventListener('click', () => this.discardAndEndTurn());
-                }
-                
-                if (this.elements.endTurnButton) {
-                    const newEndTurnBtn = this.elements.endTurnButton.cloneNode(true);
-                    this.elements.endTurnButton.parentNode.replaceChild(newEndTurnBtn, this.elements.endTurnButton);
-                    this.elements.endTurnButton = newEndTurnBtn;
-                    this.elements.endTurnButton.addEventListener('click', () => this.endTurn());
-                }
-                
-                if (this.elements.fleeButton) {
-                    const newFleeBtn = this.elements.fleeButton.cloneNode(true);
-                    this.elements.fleeButton.parentNode.replaceChild(newFleeBtn, this.elements.fleeButton);
-                    this.elements.fleeButton = newFleeBtn;
-                    this.elements.fleeButton.addEventListener('click', () => this.fleeBattle());
-                }
+                this.addClickListener('execute-btn', () => this.executeGems());
+                this.addClickListener('wait-btn', () => this.waitAction());
+                this.addClickListener('discard-end-btn', () => this.discardAndEndTurn());
+                this.addClickListener('end-turn-btn', () => this.endTurn());
+                this.addClickListener('flee-btn', () => this.fleeBattle());
                 break;
                 
             case 'shop-screen':
-                // Refresh shop button references
-                this.elements.upgradeGemButton = document.getElementById('upgrade-gem');
-                this.elements.discardGemButton = document.getElementById('discard-gem');
-                this.elements.buyRandomGemButton = document.getElementById('buy-random-gem');
-                this.elements.cancelUpgradeButton = document.getElementById('cancel-upgrade');
-                this.elements.healButton = document.getElementById('heal-10');
-                this.elements.shopContinueButton = document.getElementById('continue-btn');
-                
-                // Set up shop action event listeners
-                if (this.elements.upgradeGemButton) {
-                    const newUpgradeBtn = this.elements.upgradeGemButton.cloneNode(true);
-                    this.elements.upgradeGemButton.parentNode.replaceChild(newUpgradeBtn, this.elements.upgradeGemButton);
-                    this.elements.upgradeGemButton = newUpgradeBtn;
-                    this.elements.upgradeGemButton.addEventListener('click', () => this.upgradeGem());
-                }
-                
-                if (this.elements.discardGemButton) {
-                    const newDiscardBtn = this.elements.discardGemButton.cloneNode(true);
-                    this.elements.discardGemButton.parentNode.replaceChild(newDiscardBtn, this.elements.discardGemButton);
-                    this.elements.discardGemButton = newDiscardBtn;
-                    this.elements.discardGemButton.addEventListener('click', () => this.discardGem());
-                }
-                
-                if (this.elements.buyRandomGemButton) {
-                    const newBuyBtn = this.elements.buyRandomGemButton.cloneNode(true);
-                    this.elements.buyRandomGemButton.parentNode.replaceChild(newBuyBtn, this.elements.buyRandomGemButton);
-                    this.elements.buyRandomGemButton = newBuyBtn;
-                    this.elements.buyRandomGemButton.addEventListener('click', () => this.buyRandomGem());
-                }
-                
-                if (this.elements.cancelUpgradeButton) {
-                    const newCancelBtn = this.elements.cancelUpgradeButton.cloneNode(true);
-                    this.elements.cancelUpgradeButton.parentNode.replaceChild(newCancelBtn, this.elements.cancelUpgradeButton);
-                    this.elements.cancelUpgradeButton = newCancelBtn;
-                    this.elements.cancelUpgradeButton.addEventListener('click', () => this.cancelUpgrade());
-                }
-                
-                if (this.elements.healButton) {
-                    const newHealBtn = this.elements.healButton.cloneNode(true);
-                    this.elements.healButton.parentNode.replaceChild(newHealBtn, this.elements.healButton);
-                    this.elements.healButton = newHealBtn;
-                    this.elements.healButton.addEventListener('click', () => this.healPlayer());
-                }
-                
-                if (this.elements.shopContinueButton) {
-                    const newContinueBtn = this.elements.shopContinueButton.cloneNode(true);
-                    this.elements.shopContinueButton.parentNode.replaceChild(newContinueBtn, this.elements.shopContinueButton);
-                    this.elements.shopContinueButton = newContinueBtn;
-                    this.elements.shopContinueButton.addEventListener('click', () => this.continueFromShop());
-                }
+                this.addClickListener('upgrade-gem', () => this.upgradeGem());
+                this.addClickListener('discard-gem', () => this.discardGem());
+                this.addClickListener('buy-random-gem', () => this.buyRandomGem());
+                this.addClickListener('heal-10', () => this.healPlayer());
+                this.addClickListener('continue-btn', () => this.continueFromShop());
                 break;
                 
             case 'camp-screen':
-                // Refresh camp button references
-                this.elements.withdrawButton = document.getElementById('withdraw-btn');
-                this.elements.depositButton = document.getElementById('deposit-btn');
-                this.elements.nextDayButton = document.getElementById('next-day-btn');
-                
-                // Set up camp action event listeners
-                if (this.elements.withdrawButton) {
-                    const newWithdrawBtn = this.elements.withdrawButton.cloneNode(true);
-                    this.elements.withdrawButton.parentNode.replaceChild(newWithdrawBtn, this.elements.withdrawButton);
-                    this.elements.withdrawButton = newWithdrawBtn;
-                    this.elements.withdrawButton.addEventListener('click', () => this.withdrawZenny());
-                }
-                
-                if (this.elements.depositButton) {
-                    const newDepositBtn = this.elements.depositButton.cloneNode(true);
-                    this.elements.depositButton.parentNode.replaceChild(newDepositBtn, this.elements.depositButton);
-                    this.elements.depositButton = newDepositBtn;
-                    this.elements.depositButton.addEventListener('click', () => this.depositZenny());
-                }
-                
-                if (this.elements.nextDayButton) {
-                    const newNextDayBtn = this.elements.nextDayButton.cloneNode(true);
-                    this.elements.nextDayButton.parentNode.replaceChild(newNextDayBtn, this.elements.nextDayButton);
-                    this.elements.nextDayButton = newNextDayBtn;
-                    this.elements.nextDayButton.addEventListener('click', () => this.startNextDay());
-                }
+                this.addClickListener('withdraw-btn', () => this.withdrawZenny());
+                this.addClickListener('deposit-btn', () => this.depositZenny());
+                this.addClickListener('next-day-btn', () => this.startNextDay());
                 break;
         }
     }
     
-    // Update the entire UI based on current state
+    // Update UI based on current state - optimized to only update what's needed
     updateUI() {
         const state = this.stateManager.getState();
         
-        // Update battle UI if on battle screen
-        if (state.currentScreen === 'battle-screen') {
-            this.updateBattleUI();
-        }
-        
-        // Update shop UI if on shop screen
-        else if (state.currentScreen === 'shop-screen') {
-            this.updateShopUI();
-        }
-        
-        // Update camp UI if on camp screen
-        else if (state.currentScreen === 'camp-screen') {
-            this.updateCampUI();
-        }
-        
-        // Update gem catalog if on that screen
-        else if (state.currentScreen === 'gem-catalog-screen') {
-            this.updateGemCatalogUI();
+        // Update UI based on current screen
+        switch(state.currentScreen) {
+            case 'battle-screen':
+                this.updateBattleUI();
+                break;
+            case 'shop-screen':
+                this.updateShopUI();
+                break;
+            case 'camp-screen':
+                this.updateCampUI();
+                break;
+            case 'gem-catalog-screen':
+                this.updateGemCatalogUI();
+                break;
         }
     }
     
@@ -333,82 +235,106 @@ export default class UIManager {
     onScreenChanged(screenId) {
         console.log(`Screen changed to: ${screenId}`);
         
-        // Clear previous screen-specific state
-        if (screenId === 'battle-screen') {
-            this.selectedGems = [];
-            
-            // Set background based on phase
-            const phase = this.stateManager.getState().journey.phase;
-            this.elements.battleScreen.className = 'screen active';
-            this.elements.battleScreen.classList.add(phase.toLowerCase());
-            
-            this.updateBattleUI();
-        } 
-        else if (screenId === 'shop-screen') {
-            this.shopState = {
-                selectedHandGem: null,
-                upgradeMode: false,
-                upgradeOptions: []
-            };
-            this.setupShop();
+        // Reset screen-specific state
+        switch(screenId) {
+            case 'battle-screen':
+                this.selectedGems = [];
+                this.updateBattleBackground();
+                break;
+            case 'shop-screen':
+                this.shopState = {
+                    selectedHandGem: null,
+                    upgradeMode: false,
+                    upgradeOptions: []
+                };
+                // Don't call setupShop here - it will be called after state is synchronized
+                break;
         }
-        else if (screenId === 'camp-screen') {
-            this.updateCampUI();
-        }
-        else if (screenId === 'gem-catalog-screen') {
-            this.updateGemCatalogUI();
+        
+        // Get fresh state to ensure we have the latest data
+        const state = this.stateManager.getState();
+        console.log(`Screen changed with state:`, {
+            currentScreen: state.currentScreen,
+            playerZenny: state.player ? state.player.zenny : 'unknown',
+            metaZenny: state.meta ? state.meta.zenny : 'unknown',
+            bagsGems: state.gems && state.gems.bag ? state.gems.bag.length : 'unknown'
+        });
+        
+        // For shop screen, explicitly handle the initialization with delay
+        if (screenId === 'shop-screen') {
+            setTimeout(() => {
+                console.log("Setting up shop with delayed initialization");
+                this.setupShop();
+                // Ensure UI is also updated after shop setup
+                this.updateUI();
+            }, 100);
+        } else {
+            // Update UI for other screens immediately
+            this.updateUI();
         }
         
         // Set up event listeners for the current screen
         this.setupScreenEventListeners(screenId);
-
-        // Set up gem bag containers after screen change
+        
+        // Always refresh gem bag containers and overlay references after DOM updates
         setTimeout(() => {
             this.setupGemBagContainers();
             this.updateOverlayElementReferences();
-        }, 100); // Short delay to ensure DOM is updated
+        }, 150);
+    }
+    
+    // Update battle background based on phase
+    updateBattleBackground() {
+        const state = this.stateManager.getState();
+        if (!state || !state.journey || !state.journey.phase) return;
+        
+        const phase = state.journey.phase;
+        const battleScreen = this.getElement('battle-screen');
+        
+        if (battleScreen) {
+            battleScreen.className = 'screen active';
+            battleScreen.classList.add(phase.toLowerCase());
+        }
     }
     
     // Select character class
     selectClass(classType) {
         // Initialize player stats based on class
-        let playerStats = {
+        const playerStats = {
             class: classType,
-            buffs: [] // Explicitly initialize with empty buffs array
+            buffs: []
         };
         
         // Set class-specific starting values
         switch(classType) {
             case 'knight':
-                playerStats.health = 50;             // Increased from 40
-                playerStats.maxHealth = 50;          // Increased from 40
-                playerStats.stamina = 3;             // Same
-                playerStats.maxStamina = 3;          // Same
-                playerStats.zenny = 0;               // Same
+                playerStats.health = 50;
+                playerStats.maxHealth = 50;
+                playerStats.stamina = 3;
+                playerStats.maxStamina = 3;
+                playerStats.zenny = 0;
                 break;
                 
             case 'mage':
-                playerStats.health = 30;             // Same
-                playerStats.maxHealth = 30;          // Same
-                playerStats.stamina = 5;             // Increased from 4
-                playerStats.maxStamina = 5;          // Increased from 4
-                playerStats.zenny = 0;               // Same
+                playerStats.health = 30;
+                playerStats.maxHealth = 30;
+                playerStats.stamina = 5;
+                playerStats.maxStamina = 5;
+                playerStats.zenny = 0;
                 break;
                 
             case 'rogue':
-                playerStats.health = 40;             // Increased from 35
-                playerStats.maxHealth = 40;          // Increased from 35
-                playerStats.stamina = 4;             // Increased from 3
-                playerStats.maxStamina = 4;          // Increased from 3
-                playerStats.zenny = 0;               // Same, already higher than others
+                playerStats.health = 40;
+                playerStats.maxHealth = 40;
+                playerStats.stamina = 4;
+                playerStats.maxStamina = 4;
+                playerStats.zenny = 0;
                 break;
                 
             default:
                 console.error(`Unknown class type: ${classType}`);
                 return;
         }
-        
-        console.log("Initializing player with clean state, no buffs or debuffs");
         
         // Update state with player stats
         this.stateManager.updateState({
@@ -437,145 +363,203 @@ export default class UIManager {
     
     // Start the journey from gem catalog
     startJourney() {
-        console.log('Starting journey from gem catalog');
-        
         // Navigate to battle screen
         this.stateManager.changeScreen('battle-screen');
         
-        // Start the first battle after a short delay to ensure UI is ready
+        // Start the first battle after a short delay
         setTimeout(() => {
             this.eventBus.emit('battle:start');
         }, 100);
     }
     
-    // Update battle UI with current state
+    // Update battle UI - optimized to reduce redundant operations
     updateBattleUI() {
         const state = this.stateManager.getState();
         const { player, battle, journey, gems } = state;
         
-        if (!battle || !player) return;
+        if (!battle) return;
         
         // Update day/phase indicator
-        let phaseEmoji = '☀️';
-        if (journey.phase === 'DUSK') phaseEmoji = '🌆';
-        if (journey.phase === 'DARK') phaseEmoji = '🌙';
-        
-        this.elements.dayPhaseIndicator.textContent = `Day ${journey.day} ${phaseEmoji}`;
+        this.updateDayPhaseIndicator(journey);
         
         // Update turn indicator
-        this.elements.turnIndicator.textContent = battle.currentTurn === 'PLAYER' ? 'Your Turn' : 'Enemy Turn';
-        this.elements.turnIndicator.classList.remove('player', 'enemy');
-        this.elements.turnIndicator.classList.add(battle.currentTurn === 'PLAYER' ? 'player' : 'enemy');
+        this.updateTurnIndicator(battle.currentTurn);
         
         // Update enemy info if in battle
         if (battle.enemy) {
-            this.elements.enemyName.textContent = battle.enemy.name;
+            this.updateEnemyDisplay(battle.enemy);
+        }
+        
+        // Update player info if player exists
+        if (player) {
+            this.updatePlayerDisplay(player);
             
-            const healthPercent = (battle.enemy.health / battle.enemy.maxHealth) * 100;
-            this.elements.enemyHealthBar.style.width = `${healthPercent}%`;
-            this.elements.enemyHealth.textContent = battle.enemy.health;
-            this.elements.enemyMaxHealth.textContent = battle.enemy.maxHealth;
+            // Update zenny display
+            this.updateElement('zenny', player.zenny);
             
-            // Update enemy buffs
-            this.elements.enemyBuffs.innerHTML = '';
-            if (battle.enemy.buffs && battle.enemy.buffs.length > 0) {
-                battle.enemy.buffs.forEach(buff => {
-                    const buffIcon = document.createElement('span');
-                    buffIcon.classList.add('buff-icon', buff.type);
-                    
-                    // Set icon based on buff type
-                    let icon = '?';
-                    switch(buff.type) {
-                        case 'defense': icon = '🛡️'; break;
-                        case 'attack-boost': icon = '⚡'; break;
-                        case 'poison': icon = '☠️'; break;
-                        case 'stunned': icon = '💫'; break;
-                        case 'minion': icon = '👺'; break;
-                    }
-                    
-                    buffIcon.textContent = icon;
-                    
-                    // Add turns remaining
-                    const turnsSpan = document.createElement('span');
-                    turnsSpan.classList.add('turns');
-                    turnsSpan.textContent = buff.duration;
-                    buffIcon.appendChild(turnsSpan);
-                    
-                    // Add tooltip
-                    let tooltipText = '';
-                    switch(buff.type) {
-                        case 'defense': 
-                            tooltipText = `Defense: ${buff.value}\nTurns: ${buff.duration}`; 
-                            break;
-                        case 'attack-boost': 
-                            tooltipText = `Attack +${buff.value}\nTurns: ${buff.duration}`; 
-                            break;
-                        case 'poison': 
-                            tooltipText = `Poison: ${buff.value} dmg/turn\nTurns: ${buff.duration}`; 
-                            break;
-                        case 'stunned': 
-                            tooltipText = `Stunned\nTurns: ${buff.duration}`; 
-                            break;
-                        case 'minion': 
-                            tooltipText = `Minion: +${buff.value} damage\nTurns: ${buff.duration}`; 
-                            break;
-                    }
-                    
-                    buffIcon.setAttribute('data-tooltip', tooltipText);
-                    this.elements.enemyBuffs.appendChild(buffIcon);
-                });
+            // Update hand
+            this.renderHand();
+            
+            // Update gem bag count
+            if (gems) {
+                this.updateGemBagCount(gems, state.gemBagSize || 20);
             }
             
-            // Update next action if available
-            if (battle.enemy.nextAction) {
-                let actionDisplay = battle.enemy.nextAction.charAt(0).toUpperCase() + 
-                                     battle.enemy.nextAction.slice(1);
-                this.elements.enemyCondition.textContent = `Next: ${actionDisplay}`;
+            // Update button states
+            this.updateBattleButtons();
+        }
+    }
+    
+    // Update day/phase indicator
+    updateDayPhaseIndicator(journey) {
+        if (!journey) return;
+        
+        const phaseEmoji = journey.phase === 'DAWN' ? '☀️' : 
+                           journey.phase === 'DUSK' ? '🌆' : '🌙';
+                           
+        this.updateElement('day-phase-indicator', `Day ${journey.day} ${phaseEmoji}`);
+    }
+    
+    // Update turn indicator
+    updateTurnIndicator(currentTurn) {
+        const turnIndicator = this.getElement('turn-indicator');
+        if (turnIndicator) {
+            // Check if currentTurn is null or undefined and provide a default
+            if (currentTurn) {
+                turnIndicator.textContent = currentTurn === 'PLAYER' ? 'Your Turn' : 'Enemy Turn';
+                turnIndicator.classList.remove('player', 'enemy');
+                turnIndicator.classList.add(currentTurn.toLowerCase());
             } else {
-                this.elements.enemyCondition.textContent = '';
+                // Set a default if currentTurn is null
+                turnIndicator.textContent = 'Preparing...';
+                turnIndicator.classList.remove('player', 'enemy');
             }
         }
+    }
+    
+    // Update enemy display
+    updateEnemyDisplay(enemy) {
+        // Update enemy name
+        this.updateElement('enemy-name', enemy.name);
         
-        // Update player info
-        this.elements.playerClass.textContent = `${player.class.charAt(0).toUpperCase() + player.class.slice(1)}`;
-        
-        const playerHealthPercent = (player.health / player.maxHealth) * 100;
-        this.elements.playerHealthBar.style.width = `${playerHealthPercent}%`;
-        this.elements.playerHealth.textContent = player.health;
-        this.elements.playerMaxHealth.textContent = player.maxHealth;
-        
-        const staminaPercent = (player.stamina / player.maxStamina) * 100;
-        this.elements.staminaFill.style.width = `${staminaPercent}%`;
-        this.elements.staminaText.textContent = `${player.stamina}/${player.maxStamina}`;
-        
-        // Update stamina color
-        this.elements.staminaFill.classList.remove('full', 'medium', 'low');
-        if (player.stamina >= player.maxStamina) {
-            this.elements.staminaFill.classList.add('full');
-        } else if (player.stamina >= player.maxStamina / 2) {
-            this.elements.staminaFill.classList.add('medium');
-        } else {
-            this.elements.staminaFill.classList.add('low');
+        // Update health bar
+        const healthPercent = (enemy.health / enemy.maxHealth) * 100;
+        const enemyHealthBar = this.getElement('enemy-health-bar');
+        if (enemyHealthBar) {
+            enemyHealthBar.style.width = `${healthPercent}%`;
         }
+        
+        // Update health text
+        this.updateElement('enemy-health', enemy.health);
+        this.updateElement('enemy-max-health', enemy.maxHealth);
+        
+        // Update enemy buffs
+        this.updateBuffs('enemy-buffs', enemy.buffs);
+        
+        // Update next action if available
+        const enemyCondition = document.getElementById('enemy-condition');
+        if (enemyCondition) {
+            if (enemy.nextAction) {
+                const actionDisplay = enemy.nextAction.charAt(0).toUpperCase() + 
+                                     enemy.nextAction.slice(1);
+                enemyCondition.textContent = `Next: ${actionDisplay}`;
+            } else {
+                enemyCondition.textContent = '';
+            }
+        }
+    }
+    
+    // Update player display
+    updatePlayerDisplay(player) {
+        // Update player class
+        this.updateElement('player-class', `${player.class.charAt(0).toUpperCase() + player.class.slice(1)}`);
+        
+        // Update health bar
+        const playerHealthPercent = (player.health / player.maxHealth) * 100;
+        const playerHealthBar = this.getElement('player-health-bar');
+        if (playerHealthBar) {
+            playerHealthBar.style.width = `${playerHealthPercent}%`;
+        }
+        
+        // Update health text
+        this.updateElement('player-health', player.health);
+        this.updateElement('player-max-health', player.maxHealth);
+        
+        // Update stamina
+        this.updateStamina(player.stamina, player.maxStamina);
         
         // Update player buffs
-        this.elements.playerBuffs.innerHTML = '';
-        if (player.buffs && player.buffs.length > 0) {
-            player.buffs.forEach(buff => {
+        this.updateBuffs('player-buffs', player.buffs);
+        
+        // Update stunned visual state
+        const playerStats = document.getElementById('player-stats');
+        if (playerStats) {
+            const isStunned = player.buffs && player.buffs.some(buff => buff.type === 'stunned');
+            playerStats.classList.toggle('stunned', isStunned);
+        }
+    }
+    
+    // Update stamina display
+    updateStamina(stamina, maxStamina) {
+        const staminaFill = this.getElement('stamina-fill');
+        const staminaText = this.getElement('stamina-text');
+        
+        if (staminaFill && staminaText) {
+            const staminaPercent = (stamina / maxStamina) * 100;
+            staminaFill.style.width = `${staminaPercent}%`;
+            staminaText.textContent = `${stamina}/${maxStamina}`;
+            
+            // Update stamina color
+            staminaFill.classList.remove('full', 'medium', 'low');
+            if (stamina >= maxStamina) {
+                staminaFill.classList.add('full');
+            } else if (stamina >= maxStamina / 2) {
+                staminaFill.classList.add('medium');
+            } else {
+                staminaFill.classList.add('low');
+            }
+        }
+    }
+    
+    // Update buffs display - optimization: only update if buffs have changed
+    updateBuffs(elementId, buffs = []) {
+        const buffsElement = this.getElement(elementId) || document.getElementById(elementId);
+        
+        if (!buffsElement) return;
+        
+        // Check if buffs have changed by comparing JSON representation
+        const currentBuffsJSON = buffsElement.dataset.buffsJson || '[]';
+        const newBuffsJSON = JSON.stringify(buffs);
+        
+        if (currentBuffsJSON === newBuffsJSON) return; // No change, skip update
+        
+        // Store the new buffs JSON for future comparison
+        buffsElement.dataset.buffsJson = newBuffsJSON;
+        
+        // Clear existing buffs
+        buffsElement.innerHTML = '';
+        
+        // Add new buffs
+        if (buffs && buffs.length > 0) {
+            const fragment = document.createDocumentFragment();
+            
+            for (const buff of buffs) {
+                // Create buff icon element
                 const buffIcon = document.createElement('span');
                 buffIcon.classList.add('buff-icon', buff.type);
                 
                 // Set icon based on buff type
-                let icon = '?';
-                switch(buff.type) {
-                    case 'defense': icon = '🛡️'; break;
-                    case 'focus': icon = '🔍'; break;
-                    case 'poison': icon = '☠️'; break;
-                    case 'stunned': icon = '💫'; break;
-                    case 'curse': icon = '👿'; break;
-                }
+                const iconMap = {
+                    'defense': '🛡️',
+                    'focus': '🔍',
+                    'attack-boost': '⚡',
+                    'poison': '☠️',
+                    'stunned': '💫',
+                    'minion': '👺',
+                    'curse': '👿'
+                };
                 
-                buffIcon.textContent = icon;
+                buffIcon.textContent = iconMap[buff.type] || '?';
                 
                 // Add turns remaining
                 const turnsSpan = document.createElement('span');
@@ -584,119 +568,131 @@ export default class UIManager {
                 buffIcon.appendChild(turnsSpan);
                 
                 // Add tooltip
-                let tooltipText = '';
-                switch(buff.type) {
-                    case 'defense': 
-                        tooltipText = `Defense: ${buff.value}\nTurns: ${buff.duration}`; 
-                        break;
-                    case 'focus': 
-                        tooltipText = `Focus: +20% damage/healing\nTurns: ${buff.duration}`; 
-                        break;
-                    case 'poison': 
-                        tooltipText = `Poison: ${buff.value} dmg/turn\nTurns: ${buff.duration}`; 
-                        break;
-                    case 'stunned': 
-                        tooltipText = `Stunned\nTurns: ${buff.duration}`; 
-                        break;
-                    case 'curse': 
-                        tooltipText = `Curse: -${buff.value * 100}% damage\nTurns: ${buff.duration}`; 
-                        break;
-                }
+                buffIcon.setAttribute('data-tooltip', this.getBuffTooltip(buff));
                 
-                buffIcon.setAttribute('data-tooltip', tooltipText);
-                this.elements.playerBuffs.appendChild(buffIcon);
-            });
+                fragment.appendChild(buffIcon);
+            }
+            
+            buffsElement.appendChild(fragment);
         }
-        
-        // Update zenny display
-        this.elements.zennyDisplay.textContent = player.zenny;
-        
-        // Update hand
-        this.renderHand();
-        
-        // MODIFIED: Get current gem bag size from state
-        const currentBagSize = state.gemBagSize || 20;
-        
-        // Update gem bag count
-        this.elements.gemBagCount.textContent = gems.bag.length;
-        this.elements.gemBagCount2.textContent = gems.bag.length;
-        this.elements.gemBagTotal.textContent = currentBagSize;
-        this.elements.gemBagTotal2.textContent = currentBagSize;
-        
-        // Update button states
-        this.updateBattleButtons();
     }
     
-    // Render the player's hand of gems
+    // Get tooltip text for a buff
+    getBuffTooltip(buff) {
+        const tooltipTexts = {
+            'defense': `Defense: ${buff.value}\nTurns: ${buff.duration}`,
+            'focus': `Focus: +20% damage/healing\nTurns: ${buff.duration}`,
+            'attack-boost': `Attack +${buff.value}\nTurns: ${buff.duration}`,
+            'poison': `Poison: ${buff.value} dmg/turn\nTurns: ${buff.duration}`,
+            'stunned': `Stunned\nTurns: ${buff.duration}`,
+            'minion': `Minion: +${buff.value} damage\nTurns: ${buff.duration}`,
+            'curse': `Curse: -${buff.value * 100}% damage\nTurns: ${buff.duration}`
+        };
+        
+        return tooltipTexts[buff.type] || `${buff.type.charAt(0).toUpperCase() + buff.type.slice(1)}\nTurns: ${buff.duration}`;
+    }
+    
+    // Update gem bag count - with improved null checking
+    updateGemBagCount(gems, maxBagSize) {
+        if (!gems) return;
+        
+        const bagCount = gems.bag ? gems.bag.length : 0;
+        
+        // Update all gem bag count elements
+        this.updateElement('gem-bag-count', bagCount);
+        this.updateElement('gem-bag-count2', bagCount);
+        this.updateElement('gem-bag-total', maxBagSize);
+        this.updateElement('gem-bag-total2', maxBagSize);
+    }
+    
+    // Helper method to update element text content
+    updateElement(elementId, value) {
+        const element = this.getElement(elementId) || document.getElementById(elementId);
+        if (element && element.textContent !== String(value)) {
+            element.textContent = value;
+        }
+    }
+    
+    // Render the player's hand of gems - more efficient DOM updates
     renderHand() {
         const state = this.stateManager.getState();
+        if (!state || !state.gems || !state.gems.hand) {
+            console.warn('Cannot render hand: missing gems data');
+            return;
+        }
+        
         const { gems, player } = state;
         const { hand } = gems;
+        const handElement = this.getElement('hand');
         
-        this.elements.hand.innerHTML = '';
+        if (!handElement) return;
         
+        // Use DocumentFragment for batch DOM updates
+        const fragment = document.createDocumentFragment();
+        
+        // First, map all gems by instanceId for quick lookups
+        const gemMap = new Map();
         hand.forEach(gem => {
-            const gemElement = this.createGemElement(gem, 'battle'); // Specify battle context
-            
-            // Add selection handler
-            gemElement.addEventListener('click', () => {
-                this.toggleGemSelection(gem.instanceId);
-            });
-            
-            // Mark as selected if in selectedGems array
-            if (this.selectedGems.includes(gem.instanceId)) {
-                gemElement.classList.add('selected');
-            }
-            
-            // Mark as unaffordable if not enough stamina
-            if (gem.cost > player.stamina) {
-                gemElement.classList.add('unaffordable');
-            }
-            
-            this.elements.hand.appendChild(gemElement);
+            gemMap.set(gem.instanceId, gem);
         });
+        
+        // Check which gems need to be added, removed or updated
+        const existingGemElements = Array.from(handElement.querySelectorAll('.gem'));
+        const existingGemIds = new Set(existingGemElements.map(el => el.dataset.gemId));
+        
+        // Remove gems that are no longer in hand
+        existingGemElements.forEach(el => {
+            const gemId = el.dataset.gemId;
+            if (!gemMap.has(gemId)) {
+                el.remove();
+            }
+        });
+        
+        // Add or update gems
+        hand.forEach(gem => {
+            // Safety check for player
+            const playerStamina = player ? player.stamina : 0;
+            
+            const isSelected = this.selectedGems.includes(gem.instanceId);
+            const isAffordable = gem.cost <= playerStamina;
+            
+            if (!existingGemIds.has(gem.instanceId)) {
+                // Create new gem element
+                const gemElement = this.createGemElement(gem, 'battle');
+                
+                // Add selection handler
+                gemElement.addEventListener('click', () => {
+                    this.toggleGemSelection(gem.instanceId);
+                });
+                
+                // Mark as selected if in selectedGems array
+                if (isSelected) {
+                    gemElement.classList.add('selected');
+                }
+                
+                // Mark as unaffordable if not enough stamina
+                if (!isAffordable) {
+                    gemElement.classList.add('unaffordable');
+                }
+                
+                fragment.appendChild(gemElement);
+            } else {
+                // Update existing gem element
+                const gemElement = handElement.querySelector(`[data-gem-id="${gem.instanceId}"]`);
+                if (gemElement) {
+                    gemElement.classList.toggle('selected', isSelected);
+                    gemElement.classList.toggle('unaffordable', !isAffordable);
+                }
+            }
+        });
+        
+        // Append any new gems
+        if (fragment.childNodes.length > 0) {
+            handElement.appendChild(fragment);
+        }
     }
     
-    // Generate tooltip for a gem - updated to include augmentation info
-    generateGemTooltip(gem) {
-        // Basic info always shown
-        const tooltipParts = [`${gem.name}: ${gem.value} ${gem.type}`];
-
-        // Proficiency info for not fully mastered gems
-        if (gem.proficiency < 70) {
-            tooltipParts.push(`Mastery: ${Math.floor(gem.proficiency)}%`);
-        }
-
-        // Special effects
-        if (gem.specialEffect) {
-            tooltipParts.push(`Special: ${
-                {
-                    'draw': 'Draw an extra gem',
-                    // Add more special effects as needed
-                }[gem.specialEffect] || gem.specialEffect
-            }`);
-        }
-
-        // Defense bypass for piercing gems
-        if (gem.defenseBypass) {
-            tooltipParts.push(`Piercing: Bypasses ${gem.defenseBypass * 100}% of enemy defense`);
-        }
-
-        // Only show duration for buffs/debuffs
-        if (gem.duration) {
-            tooltipParts.push(`Duration: ${gem.duration} turns`);
-        }
-
-        // Augmentation info
-        if (gem.augmentation) {
-            tooltipParts.push(`Augmentation: ${gem.augmentation}`);
-        }
-
-        return tooltipParts.join('\n');
-    }
-
-
-    // Create a gem DOM element
+    // Create a gem DOM element - optimized to reduce DOM operations
     createGemElement(gem, context = 'battle') {
         const gemElement = document.createElement('div');
         gemElement.classList.add('gem', gem.color);
@@ -710,132 +706,87 @@ export default class UIManager {
             gemElement.classList.add('class-bonus');
         }
         
-        // Add unlearned indicator if not fully mastered (now 70% instead of 100%)
+        // Add unlearned indicator if not fully mastered
         if (gem.proficiency < 70) {
             gemElement.classList.add('unlearned');
         }
         
-        // Create gem inner content
-        const contentDiv = document.createElement('div');
-        contentDiv.classList.add('gem-content');
+        // Use template literals for more efficient content creation
+        gemElement.innerHTML = `
+            <div class="gem-content">
+                <span class="gem-icon">${gem.icon}</span>
+                <span class="gem-value">${gem.value}</span>
+            </div>
+            <div class="gem-cost">${gem.cost}</div>
+            ${gem.augmentation && gem.badgeIcon ? 
+                `<div class="gem-badge badge-${gem.augmentation}">${gem.badgeIcon}</div>` : ''}
+        `;
         
-        // Gem icon
-        const iconSpan = document.createElement('span');
-        iconSpan.classList.add('gem-icon');
-        iconSpan.textContent = gem.icon;
-        contentDiv.appendChild(iconSpan);
-        
-        // Gem value
-        const valueSpan = document.createElement('span');
-        valueSpan.classList.add('gem-value');
-        valueSpan.textContent = gem.value;
-        contentDiv.appendChild(valueSpan);
-        
-        gemElement.appendChild(contentDiv);
-        
-        // Gem stamina cost
-        const costDiv = document.createElement('div');
-        costDiv.classList.add('gem-cost');
-        costDiv.textContent = gem.cost;
-        gemElement.appendChild(costDiv);
-        
-        // Add augmentation badge if gem is augmented
-        if (gem.augmentation && gem.badgeIcon) {
-            const badgeDiv = document.createElement('div');
-            badgeDiv.classList.add('gem-badge');
-            badgeDiv.textContent = gem.badgeIcon;
-            
-            // Position the badge in the top-left corner
-            badgeDiv.style.position = 'absolute';
-            badgeDiv.style.top = '5px';
-            badgeDiv.style.left = '5px';
-            badgeDiv.style.backgroundColor = 'rgba(255, 255, 255, 0.7)';
-            badgeDiv.style.borderRadius = '50%';
-            badgeDiv.style.width = '24px';
-            badgeDiv.style.height = '24px';
-            badgeDiv.style.display = 'flex';
-            badgeDiv.style.alignItems = 'center';
-            badgeDiv.style.justifyContent = 'center';
-            badgeDiv.style.fontSize = '14px';
-            badgeDiv.style.boxShadow = '0 1px 3px rgba(0,0,0,0.3)';
-            
-            // Add a class for the specific augmentation type
-            badgeDiv.classList.add(`badge-${gem.augmentation}`);
-            
-            gemElement.appendChild(badgeDiv);
-        }
-        
-        // MODIFIED: Only add tooltips in non-battle contexts
+        // Add tooltip in non-battle contexts
         if (context === 'shop' || context === 'catalog') {
-            // Generate tooltip
-            gemElement.setAttribute('data-tooltip', this.generateGemTooltip(gem));
-            
-            // Add tooltip-enabled class to apply hover styles
+            gemElement.setAttribute('data-tooltip', generateGemTooltip(gem));
             gemElement.classList.add('tooltip-enabled');
         }
         
         return gemElement;
-    }    
+    }
     
-    // Update battle action buttons
+    // Update battle action buttons - check if we need to update
     updateBattleButtons() {
         const state = this.stateManager.getState();
         const { battle, player } = state;
         
         // Only enable buttons on player's turn
         const isPlayerTurn = battle.currentTurn === 'PLAYER';
-        const isPlayerStunned = player.buffs.some(buff => buff.type === 'stunned');
+        const isPlayerStunned = player.buffs && player.buffs.some(buff => buff.type === 'stunned');
         
-        // Check if gems have been played this turn (checking for played gems this turn)
+        // Check if gems have been played this turn
         const hasPlayedGems = battle.staminaUsed > 0;
         
+        // Set button states
         if (isPlayerStunned) {
-            // If stunned, disable all buttons regardless of other conditions
-            this.elements.executeButton.disabled = true;
-            this.elements.waitButton.disabled = true;
-            this.elements.discardEndButton.disabled = true;
-            this.elements.endTurnButton.disabled = true;
-            this.elements.fleeButton.disabled = true;
+            // If stunned, disable all buttons
+            this.setElementsDisabled([
+                'execute-btn', 'wait-btn', 'discard-end-btn', 'end-turn-btn', 'flee-btn'
+            ], true);
             
-            // Add a visual indicator for the stunned state
-            document.getElementById('player-stats').classList.add('stunned');
+            // Add stunned visual indicator to player stats
+            const playerStats = document.getElementById('player-stats');
+            if (playerStats) {
+                playerStats.classList.add('stunned');
+            }
         } else {
             // Normal button state handling
-            this.elements.executeButton.disabled = !isPlayerTurn || this.selectedGems.length === 0;
-            
-            // Disable Wait and Discard & End if gems have been played this turn
-            this.elements.waitButton.disabled = !isPlayerTurn || hasPlayedGems;
-            this.elements.discardEndButton.disabled = !isPlayerTurn || this.selectedGems.length === 0 || hasPlayedGems;
-            
-            this.elements.endTurnButton.disabled = !isPlayerTurn;
+            this.setElementDisabled('execute-btn', !isPlayerTurn || this.selectedGems.length === 0);
+            this.setElementDisabled('wait-btn', !isPlayerTurn || hasPlayedGems);
+            this.setElementDisabled('discard-end-btn', !isPlayerTurn || this.selectedGems.length === 0 || hasPlayedGems);
+            this.setElementDisabled('end-turn-btn', !isPlayerTurn);
             
             // Only enable flee in Dawn/Dusk phases
             const canFlee = state.journey.phase !== 'DARK';
-            this.elements.fleeButton.disabled = !isPlayerTurn || !canFlee;
+            this.setElementDisabled('flee-btn', !isPlayerTurn || !canFlee);
             
             // Remove stunned visual indicator
-            document.getElementById('player-stats').classList.remove('stunned');
+            const playerStats = document.getElementById('player-stats');
+            if (playerStats) {
+                playerStats.classList.remove('stunned');
+            }
         }
     }
     
-    unlockGem(gemId) {
-        // Get gem definition to show its name in the confirmation
-        this.eventBus.emit('gem:get-definitions', {
-            callback: (definitions) => {
-                const gemDef = definitions[gemId];
-                
-                if (!gemDef) {
-                    console.error(`Unknown gem ID for confirmation: ${gemId}`);
-                    return;
-                }
-                
-                // Show confirmation dialog
-                if (confirm(`Are you sure you want to unlock ${gemDef.name} for 50 Meta $ZENNY?`)) {
-                    // Make sure we call the correct unlock method on the gem manager
-                    this.eventBus.emit('gem:unlock', gemId);
-                }
-            }
-        });
+    // Helper to set multiple elements disabled at once
+    setElementsDisabled(elementIds, isDisabled) {
+        for (const id of elementIds) {
+            this.setElementDisabled(id, isDisabled);
+        }
+    }
+    
+    // Helper to set element disabled state
+    setElementDisabled(elementId, isDisabled) {
+        const element = this.getElement(elementId) || document.getElementById(elementId);
+        if (element && element.disabled !== isDisabled) {
+            element.disabled = isDisabled;
+        }
     }
     
     // Toggle gem selection
@@ -851,12 +802,15 @@ export default class UIManager {
         }
         
         // Update UI
-        const gemElements = this.elements.hand.querySelectorAll('.gem');
-        gemElements.forEach(elem => {
-            if (elem.getAttribute('data-gem-id') === gemInstanceId) {
-                elem.classList.toggle('selected', this.selectedGems.includes(gemInstanceId));
-            }
-        });
+        const handElement = this.getElement('hand');
+        if (handElement) {
+            const gemElements = handElement.querySelectorAll('.gem');
+            gemElements.forEach(elem => {
+                if (elem.getAttribute('data-gem-id') === gemInstanceId) {
+                    elem.classList.toggle('selected', this.selectedGems.includes(gemInstanceId));
+                }
+            });
+        }
         
         // Update button states
         this.updateBattleButtons();
@@ -881,12 +835,9 @@ export default class UIManager {
     
     // Wait action (gains focus)
     waitAction() {
-        // When player waits, they should get 3 stamina recovery
-        // Track with special value 0 to indicate waiting/skipping
+        // When player waits, track with special value 0 to indicate waiting/skipping
         this.eventBus.emit('stamina:used', 0);
         this.eventBus.emit('player:wait');
-        
-        console.log("Player chose to wait (focus) - will recover 3 stamina");
     }
     
     // Discard selected gems and end turn
@@ -899,11 +850,8 @@ export default class UIManager {
         // Emit discard event
         this.eventBus.emit('gems:discard', this.selectedGems);
         
-        // When discarding, player should get 3 stamina recovery
-        // Track with special value 0 to indicate waiting/skipping
+        // When discarding, track with special value 0 for standard recovery
         this.eventBus.emit('stamina:used', 0);
-        
-        console.log("Player discarded gems and ended turn - will recover 3 stamina");
         
         // Clear selection and end turn
         this.selectedGems = [];
@@ -913,17 +861,15 @@ export default class UIManager {
     // End player turn
     endTurn() {
         // If player directly ends turn without playing gems,
-        // track with special value 0 to get the 3 stamina recovery
+        // track with special value 0 to get the standard stamina recovery
         const state = this.stateManager.getState();
         const battle = state.battle;
         
         // Only emit if this is actually the player's turn
         if (battle && battle.currentTurn === 'PLAYER') {
             // Only emit if we haven't already tracked stamina usage this turn
-            // This prevents double-counting when called from discardAndEndTurn or waitAction
             if (!battle.staminaUsed || battle.staminaUsed === 0) {
                 this.eventBus.emit('stamina:used', 0);
-                console.log("Player directly ended turn - will recover 3 stamina");
             }
         }
         
@@ -935,187 +881,251 @@ export default class UIManager {
         this.eventBus.emit('battle:flee');
     }
     
-    // Show shop and setup UI
+    // Shop setup and UI - Optimized setup with batched DOM updates
     setupShop() {
+        // Get a fresh state directly to ensure we have the latest data
         const state = this.stateManager.getState();
+        
+        if (!state || !state.player) {
+            console.error("Cannot setup shop: missing player state");
+            return;
+        }
+        
         const { player, gems } = state;
         
-        // Update shop stats
-        this.elements.shopHealth.textContent = player.health;
-        this.elements.shopMaxHealth.textContent = player.maxHealth;
-        this.elements.shopZenny.textContent = player.zenny;
+        console.log("Setting up shop with player state:", {
+            health: player.health,
+            maxHealth: player.maxHealth,
+            zenny: player.zenny,
+            gemBagSize: state.gemBagSize || 20,
+            bagGemsCount: gems && gems.bag ? gems.bag.length : 0,
+            handGemsCount: gems && gems.hand ? gems.hand.length : 0
+        });
+        
+        // Update shop stats with direct DOM updates to ensure freshness
+        const shopHealth = document.getElementById('shop-health');
+        const shopMaxHealth = document.getElementById('shop-max-health');
+        const shopZenny = document.getElementById('shop-zenny');
+        
+        if (shopHealth) shopHealth.textContent = player.health;
+        if (shopMaxHealth) shopMaxHealth.textContent = player.maxHealth;
+        if (shopZenny) shopZenny.textContent = player.zenny;
+        
+        // Update cached element references
+        this.elements.set('shop-health', shopHealth);
+        this.elements.set('shop-max-health', shopMaxHealth);
+        this.elements.set('shop-zenny', shopZenny);
         
         // Render gems in hand
         this.renderShopHand();
         
         // Clear gem pool
-        this.elements.gemPool.innerHTML = '';
-        this.elements.gemPoolInstructions.textContent = 'Select a gem from your hand';
+        const gemPool = document.getElementById('gem-pool');
+        if (gemPool) {
+            gemPool.innerHTML = '';
+            this.elements.set('gem-pool', gemPool);
+        }
+        
+        // Update instructions
+        const instructions = document.getElementById('gem-pool-instructions');
+        if (instructions) {
+            instructions.textContent = 'Select a gem from your hand';
+            this.elements.set('gem-pool-instructions', instructions);
+        }
         
         // Update button states
         this.updateShopButtons();
         
         // Update gem bag count
-        this.elements.shopGemBagCount.textContent = gems.bag.length;
-        const currentBagSize = state.gemBagSize || 30;
-        this.elements.shopGemBagTotal.textContent = currentBagSize;
+        const currentBagSize = state.gemBagSize || 20;
+        const shopGemBagCount = document.getElementById('shop-gem-bag-count');
+        const shopGemBagTotal = document.getElementById('shop-gem-bag-total');
         
-        // NEW: Get and render shop inventory
-        this.renderShopInventory();
+        if (shopGemBagCount) {
+            shopGemBagCount.textContent = gems.bag ? gems.bag.length : 0;
+            this.elements.set('shop-gem-bag-count', shopGemBagCount);
+        }
+        
+        if (shopGemBagTotal) {
+            shopGemBagTotal.textContent = currentBagSize;
+            this.elements.set('shop-gem-bag-total', shopGemBagTotal);
+        }
+        
+        // Render shop inventory with a slight delay to ensure DOM is ready
+        setTimeout(() => this.renderShopInventory(), 50);
     }
     
     // Update shop UI
     updateShopUI() {
+        // Get a fresh state reference
         const state = this.stateManager.getState();
-        const { player, gems } = state;
-        
-        // Update shop stats
-        this.elements.shopHealth.textContent = player.health;
-        this.elements.shopMaxHealth.textContent = player.maxHealth;
-        this.elements.shopZenny.textContent = player.zenny;
-        
-        // Render gems in hand if needed
-        this.renderShopHand();
-        
-        // MODIFIED: Get current gem bag size from state
-        const currentBagSize = state.gemBagSize || 20;
-        
-        // Update gem bag count
-        this.elements.shopGemBagCount.textContent = gems.bag.length;
-        this.elements.shopGemBagTotal.textContent = currentBagSize;
-        
-        // Update button states
-        this.updateShopButtons();
-    }
-    // Render shop inventory
-    renderShopInventory() {
-        // First, check if the shop inventory section exists
-        let shopInventorySection = document.getElementById('shop-inventory-section');
-        
-        // If it doesn't exist, create it
-        if (!shopInventorySection) {
-            // Create a new section for shop inventory
-            shopInventorySection = document.createElement('div');
-            shopInventorySection.id = 'shop-inventory-section';
-            shopInventorySection.className = 'shop-section';
-            shopInventorySection.style.marginTop = '20px';
-            
-            // Add a header
-            const header = document.createElement('h2');
-            header.textContent = 'Gems For Sale';
-            shopInventorySection.appendChild(header);
-            
-            // Create container for inventory items
-            const inventoryContainer = document.createElement('div');
-            inventoryContainer.id = 'shop-inventory-container';
-            inventoryContainer.className = 'gem-container';
-            inventoryContainer.style.display = 'flex';
-            inventoryContainer.style.flexWrap = 'wrap';
-            inventoryContainer.style.justifyContent = 'center';
-            inventoryContainer.style.gap = '15px';
-            inventoryContainer.style.margin = '10px 0';
-            
-            shopInventorySection.appendChild(inventoryContainer);
-            
-            // Insert the new section before the continue button
-            const shopSelections = document.getElementById('shop-selections');
-            const continueBtn = document.getElementById('continue-btn');
-            
-            if (shopSelections && continueBtn) {
-                shopSelections.insertBefore(shopInventorySection, continueBtn);
-            } else {
-                // Fallback
-                if (shopSelections) {
-                    shopSelections.appendChild(shopInventorySection);
-                }
-            }
-        }
-        
-        // Now get the inventory container
-        const inventoryContainer = document.getElementById('shop-inventory-container');
-        
-        if (!inventoryContainer) {
-            console.error('Shop inventory container not found');
+        if (!state || !state.player) {
+            console.warn("Cannot update shop UI: missing player state");
             return;
         }
         
-        // Clear existing content
-        inventoryContainer.innerHTML = '';
+        const { player, gems } = state;
         
-        // Get inventory from shop manager
-        this.eventBus.emit('shop:get-inventory', (inventory) => {
+        console.log("Updating shop UI with player state:", {
+            health: player.health,
+            maxHealth: player.maxHealth,
+            zenny: player.zenny
+        });
+        
+        // Update shop stats with direct DOM updates
+        const shopHealth = document.getElementById('shop-health');
+        const shopMaxHealth = document.getElementById('shop-max-health');
+        const shopZenny = document.getElementById('shop-zenny');
+        
+        if (shopHealth) shopHealth.textContent = player.health;
+        if (shopMaxHealth) shopMaxHealth.textContent = player.maxHealth;
+        if (shopZenny) shopZenny.textContent = player.zenny;
+        
+        // Update cached references
+        this.elements.set('shop-health', shopHealth);
+        this.elements.set('shop-max-health', shopMaxHealth);
+        this.elements.set('shop-zenny', shopZenny);
+        
+        // Render gems in hand
+        this.renderShopHand();
+        
+        // Update gem bag count
+        const currentBagSize = state.gemBagSize || 20;
+        const shopGemBagCount = document.getElementById('shop-gem-bag-count');
+        const shopGemBagTotal = document.getElementById('shop-gem-bag-total');
+        
+        if (shopGemBagCount) shopGemBagCount.textContent = gems.bag ? gems.bag.length : 0;
+        if (shopGemBagTotal) shopGemBagTotal.textContent = currentBagSize;
+        
+        // Update button states
+        this.updateShopButtons();
+    }    
+    
+    // Render shop inventory
+    renderShopInventory() {
+        // Request inventory from shop manager
+        this.eventBus.emit('shop:get-inventory', inventory => {
+            let shopInventorySection = document.getElementById('shop-inventory-section');
+            
+            // Create section if it doesn't exist
+            if (!shopInventorySection) {
+                shopInventorySection = document.createElement('div');
+                shopInventorySection.id = 'shop-inventory-section';
+                shopInventorySection.className = 'shop-section';
+                shopInventorySection.style.marginTop = '20px';
+                
+                const header = document.createElement('h2');
+                header.textContent = 'Gems For Sale';
+                shopInventorySection.appendChild(header);
+                
+                const inventoryContainer = document.createElement('div');
+                inventoryContainer.id = 'shop-inventory-container';
+                inventoryContainer.className = 'gem-container';
+                inventoryContainer.style.display = 'flex';
+                inventoryContainer.style.flexWrap = 'wrap';
+                inventoryContainer.style.justifyContent = 'center';
+                inventoryContainer.style.gap = '15px';
+                inventoryContainer.style.margin = '10px 0';
+                
+                shopInventorySection.appendChild(inventoryContainer);
+                
+                // Insert before continue button
+                const shopSelections = document.getElementById('shop-selections');
+                const continueBtn = document.getElementById('continue-btn');
+                
+                if (shopSelections && continueBtn) {
+                    shopSelections.insertBefore(shopInventorySection, continueBtn);
+                } else if (shopSelections) {
+                    shopSelections.appendChild(shopInventorySection);
+                }
+            }
+            
+            // Update inventory items
+            const inventoryContainer = document.getElementById('shop-inventory-container');
+            if (!inventoryContainer) return;
+            
+            // Clear existing items
+            inventoryContainer.innerHTML = '';
+            
+            // Use DocumentFragment for better performance
+            const fragment = document.createDocumentFragment();
+            
             if (!inventory || inventory.length === 0) {
-                // Show a message if inventory is empty
                 const emptyMsg = document.createElement('div');
                 emptyMsg.textContent = 'No gems available for purchase';
                 emptyMsg.style.padding = '10px';
                 emptyMsg.style.fontStyle = 'italic';
-                inventoryContainer.appendChild(emptyMsg);
-                return;
+                fragment.appendChild(emptyMsg);
+            } else {
+                // Render each gem in the inventory
+                inventory.forEach((gem, index) => {
+                    const gemContainer = this.createShopInventoryItem(gem, index);
+                    fragment.appendChild(gemContainer);
+                });
             }
             
-            // Render each gem in the inventory
-            inventory.forEach((gem, index) => {
-                const gemContainer = document.createElement('div');
-                gemContainer.className = 'gem-purchase-container';
-                gemContainer.style.display = 'flex';
-                gemContainer.style.flexDirection = 'column';
-                gemContainer.style.alignItems = 'center';
-                gemContainer.style.margin = '10px';
-                
-                // Create gem element
-                const gemElement = this.createGemElement(gem);
-                gemContainer.appendChild(gemElement);
-                
-                // Add price label
-                const priceLabel = document.createElement('div');
-                priceLabel.className = 'gem-price-label';
-                priceLabel.textContent = `${gem.price} $ZENNY`;
-                priceLabel.style.marginTop = '5px';
-                priceLabel.style.padding = '2px 8px';
-                priceLabel.style.backgroundColor = '#333';
-                priceLabel.style.color = 'white';
-                priceLabel.style.borderRadius = '10px';
-                priceLabel.style.fontSize = '0.8em';
-                gemContainer.appendChild(priceLabel);
-                
-                // Add buy button
-                const buyButton = document.createElement('button');
-                buyButton.textContent = 'Buy';
-                buyButton.style.marginTop = '5px';
-                buyButton.className = 'btn-buy';
-                buyButton.style.padding = '4px 12px';
-                
-                // Disable if not enough zenny
-                const playerZenny = parseInt(this.elements.shopZenny.textContent);
-                if (playerZenny < gem.price) {
-                    buyButton.disabled = true;
-                }
-                
-                // Add click handler
-                buyButton.addEventListener('click', () => {
-                    this.eventBus.emit('shop:purchase-inventory-gem', index);
-                    // Refresh the UI after purchase
-                    setTimeout(() => this.updateShopUI(), 100);
-                });
-                
-                gemContainer.appendChild(buyButton);
-                
-                // Add to the container
-                inventoryContainer.appendChild(gemContainer);
-            });
+            inventoryContainer.appendChild(fragment);
         });
     }
+    
+    // Create a shop inventory item - Optimized DOM creation
+    createShopInventoryItem(gem, index) {
+        const gemContainer = document.createElement('div');
+        gemContainer.className = 'gem-purchase-container';
+        gemContainer.style.cssText = 'display:flex;flex-direction:column;align-items:center;margin:10px;';
+        
+        // Create gem element
+        const gemElement = this.createGemElement(gem, 'shop');
+        
+        // Create price and button in one HTML template string
+        const priceAndButton = document.createElement('div');
+        priceAndButton.innerHTML = `
+            <div class="gem-price-label" style="margin-top:5px;padding:2px 8px;background-color:#333;color:white;border-radius:10px;font-size:0.8em;">${gem.price} $ZENNY</div>
+            <button class="btn-buy" style="margin-top:5px;padding:4px 12px;">Buy</button>
+        `;
+        
+        // Add the elements to container
+        gemContainer.appendChild(gemElement);
+        gemContainer.appendChild(priceAndButton);
+        
+        // Get the button element
+        const buyButton = priceAndButton.querySelector('.btn-buy');
+        
+        // Disable if not enough zenny
+        const playerZenny = parseInt(this.getElement('shop-zenny')?.textContent || '0');
+        if (playerZenny < gem.price) {
+            buyButton.disabled = true;
+        }
+        
+        // Add click handler
+        buyButton.addEventListener('click', () => {
+            this.eventBus.emit('shop:purchase-inventory-gem', index);
+            // Refresh the UI after purchase with debouncing
+            clearTimeout(this._shopRefreshTimeout);
+            this._shopRefreshTimeout = setTimeout(() => this.updateShopUI(), 100);
+        });
+        
+        return gemContainer;
+    }
+    
     // Render gems in shop hand
     renderShopHand() {
         const state = this.stateManager.getState();
         const { gems } = state;
         const { hand } = gems;
+        const shopHand = this.getElement('shop-hand');
         
-        this.elements.shopHand.innerHTML = '';
+        if (!shopHand) return;
         
+        // Use DocumentFragment for performance
+        const fragment = document.createDocumentFragment();
+        
+        // Clear current hand
+        shopHand.innerHTML = '';
+        
+        // Create new hand gems
         hand.forEach(gem => {
-            const gemElement = this.createGemElement(gem, 'shop'); // Specify shop context
+            const gemElement = this.createGemElement(gem, 'shop');
             
             // Add selection handler
             gemElement.addEventListener('click', () => {
@@ -1127,8 +1137,11 @@ export default class UIManager {
                 gemElement.classList.add('selected');
             }
             
-            this.elements.shopHand.appendChild(gemElement);
+            fragment.appendChild(gemElement);
         });
+        
+        // Add all gems at once
+        shopHand.appendChild(fragment);
     }
     
     // Select a gem in the shop
@@ -1155,7 +1168,7 @@ export default class UIManager {
         const state = this.stateManager.getState();
         const { player } = state;
         
-        // Get costs from shop manager via event
+        // Get costs from shop manager
         const costs = {
             buyRandomGem: 3,
             discardGem: 3,
@@ -1172,258 +1185,16 @@ export default class UIManager {
         const needsHealing = player.health < player.maxHealth;
         
         // Set button states
-        this.elements.upgradeGemButton.disabled = !hasSelection || !enoughForUpgrade || this.shopState.upgradeMode;
-        this.elements.discardGemButton.disabled = !hasSelection || !enoughForDiscard || this.shopState.upgradeMode;
-        this.elements.buyRandomGemButton.disabled = !enoughForRandom || this.shopState.upgradeMode;
-        this.elements.healButton.disabled = !enoughForHeal || !needsHealing || this.shopState.upgradeMode;
+        this.setElementDisabled('upgrade-gem', !hasSelection || !enoughForUpgrade || this.shopState.upgradeMode);
+        this.setElementDisabled('discard-gem', !hasSelection || !enoughForDiscard || this.shopState.upgradeMode);
+        this.setElementDisabled('buy-random-gem', !enoughForRandom || this.shopState.upgradeMode);
+        this.setElementDisabled('heal-10', !enoughForHeal || !needsHealing || this.shopState.upgradeMode);
         
         // Show/hide upgrade mode buttons
-        this.elements.cancelUpgradeButton.style.display = this.shopState.upgradeMode ? 'inline-block' : 'none';
-        this.elements.swapGemButton.style.display = 'none'; // Not implemented in this version
-    }
-    
-    // Show upgrade options for a gem
-    showUpgradeOptions(gemInstanceId) {
-        // Enter upgrade mode
-        this.shopState.upgradeMode = true;
-        
-        // Get upgrade options from gem manager via event
-        this.eventBus.emit('shop:get-upgrade-options', gemInstanceId);
-        
-        // This should be set by the event handler
-        this.shopState.upgradeOptions = [];
-        
-        // For now, mock some upgrade options
-        this.renderUpgradeOptions(gemInstanceId);
-        
-        // Update button states
-        this.updateShopButtons();
-    }
-    
-    // Render upgrade options in the gem pool - modified to show rotation notice
-    renderUpgradeOptions(gemInstanceId) {
-        // Clear gem pool
-        this.elements.gemPool.innerHTML = '';
-        
-        // Show instructions
-        this.elements.gemPoolInstructions.textContent = 'Select an upgrade:';
-        
-        // Get the gem from state
-        const state = this.stateManager.getState();
-        const gem = state.gems.hand.find(g => g.instanceId === gemInstanceId);
-        
-        if (!gem) {
-            console.error(`Gem not found: ${gemInstanceId}`);
-            return;
+        const cancelUpgradeBtn = this.getElement('cancel-upgrade');
+        if (cancelUpgradeBtn) {
+            cancelUpgradeBtn.style.display = this.shopState.upgradeMode ? 'inline-block' : 'none';
         }
-        
-        // Request upgrade options from the gem manager
-        this.eventBus.emit('gem:get-upgrade-options', {
-            gemInstanceId,
-            callback: (options) => {
-                // Store the options
-                this.shopState.upgradeOptions = options;
-                
-                // Show the original gem being upgraded at the top
-                const originalGemContainer = document.createElement('div');
-                originalGemContainer.classList.add('original-gem-container');
-                originalGemContainer.style.textAlign = 'center';
-                originalGemContainer.style.padding = '10px';
-                originalGemContainer.style.marginBottom = '15px';
-                
-                const originalGemElement = this.createGemElement(gem);
-                originalGemContainer.appendChild(originalGemElement);
-                
-                const upgradeArrow = document.createElement('div');
-                upgradeArrow.textContent = '↓';
-                upgradeArrow.style.fontSize = '24px';
-                upgradeArrow.style.margin = '5px 0';
-                originalGemContainer.appendChild(upgradeArrow);
-                
-                this.elements.gemPool.appendChild(originalGemContainer);
-        
-                // Add options header
-                const optionsHeader = document.createElement('div');
-                optionsHeader.textContent = 'Available Upgrades:';
-                optionsHeader.style.textAlign = 'center';
-                optionsHeader.style.fontWeight = 'bold';
-                optionsHeader.style.padding = '5px';
-                optionsHeader.style.marginBottom = '10px';
-                this.elements.gemPool.appendChild(optionsHeader);
-                
-                // Create a container for all upgrade options
-                const upgradesContainer = document.createElement('div');
-                upgradesContainer.classList.add('upgrade-options-container');
-                upgradesContainer.style.display = 'flex';
-                upgradesContainer.style.flexWrap = 'wrap';
-                upgradesContainer.style.justifyContent = 'center';
-                upgradesContainer.style.gap = '15px';
-                
-                // Add all options to the container
-                options.forEach(upgradeGem => {
-                    const upgradeElement = this.createGemElement(upgradeGem, 'shop');
-                    
-                    // Add upgrade type label
-                    const typeLabel = document.createElement('div');
-                    typeLabel.classList.add('upgrade-type-label');
-                    typeLabel.style.fontSize = '0.8em';
-                    typeLabel.style.textAlign = 'center';
-                    typeLabel.style.padding = '2px';
-                    typeLabel.style.marginTop = '5px';
-                    
-                    // Determine label and color based on upgrade type
-                    let upgradeType = upgradeGem.upgradeType || 'unknown';
-                    
-                    switch(upgradeType) {
-                        case 'augmentation':
-                            // For augmented gems, show the augmentation type
-                            const augType = upgradeGem.augmentation || 'unknown';
-                            typeLabel.textContent = augType.charAt(0).toUpperCase() + augType.slice(1);
-                            typeLabel.style.color = '#f39c12'; // Orange for augmentations
-                            break;
-                        case 'direct':
-                            typeLabel.textContent = 'Enhanced';
-                            typeLabel.style.color = '#f39c12'; // Orange
-                            break;
-                        case 'class':
-                            typeLabel.textContent = 'Class Specific';
-                            typeLabel.style.color = '#2ecc71'; // Green
-                            break;
-                        case 'unlocked':
-                            typeLabel.textContent = 'Unlocked Gem';
-                            typeLabel.style.color = '#3498db'; // Blue
-                            break;
-                        default:
-                            typeLabel.textContent = 'Upgrade';
-                    }
-                    
-                    // Create a wrapper to hold both the gem and its label
-                    const wrapper = document.createElement('div');
-                    wrapper.classList.add('gem-upgrade-wrapper');
-                    wrapper.style.display = 'flex';
-                    wrapper.style.flexDirection = 'column';
-                    wrapper.style.alignItems = 'center';
-                    
-                    wrapper.appendChild(upgradeElement);
-                    wrapper.appendChild(typeLabel);
-                    
-                    // *** CRITICAL FIX: Store the FULL upgrade gem object in a data attribute ***
-                    wrapper.setAttribute('data-upgrade-id', upgradeGem.instanceId || upgradeGem.id);
-                    wrapper.setAttribute('data-augmentation', upgradeGem.augmentation || '');
-                    wrapper.setAttribute('data-upgrade-type', upgradeType);
-                    
-                    // Add click handler to select this upgrade
-                    wrapper.addEventListener('click', () => {
-                        // *** CRITICAL FIX: Pass the full instance ID, not just the base ID ***
-                        const selectedId = upgradeGem.instanceId || upgradeGem.id;
-                        console.log(`Selected upgrade option: ${selectedId} (${upgradeType}${upgradeGem.augmentation ? ', ' + upgradeGem.augmentation : ''})`);
-                        this.selectUpgrade(gemInstanceId, selectedId);
-                    });
-                    
-                    upgradesContainer.appendChild(wrapper);
-                });
-                
-                this.elements.gemPool.appendChild(upgradesContainer);
-                
-                // If no options available, show message
-                if (options.length === 0) {
-                    const noOptionsMsg = document.createElement('div');
-                    noOptionsMsg.textContent = 'No upgrade options available';
-                    noOptionsMsg.style.padding = '20px';
-                    noOptionsMsg.style.textAlign = 'center';
-                    this.elements.gemPool.appendChild(noOptionsMsg);
-                }
-            }
-        });
-    }
-    
-    // Cancel upgrade mode
-    cancelUpgrade() {
-        this.shopState.upgradeMode = false;
-        this.shopState.upgradeOptions = [];
-        
-        // Clear gem pool
-        this.elements.gemPool.innerHTML = '';
-        this.elements.gemPoolInstructions.textContent = 'Select a gem from your hand';
-        
-        // Update button states
-        this.updateShopButtons();
-    }
-    
-    // Select an upgrade option
-    selectUpgrade(gemInstanceId, upgradeGemId) {
-        // Get the selected gem from state
-        const state = this.stateManager.getState();
-        const handGems = state.gems.hand;
-        const originalGem = handGems.find(g => g.instanceId === gemInstanceId);
-        
-        if (!originalGem) {
-            console.error(`Original gem not found: ${gemInstanceId}`);
-            return;
-        }
-        
-        // Get the upgrade options array we stored earlier
-        const upgrades = this.shopState.upgradeOptions || [];
-        
-        // CRITICAL FIX: Find the EXACT upgrade object that matches the selected ID
-        const selectedUpgrade = upgrades.find(u => {
-            return (u.instanceId === upgradeGemId) || (u.id === upgradeGemId);
-        });
-        
-        console.log("Found selected upgrade:", selectedUpgrade); // Debugging
-        
-        // If we found the matching upgrade object, use its properties to determine the type
-        if (selectedUpgrade) {
-            // Process augmented gem upgrade
-            if (selectedUpgrade.upgradeType === 'augmentation' && selectedUpgrade.augmentation) {
-                console.log(`Processing augmentation upgrade: ${selectedUpgrade.augmentation}`);
-                
-                // Pass the complete upgrade object to ensure all augmentation info is included
-                this.eventBus.emit('shop:upgrade-gem', {
-                    gemInstanceId,
-                    newGemId: selectedUpgrade // Pass the whole object, not just ID
-                });
-            }
-            // Process direct upgrade (enhanced version of the same gem)
-            else if (selectedUpgrade.upgradeType === 'direct' || upgradeGemId.endsWith('-upgraded')) {
-                console.log("Processing direct enhancement upgrade");
-                
-                this.eventBus.emit('shop:direct-upgrade-gem', {
-                    gemInstanceId,
-                    originalGemId: originalGem.id
-                });
-            }
-            // Process class-specific or unlocked gem upgrade
-            else if (selectedUpgrade.upgradeType === 'class' || selectedUpgrade.upgradeType === 'unlocked') {
-                console.log(`Processing gem replacement upgrade: ${selectedUpgrade.id}`);
-                
-                this.eventBus.emit('shop:upgrade-gem', {
-                    gemInstanceId,
-                    newGemId: selectedUpgrade.id // Use the gem definition ID
-                });
-            }
-            // Fallback - just use the ID
-            else {
-                console.log(`Processing standard upgrade with ID: ${upgradeGemId}`);
-                
-                this.eventBus.emit('shop:upgrade-gem', {
-                    gemInstanceId,
-                    newGemId: upgradeGemId
-                });
-            }
-        }
-        // If we couldn't find the upgrade in our options, use fallback
-        else {
-            console.warn(`Upgrade not found in options array, using ID directly: ${upgradeGemId}`);
-            
-            this.eventBus.emit('shop:upgrade-gem', {
-                gemInstanceId,
-                newGemId: upgradeGemId
-            });
-        }
-        
-        // Exit upgrade mode
-        this.cancelUpgrade();
     }
     
     // Upgrade gem button clicked
@@ -1435,6 +1206,194 @@ export default class UIManager {
         
         // Show upgrade options
         this.showUpgradeOptions(this.shopState.selectedHandGem);
+    }
+    
+    // Show upgrade options for a gem
+    showUpgradeOptions(gemInstanceId) {
+        // Get upgrade options from gem manager
+        this.eventBus.emit('gem:get-upgrade-options', {
+            gemInstanceId,
+            callback: options => {
+                if (!options || options.length === 0) {
+                    this.showMessage('No upgrade options available for this gem', 'error');
+                    return;
+                }
+                
+                // Enter upgrade mode
+                this.shopState.upgradeMode = true;
+                this.shopState.upgradeOptions = options;
+                
+                // Render upgrade options
+                this.renderUpgradeOptions(gemInstanceId);
+                
+                // Update button states
+                this.updateShopButtons();
+            }
+        });
+    }
+    
+    // Render upgrade options with better performance
+    renderUpgradeOptions(gemInstanceId) {
+        const gemPool = this.getElement('gem-pool');
+        if (!gemPool) return;
+        
+        // Clear gem pool
+        gemPool.innerHTML = '';
+        
+        // Show instructions
+        this.updateElement('gem-pool-instructions', 'Select an upgrade:');
+        
+        // Get the gem from state
+        const state = this.stateManager.getState();
+        const gem = state.gems.hand.find(g => g.instanceId === gemInstanceId);
+        
+        if (!gem) {
+            console.error(`Gem not found: ${gemInstanceId}`);
+            return;
+        }
+        
+        // Use template literal for more efficient DOM creation
+        gemPool.innerHTML = `
+            <div class="original-gem-container" style="text-align:center;padding:10px;margin-bottom:15px;">
+                <div class="gem ${gem.color}" data-gem-id="${gem.instanceId}">
+                    <div class="gem-content">
+                        <span class="gem-icon">${gem.icon}</span>
+                        <span class="gem-value">${gem.value}</span>
+                    </div>
+                    <div class="gem-cost">${gem.cost}</div>
+                </div>
+                <div style="font-size:24px;margin:5px 0;">↓</div>
+            </div>
+            
+            <div style="text-align:center;font-weight:bold;padding:5px;margin-bottom:10px;">Available Upgrades:</div>
+            
+            <div class="upgrade-options-container" style="display:flex;flex-wrap:wrap;justify-content:center;gap:15px;"></div>
+        `;
+        
+        // Get the container for upgrade options
+        const upgradesContainer = gemPool.querySelector('.upgrade-options-container');
+        
+        // Add all options to the container
+        const fragment = document.createDocumentFragment();
+        
+        this.shopState.upgradeOptions.forEach(upgradeGem => {
+            const wrapper = this.createUpgradeOption(upgradeGem, gemInstanceId);
+            fragment.appendChild(wrapper);
+        });
+        
+        upgradesContainer.appendChild(fragment);
+        
+        // If no options available, show message
+        if (this.shopState.upgradeOptions.length === 0) {
+            const noOptionsMsg = document.createElement('div');
+            noOptionsMsg.textContent = 'No upgrade options available';
+            noOptionsMsg.style.padding = '20px';
+            noOptionsMsg.style.textAlign = 'center';
+            upgradesContainer.appendChild(noOptionsMsg);
+        }
+    }
+    
+    // Create an upgrade option element
+    createUpgradeOption(upgradeGem, originalGemId) {
+        const upgradeElement = this.createGemElement(upgradeGem, 'shop');
+        
+        // Create a wrapper to hold both the gem and its label
+        const wrapper = document.createElement('div');
+        wrapper.classList.add('gem-upgrade-wrapper');
+        wrapper.style.cssText = 'display:flex;flex-direction:column;align-items:center;';
+        
+        // Add upgrade type label with specific styling based on type
+        const upgradeType = upgradeGem.upgradeType || 'unknown';
+        let labelText = 'Upgrade';
+        let labelColor = '#f39c12'; // Default orange
+        
+        switch(upgradeType) {
+            case 'augmentation':
+                const augType = upgradeGem.augmentation || 'unknown';
+                labelText = augType.charAt(0).toUpperCase() + augType.slice(1);
+                break;
+            case 'direct':
+                labelText = 'Enhanced';
+                break;
+            case 'class':
+                labelText = 'Class Specific';
+                labelColor = '#2ecc71'; // Green
+                break;
+            case 'unlocked':
+                labelText = 'Unlocked Gem';
+                labelColor = '#3498db'; // Blue
+                break;
+        }
+        
+        // Create label element
+        const typeLabel = document.createElement('div');
+        typeLabel.textContent = labelText;
+        typeLabel.style.cssText = `font-size:0.8em;text-align:center;padding:2px;margin-top:5px;color:${labelColor};`;
+        
+        wrapper.appendChild(upgradeElement);
+        wrapper.appendChild(typeLabel);
+        
+        // Store upgrade data
+        wrapper.dataset.upgradeId = upgradeGem.instanceId || upgradeGem.id;
+        wrapper.dataset.augmentation = upgradeGem.augmentation || '';
+        wrapper.dataset.upgradeType = upgradeType;
+        
+        // Add click handler
+        wrapper.addEventListener('click', () => {
+            const selectedId = upgradeGem.instanceId || upgradeGem.id;
+            this.selectUpgrade(originalGemId, selectedId);
+        });
+        
+        return wrapper;
+    }
+    
+    // Cancel upgrade mode
+    cancelUpgrade() {
+        this.shopState.upgradeMode = false;
+        this.shopState.upgradeOptions = [];
+        
+        // Clear gem pool
+        const gemPool = this.getElement('gem-pool');
+        if (gemPool) {
+            gemPool.innerHTML = '';
+        }
+        
+        // Update instructions
+        this.updateElement('gem-pool-instructions', 'Select a gem from your hand');
+        
+        // Update button states
+        this.updateShopButtons();
+    }
+    
+    // Select an upgrade option
+    selectUpgrade(gemInstanceId, upgradeGemId) {
+        // Get the upgrade option object
+        const upgradeOption = this.shopState.upgradeOptions.find(u => 
+            (u.instanceId === upgradeGemId) || (u.id === upgradeGemId)
+        );
+        
+        if (upgradeOption && upgradeOption.upgradeType === 'augmentation') {
+            // For augmentation upgrades, pass the whole object
+            this.eventBus.emit('shop:upgrade-gem', {
+                gemInstanceId,
+                newGemId: upgradeOption
+            });
+        } else if (upgradeGemId.endsWith('-upgraded')) {
+            // For direct upgrades
+            this.eventBus.emit('shop:direct-upgrade-gem', {
+                gemInstanceId,
+                originalGemId: gemInstanceId.split('-')[0]
+            });
+        } else {
+            // Standard upgrades
+            this.eventBus.emit('shop:upgrade-gem', {
+                gemInstanceId,
+                newGemId: upgradeGemId
+            });
+        }
+        
+        // Exit upgrade mode
+        this.cancelUpgrade();
     }
     
     // Discard gem button clicked
@@ -1472,20 +1431,26 @@ export default class UIManager {
         const { player, meta, journey } = state;
         
         // Update day display
-        this.elements.campDay.textContent = journey.day;
+        this.updateElement('camp-day', journey.day);
         
         // Update zenny displays
-        this.elements.campZenny.textContent = player.zenny;
-        this.elements.campMetaZenny.textContent = meta.zenny;
+        this.updateElement('camp-zenny', player.zenny);
+        this.updateElement('camp-meta-zenny', meta.zenny);
         
         // Clear input fields
-        this.elements.withdrawAmount.value = '';
-        this.elements.depositAmount.value = '';
+        const withdrawAmount = this.getElement('withdraw-amount');
+        const depositAmount = this.getElement('deposit-amount');
+        
+        if (withdrawAmount) withdrawAmount.value = '';
+        if (depositAmount) depositAmount.value = '';
     }
     
     // Withdraw zenny from journey to meta wallet
     withdrawZenny() {
-        const amount = parseInt(this.elements.withdrawAmount.value, 10);
+        const withdrawAmount = this.getElement('withdraw-amount');
+        if (!withdrawAmount) return;
+        
+        const amount = parseInt(withdrawAmount.value, 10);
         
         if (isNaN(amount) || amount <= 0) {
             this.showMessage('Please enter a valid amount!', 'error');
@@ -1496,12 +1461,15 @@ export default class UIManager {
         this.eventBus.emit('camp:withdraw', amount);
         
         // Clear input field
-        this.elements.withdrawAmount.value = '';
+        withdrawAmount.value = '';
     }
     
     // Deposit zenny from meta to journey wallet
     depositZenny() {
-        const amount = parseInt(this.elements.depositAmount.value, 10);
+        const depositAmount = this.getElement('deposit-amount');
+        if (!depositAmount) return;
+        
+        const amount = parseInt(depositAmount.value, 10);
         
         if (isNaN(amount) || amount <= 0) {
             this.showMessage('Please enter a valid amount!', 'error');
@@ -1512,7 +1480,7 @@ export default class UIManager {
         this.eventBus.emit('camp:deposit', amount);
         
         // Clear input field
-        this.elements.depositAmount.value = '';
+        depositAmount.value = '';
     }
     
     // Start next day button clicked
@@ -1520,13 +1488,13 @@ export default class UIManager {
         this.eventBus.emit('camp:next-day');
     }
     
-    // Update gem catalog UI
+    // Update gem catalog UI with optimized rendering
     updateGemCatalogUI() {
         const state = this.stateManager.getState();
         const { meta } = state;
         
         // Update meta zenny display
-        this.elements.metaZennyDisplay.textContent = meta.zenny;
+        this.updateElement('meta-zenny-display', meta.zenny);
         
         // Render unlocked gems
         this.renderUnlockedGems();
@@ -1535,46 +1503,44 @@ export default class UIManager {
         this.renderAvailableGems();
     }
     
-    // Render unlocked gems in catalog
+    // Render unlocked gems in catalog with better DOM batching
     renderUnlockedGems() {
         const state = this.stateManager.getState();
         const { meta } = state;
         const playerClass = state.player.class;
+        const unlockedGemsContainer = this.getElement('unlocked-gems');
         
-        this.elements.unlockedGems.innerHTML = '';
-        
-        // Check if meta.unlockedGems exists and has the correct structure
-        if (!meta.unlockedGems) {
-            console.error("Unlocked gems not found in meta state");
-            return;
-        }
-        
-        // Handle both old (array) and new (object) structures
-        let globalGems = [];
-        let classGems = [];
-        
-        if (Array.isArray(meta.unlockedGems)) {
-            // Old structure - treat all as global
-            globalGems = meta.unlockedGems;
-        } else {
-            // New structure
-            globalGems = meta.unlockedGems.global || [];
-            classGems = meta.unlockedGems[playerClass] || [];
-        }
+        if (!unlockedGemsContainer) return;
         
         // Get definitions from gem manager
         this.eventBus.emit('gem:get-definitions', {
             callback: (definitions) => {
-                // IMPORTANT: Display base gems first regardless of class
-                // These should always be available to all classes
+                // Determine which gems to display
+                let globalGems = [];
+                let classGems = [];
+                
+                if (Array.isArray(meta.unlockedGems)) {
+                    globalGems = meta.unlockedGems;
+                } else if (meta.unlockedGems) {
+                    globalGems = meta.unlockedGems.global || [];
+                    classGems = meta.unlockedGems[playerClass] || [];
+                }
+                
+                // Create DocumentFragment for batch DOM updates
+                const fragment = document.createDocumentFragment();
+                
+                // Clear container
+                unlockedGemsContainer.innerHTML = '';
+                
+                // Base gems to always display
                 const baseGems = ['red-attack', 'blue-magic', 'green-attack', 'grey-heal'];
                 
                 // Display base gems first
                 baseGems.forEach(gemId => {
-                    const gemDef = definitions[gemId];
-                    if (gemDef) {
-                        const gemElement = this.createGemElement(gemDef, 'catalog');
-                        this.elements.unlockedGems.appendChild(gemElement);
+                    if (definitions[gemId]) {
+                        fragment.appendChild(
+                            this.createGemElement(definitions[gemId], 'catalog')
+                        );
                     }
                 });
                 
@@ -1585,84 +1551,81 @@ export default class UIManager {
                     'rogue': ['green-quick']
                 };
                 
-                const starterGems = classStarterGems[playerClass] || [];
-                starterGems.forEach(gemId => {
-                    const gemDef = definitions[gemId];
-                    if (gemDef) {
-                        const gemElement = this.createGemElement(gemDef, 'catalog');
-                        this.elements.unlockedGems.appendChild(gemElement);
+                (classStarterGems[playerClass] || []).forEach(gemId => {
+                    if (definitions[gemId]) {
+                        fragment.appendChild(
+                            this.createGemElement(definitions[gemId], 'catalog')
+                        );
                     }
                 });
                 
-                // Then display additional unlocked gems specific to this class
-                // (that aren't base or starter gems)
+                // Display additional unlocked gems
                 classGems.forEach(gemId => {
-                    // Skip if it's a base gem or starter gem (already displayed)
-                    if (baseGems.includes(gemId) || starterGems.includes(gemId)) {
+                    // Skip if already displayed
+                    if (baseGems.includes(gemId) || 
+                        (classStarterGems[playerClass] && classStarterGems[playerClass].includes(gemId))) {
                         return;
                     }
                     
-                    const gemDef = definitions[gemId];
-                    if (gemDef) {
-                        const gemElement = this.createGemElement(gemDef, 'catalog');
-                        this.elements.unlockedGems.appendChild(gemElement);
+                    if (definitions[gemId]) {
+                        fragment.appendChild(
+                            this.createGemElement(definitions[gemId], 'catalog')
+                        );
                     }
                 });
+                
+                // Append all gems at once
+                unlockedGemsContainer.appendChild(fragment);
             }
         });
-    }    
+    }
     
-    // Render available gems to unlock
+    // Render available gems to unlock with better DOM performance
     renderAvailableGems() {
         const state = this.stateManager.getState();
         const { meta } = state;
         const playerClass = state.player.class;
+        const availableGemsContainer = this.getElement('available-gems');
         
-        // Clear current contents
-        this.elements.availableGems.innerHTML = '';
+        if (!availableGemsContainer) return;
         
-        // Check if meta.unlockedGems has the right structure
-        if (!meta.unlockedGems) {
-            console.error("Unlocked gems not found in meta state");
-            return;
-        }
+        // Clear container first
+        availableGemsContainer.innerHTML = '';
         
-        // Handle both old (array) and new (object) structures
+        // Determine unlocked gems
         let unlockedGems = [];
-        
         if (Array.isArray(meta.unlockedGems)) {
-            // Old structure
             unlockedGems = meta.unlockedGems;
-        } else {
-            // New structure - combine global and class-specific gems
+        } else if (meta.unlockedGems) {
             unlockedGems = [
                 ...(meta.unlockedGems.global || []),
                 ...(meta.unlockedGems[playerClass] || [])
             ];
         }
         
-        // Use the event bus to get unlockable gems
+        // Get unlockable gems
         this.eventBus.emit('gem:get-unlockable', {
             callback: (unlockables) => {
                 // Get definitions
                 this.eventBus.emit('gem:get-definitions', {
                     callback: (definitions) => {
-                        // Filter out gems that are already unlocked
+                        // Filter out already unlocked gems
                         const notYetUnlocked = unlockables.filter(gemId => 
                             !unlockedGems.includes(gemId)
                         );
                         
+                        // Use DocumentFragment for efficiency
+                        const fragment = document.createDocumentFragment();
+                        
                         if (notYetUnlocked.length > 0) {
                             // Create gem elements for each unlockable
                             notYetUnlocked.forEach(gemId => {
-                                const gemDef = definitions[gemId];
-                                if (gemDef) {
-                                    // Create container
+                                if (definitions[gemId]) {
                                     const container = document.createElement('div');
                                     container.classList.add('unlockable-gem-container');
                                     
                                     // Create gem element
-                                    const gemElement = this.createGemElement(gemDef);
+                                    const gemElement = this.createGemElement(definitions[gemId], 'catalog');
                                     container.appendChild(gemElement);
                                     
                                     // Add cost label
@@ -1676,28 +1639,48 @@ export default class UIManager {
                                         this.unlockGem(gemId);
                                     });
                                     
-                                    this.elements.availableGems.appendChild(container);
+                                    fragment.appendChild(container);
                                 }
                             });
                         } else {
-                            this.showNoGemsMessage();
+                            this.showNoGemsMessage(fragment);
                         }
+                        
+                        // Append all elements at once
+                        availableGemsContainer.appendChild(fragment);
                     }
                 });
             }
         });
     }
     
-    showNoGemsMessage() {
-        // Make sure element exists
-        if (!this.elements.availableGems) return;
-        
-        // Display message if no unlockable gems
+    // Show message when no gems are available
+    showNoGemsMessage(targetFragment) {
         const noGemsMsg = document.createElement('div');
         noGemsMsg.textContent = 'No additional gems available to unlock';
         noGemsMsg.style.padding = '20px';
         noGemsMsg.style.textAlign = 'center';
-        this.elements.availableGems.appendChild(noGemsMsg);
+        targetFragment.appendChild(noGemsMsg);
+    }
+    
+    // Unlock a gem
+    unlockGem(gemId) {
+        // Get gem definition to show its name in the confirmation
+        this.eventBus.emit('gem:get-definitions', {
+            callback: (definitions) => {
+                const gemDef = definitions[gemId];
+                
+                if (!gemDef) {
+                    console.error(`Unknown gem ID for confirmation: ${gemId}`);
+                    return;
+                }
+                
+                // Show confirmation dialog
+                if (confirm(`Are you sure you want to unlock ${gemDef.name} for 50 Meta $ZENNY?`)) {
+                    this.eventBus.emit('gem:unlock', gemId);
+                }
+            }
+        });
     }
     
     // Event handlers for battle events
@@ -1715,219 +1698,351 @@ export default class UIManager {
     
     onGemDrawn(gemData) {
         // Add draw animation to the gem
-        const gemElements = this.elements.hand.querySelectorAll('.gem');
-        gemElements.forEach(elem => {
-            if (elem.getAttribute('data-gem-id') === gemData.instanceId) {
-                elem.classList.add('drawn');
-                setTimeout(() => {
-                    elem.classList.remove('drawn');
-                }, 500);
-            }
-        });
+        const handElement = this.getElement('hand');
+        if (handElement) {
+            const gemElements = handElement.querySelectorAll('.gem');
+            gemElements.forEach(elem => {
+                if (elem.getAttribute('data-gem-id') === gemData.instanceId) {
+                    elem.classList.add('drawn');
+                    setTimeout(() => {
+                        elem.classList.remove('drawn');
+                    }, 500);
+                }
+            });
+        }
+    }
+    
+    // Create damage text animation with efficient DOM manipulation
+    createDamageText(amount, isHeal, position) {
+        const battleEffects = document.getElementById('battle-effects');
+        if (!battleEffects) return;
+        
+        // Create a single element with all styling applied via cssText for better performance
+        const textElement = document.createElement('div');
+        textElement.classList.add(isHeal ? 'heal-text' : 'damage-text');
+        textElement.textContent = `${isHeal ? '+' : '-'}${amount}`;
+        
+        // Position the text - use cssText for single reflow
+        textElement.style.cssText = `
+            left: ${position.left || '50%'};
+            top: ${position.top || '50%'};
+            position: absolute;
+            font-size: 1.8em;
+            font-weight: bold;
+            animation: floating-text 1.5s forwards;
+            text-shadow: 0 0 3px rgba(0,0,0,0.5);
+            color: ${isHeal ? 'var(--color-success)' : 'var(--color-danger)'};
+            pointer-events: none;
+        `;
+        
+        // Add to battle effects
+        battleEffects.appendChild(textElement);
+        
+        // Remove after animation completes
+        setTimeout(() => {
+            textElement.remove();
+        }, 1500);
     }
     
     onPlayerDamaged(data) {
-        // Create damage text animation
-        const damageText = document.createElement('div');
-        damageText.classList.add('damage-text');
-        damageText.textContent = `-${data.amount}`;
-        
-        // Position near player
-        damageText.style.left = '30%';
-        damageText.style.top = '80%';
-        
-        // Add to battle effects
-        const battleEffects = document.getElementById('battle-effects');
-        battleEffects.appendChild(damageText);
-        
-        // Remove after animation completes
-        setTimeout(() => {
-            damageText.remove();
-        }, 1500);
+        this.createDamageText(data.amount, false, { left: '30%', top: '80%' });
     }
     
     onEnemyDamaged(data) {
-        // Create damage text animation
-        const damageText = document.createElement('div');
-        damageText.classList.add('damage-text');
-        damageText.textContent = `-${data.amount}`;
-        
-        // Position near enemy
-        damageText.style.left = '50%';
-        damageText.style.top = '20%';
-        
-        // Add to battle effects
-        const battleEffects = document.getElementById('battle-effects');
-        battleEffects.appendChild(damageText);
-        
-        // Remove after animation completes
-        setTimeout(() => {
-            damageText.remove();
-        }, 1500);
+        this.createDamageText(data.amount, false, { left: '50%', top: '20%' });
     }
     
     onPlayerHealed(data) {
-        // Create heal text animation
-        const healText = document.createElement('div');
-        healText.classList.add('heal-text');
-        healText.textContent = `+${data.amount}`;
-        
-        // Position near player
-        healText.style.left = '30%';
-        healText.style.top = '80%';
-        
-        // Add to battle effects
-        const battleEffects = document.getElementById('battle-effects');
-        battleEffects.appendChild(healText);
-        
-        // Remove after animation completes
-        setTimeout(() => {
-            healText.remove();
-        }, 1500);
+        this.createDamageText(data.amount, true, { left: '30%', top: '80%' });
     }
     
-    // Show a message to the user
+    // Show a message to the user with debouncing
     showMessage(text, type = 'success') {
-        this.elements.messageElement.textContent = text;
-        this.elements.messageElement.className = ''; // Reset classes
-        this.elements.messageElement.classList.add('message', type, 'visible');
+        // Clear any existing removal timeout
+        if (this._messageTimeout) {
+            clearTimeout(this._messageTimeout);
+        }
         
-        // Hide after 3 seconds
-        setTimeout(() => {
-            this.elements.messageElement.classList.remove('visible');
-        }, 3000);
+        const messageElement = this.getElement('message') || document.getElementById('message');
+        
+        if (messageElement) {
+            // Only update if message changes
+            if (messageElement.textContent !== text || !messageElement.classList.contains(type)) {
+                messageElement.textContent = text;
+                messageElement.className = ''; // Reset classes
+                messageElement.classList.add('message', type, 'visible');
+            } else if (!messageElement.classList.contains('visible')) {
+                // If same message but not visible, make it visible again
+                messageElement.classList.add('visible');
+            }
+            
+            // Hide after 3 seconds
+            this._messageTimeout = setTimeout(() => {
+                messageElement.classList.remove('visible');
+                this._messageTimeout = null;
+            }, 3000);
+        }
     }
-    // This gets called during setup and when screens change
+    
+    // Setup gem bag containers with event delegation
     setupGemBagContainers() {
-        // Find both gem bag containers
+        // Get direct references instead of cached ones to ensure freshness
         const battleGemBag = document.getElementById('gem-bag-container');
         const shopGemBag = document.getElementById('shop-gem-bag-container');
+        
+        // Store references in the elements map
+        if (battleGemBag) {
+            this.elements.set('gem-bag-container', battleGemBag);
+        }
+        
+        if (shopGemBag) {
+            this.elements.set('shop-gem-bag-container', shopGemBag);
+        }
+        
+        // Common handler function
+        const openGemBagHandler = (e) => {
+            console.log("Gem bag container clicked, opening overlay");
+            this.eventBus.emit('overlay:open-gem-bag');
+            e.stopPropagation(); // Prevent event bubbling
+        };
         
         // Add click handlers to emit events
         if (battleGemBag) {
             battleGemBag.style.cursor = 'pointer';
-            battleGemBag.onclick = (e) => {
-                console.log('Battle gem bag clicked, emitting overlay:open-gem-bag');
-                this.eventBus.emit('overlay:open-gem-bag');
-                e.stopPropagation(); // Prevent event bubbling
-            };
+            
+            // Remove old event listener by cloning
+            const newBattleGemBag = battleGemBag.cloneNode(true);
+            battleGemBag.parentNode.replaceChild(newBattleGemBag, battleGemBag);
+            
+            // Add new event listener
+            newBattleGemBag.addEventListener('click', openGemBagHandler);
+            
+            // Update our reference
+            this.elements.set('gem-bag-container', newBattleGemBag);
         }
         
         if (shopGemBag) {
             shopGemBag.style.cursor = 'pointer';
-            shopGemBag.onclick = (e) => {
-                console.log('Shop gem bag clicked, emitting overlay:open-gem-bag');
-                this.eventBus.emit('overlay:open-gem-bag');
-                e.stopPropagation(); // Prevent event bubbling
-            };
+            
+            // Remove old event listener by cloning
+            const newShopGemBag = shopGemBag.cloneNode(true);
+            shopGemBag.parentNode.replaceChild(newShopGemBag, shopGemBag);
+            
+            // Add new event listener
+            newShopGemBag.addEventListener('click', openGemBagHandler);
+            
+            // Update our reference
+            this.elements.set('shop-gem-bag-container', newShopGemBag);
         }
     }
-    // This updates references to overlay elements after they're added to the DOM
+     
+    // Update overlay element references
     updateOverlayElementReferences() {
-        // Update overlay element references
-        this.elements.gemBagOverlay = document.getElementById('gem-bag-overlay');
-        this.elements.gemBagCloseButton = document.querySelector('#gem-bag-overlay .close-button');
-        this.elements.availableGemsContainer = document.getElementById('available-gems-container');
-        this.elements.playedGemsContainer = document.getElementById('played-gems-container');
-        this.elements.availableGemsCount = document.getElementById('available-gems-count');
-        this.elements.playedGemsCount = document.getElementById('played-gems-count');
+        // Get overlay elements directly from the document
+        const overlay = document.getElementById('gem-bag-overlay');
+        const closeButton = overlay ? overlay.querySelector('.close-button') : null;
+        const availableGemsContainer = document.getElementById('available-gems-container');
+        const playedGemsContainer = document.getElementById('played-gems-container');
+        const availableGemsCount = document.getElementById('available-gems-count');
+        const playedGemsCount = document.getElementById('played-gems-count');
         
-        // Add click handlers for close button and outside clicks
-        if (this.elements.gemBagCloseButton) {
-            this.elements.gemBagCloseButton.onclick = () => {
-                this.eventBus.emit('overlay:close-gem-bag');
-            };
-        }
-        
-        if (this.elements.gemBagOverlay) {
-            this.elements.gemBagOverlay.addEventListener('click', (event) => {
-                if (event.target === this.elements.gemBagOverlay) {
-                    this.eventBus.emit('overlay:close-gem-bag');
-                }
-            });
-        }
-        
-        // Add keyboard event listener for Escape key
-        document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && 
-                this.elements.gemBagOverlay && 
-                this.elements.gemBagOverlay.style.display === 'block') {
-                this.eventBus.emit('overlay:close-gem-bag');
-            }
+        // Log element retrieval for debugging
+        console.log("Overlay element references:", {
+            overlay: !!overlay,
+            closeButton: !!closeButton,
+            availableGemsContainer: !!availableGemsContainer,
+            playedGemsContainer: !!playedGemsContainer
         });
-    }
-
-    // This handles the overlay:open-gem-bag event
-    openGemBagOverlay() {
-        console.log('Opening gem bag overlay');
         
-        // Make sure we have updated references
+        // Update element references in the cache
+        if (overlay) this.elements.set('gem-bag-overlay', overlay);
+        if (closeButton) this.elements.set('gem-bag-close-button', closeButton);
+        if (availableGemsContainer) this.elements.set('available-gems-container', availableGemsContainer);
+        if (playedGemsContainer) this.elements.set('played-gems-container', playedGemsContainer);
+        if (availableGemsCount) this.elements.set('available-gems-count', availableGemsCount);
+        if (playedGemsCount) this.elements.set('played-gems-count', playedGemsCount);
+        
+        // Set up event handlers if elements exist
+        if (closeButton) {
+            // Make a copy to clean up event listeners
+            const newCloseButton = closeButton.cloneNode(true);
+            closeButton.parentNode.replaceChild(newCloseButton, closeButton);
+            
+            // Add click handler
+            newCloseButton.addEventListener('click', () => {
+                console.log("Close button clicked, closing overlay");
+                this.eventBus.emit('overlay:close-gem-bag');
+            });
+            
+            // Update reference
+            this.elements.set('gem-bag-close-button', newCloseButton);
+        }
+        
+        // Add overlay background click handler
+        if (overlay) {
+            // Remove existing handlers first
+            const newOverlay = overlay.cloneNode(true);
+            overlay.parentNode.replaceChild(newOverlay, overlay);
+            
+            // Update element references after clone
+            if (newOverlay) {
+                this.elements.set('gem-bag-overlay', newOverlay);
+                
+                // Find the new close button
+                const newCloseBtn = newOverlay.querySelector('.close-button');
+                if (newCloseBtn) {
+                    newCloseBtn.addEventListener('click', () => {
+                        console.log("Close button (after clone) clicked, closing overlay");
+                        this.eventBus.emit('overlay:close-gem-bag');
+                    });
+                    this.elements.set('gem-bag-close-button', newCloseBtn);
+                }
+                
+                // Add click handler for empty area of overlay
+                newOverlay.addEventListener('click', (event) => {
+                    if (event.target === newOverlay) {
+                        console.log("Overlay background clicked, closing overlay");
+                        this.eventBus.emit('overlay:close-gem-bag');
+                    }
+                });
+            }
+        }
+    }
+    
+    
+    // Open gem bag overlay with optimized rendering
+    openGemBagOverlay() {
+        console.log("Opening gem bag overlay");
+        
+        // Force refresh element references directly from DOM
         this.updateOverlayElementReferences();
         
+        // Get the current state
         const state = this.stateManager.getState();
-        const { gems } = state;
+        if (!state || !state.gems) {
+            console.warn('Cannot open gem bag overlay: missing gems data', state);
+            return;
+        }
+        
+        // Verify we have the gem data
+        const gems = state.gems;
+        console.log("Current gems state:", {
+            bagCount: gems.bag ? gems.bag.length : 0,
+            handCount: gems.hand ? gems.hand.length : 0,
+            playedCount: gems.played ? gems.played.length : 0,
+            discardedCount: gems.discarded ? gems.discarded.length : 0
+        });
+        
+        // Get direct DOM references to ensure freshness
+        const overlay = document.getElementById('gem-bag-overlay');
+        const availableGemsContainer = document.getElementById('available-gems-container');
+        const playedGemsContainer = document.getElementById('played-gems-container');
+        const availableGemsCount = document.getElementById('available-gems-count');
+        const playedGemsCount = document.getElementById('played-gems-count');
         
         // Check if overlay elements exist
-        if (!this.elements.gemBagOverlay || 
-            !this.elements.availableGemsContainer || 
-            !this.elements.playedGemsContainer) {
-            console.error('Gem bag overlay elements not found');
+        if (!overlay) {
+            console.error('Gem bag overlay element not found');
+            return;
+        }
+        
+        if (!availableGemsContainer || !playedGemsContainer) {
+            console.error('Gem bag container elements not found:', {
+                availableGemsContainer: !!availableGemsContainer,
+                playedGemsContainer: !!playedGemsContainer
+            });
             return;
         }
         
         // Clear previous content
-        this.elements.availableGemsContainer.innerHTML = '';
-        this.elements.playedGemsContainer.innerHTML = '';
+        availableGemsContainer.innerHTML = '';
+        playedGemsContainer.innerHTML = '';
+        
+        // Create fragments for batch DOM updates
+        const availableFragment = document.createDocumentFragment();
+        const playedFragment = document.createDocumentFragment();
+        
+        // Get safe gem counts with null checking
+        const bagGems = gems.bag || [];
+        const playedGems = gems.played || [];
         
         // Update gem counts
-        this.elements.availableGemsCount.textContent = gems.bag.length;
-        this.elements.playedGemsCount.textContent = gems.played ? gems.played.length : 0;
+        if (availableGemsCount) availableGemsCount.textContent = bagGems.length;
+        if (playedGemsCount) playedGemsCount.textContent = playedGems.length;
+        
+        console.log(`Rendering ${bagGems.length} bag gems and ${playedGems.length} played gems`);
         
         // Render available gems
-        if (gems.bag.length > 0) {
-            gems.bag.forEach(gem => {
+        if (bagGems.length > 0) {
+            bagGems.forEach(gem => {
                 const gemElement = this.createGemElement(gem, 'catalog');
-                this.elements.availableGemsContainer.appendChild(gemElement);
+                availableFragment.appendChild(gemElement);
             });
         } else {
             const emptyMessage = document.createElement('p');
             emptyMessage.textContent = 'No gems available in bag';
             emptyMessage.style.padding = '20px';
             emptyMessage.style.fontStyle = 'italic';
-            this.elements.availableGemsContainer.appendChild(emptyMessage);
+            availableFragment.appendChild(emptyMessage);
         }
         
         // Render played gems
-        if (gems.played && gems.played.length > 0) {
-            gems.played.forEach(gem => {
+        if (playedGems.length > 0) {
+            playedGems.forEach(gem => {
                 const gemElement = this.createGemElement(gem, 'catalog');
                 gemElement.classList.add('played');
-                this.elements.playedGemsContainer.appendChild(gemElement);
+                playedFragment.appendChild(gemElement);
             });
         } else {
             const emptyMessage = document.createElement('p');
             emptyMessage.textContent = 'No gems have been played yet';
             emptyMessage.style.padding = '20px';
             emptyMessage.style.fontStyle = 'italic';
-            this.elements.playedGemsContainer.appendChild(emptyMessage);
+            playedFragment.appendChild(emptyMessage);
         }
         
+        // Add all gems to containers at once
+        availableGemsContainer.appendChild(availableFragment);
+        playedGemsContainer.appendChild(playedFragment);
+        
         // Show the overlay
-        this.elements.gemBagOverlay.style.display = 'block';
+        overlay.style.display = 'block';
+        console.log("Gem bag overlay displayed");
         
         // Emit event that overlay has been opened
         this.eventBus.emit('overlay:gem-bag-opened');
     }
-
-    // This handles the overlay:close-gem-bag event
+    
+    // Close gem bag overlay
     closeGemBagOverlay() {
-        console.log('Closing gem bag overlay');
+        const overlay = this.getElement('gem-bag-overlay');
         
-        if (this.elements.gemBagOverlay) {
-            this.elements.gemBagOverlay.style.display = 'none';
-            
-            // Emit event that overlay has been closed
+        if (overlay) {
+            overlay.style.display = 'none';
             this.eventBus.emit('overlay:gem-bag-closed');
         }
+    }
+    
+    // Memory management - remove event listeners when component is destroyed
+    destroy() {
+        // Remove global event listeners
+        if (this._escapeKeyHandler) {
+            document.removeEventListener('keydown', this._escapeKeyHandler);
+        }
+        
+        // Clear any pending timeouts
+        if (this._messageTimeout) {
+            clearTimeout(this._messageTimeout);
+        }
+        
+        if (this._shopRefreshTimeout) {
+            clearTimeout(this._shopRefreshTimeout);
+        }
+        
+        // Clear the event bus
+        // Note: In a real implementation, you'd unsubscribe from specific events
+        // This is a simplified example
+        
+        console.log('UIManager destroyed, event listeners cleaned up');
     }
 }
