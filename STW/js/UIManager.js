@@ -233,8 +233,10 @@ export default class UIManager {
     
     // Handle screen changes
     onScreenChanged(screenId) {
+        console.log(`Screen changed to: ${screenId}`);
+        
         // Reset screen-specific state
-        switch (screenId) {
+        switch(screenId) {
             case 'battle-screen':
                 this.selectedGems = [];
                 this.updateBattleBackground();
@@ -245,22 +247,40 @@ export default class UIManager {
                     upgradeMode: false,
                     upgradeOptions: []
                 };
-                // Setup shop with a short delay to ensure DOM is ready
-                setTimeout(() => this.setupShop(), 50);
+                // Don't call setupShop here - it will be called after state is synchronized
                 break;
         }
         
-        // Update UI for the new screen
-        this.updateUI();
+        // Get fresh state to ensure we have the latest data
+        const state = this.stateManager.getState();
+        console.log(`Screen changed with state:`, {
+            currentScreen: state.currentScreen,
+            playerZenny: state.player ? state.player.zenny : 'unknown',
+            metaZenny: state.meta ? state.meta.zenny : 'unknown',
+            bagsGems: state.gems && state.gems.bag ? state.gems.bag.length : 'unknown'
+        });
+        
+        // For shop screen, explicitly handle the initialization with delay
+        if (screenId === 'shop-screen') {
+            setTimeout(() => {
+                console.log("Setting up shop with delayed initialization");
+                this.setupShop();
+                // Ensure UI is also updated after shop setup
+                this.updateUI();
+            }, 100);
+        } else {
+            // Update UI for other screens immediately
+            this.updateUI();
+        }
         
         // Set up event listeners for the current screen
         this.setupScreenEventListeners(screenId);
         
-        // Refresh gem bag containers and overlay references (wait for DOM updates)
+        // Always refresh gem bag containers and overlay references after DOM updates
         setTimeout(() => {
             this.setupGemBagContainers();
             this.updateOverlayElementReferences();
-        }, 50);
+        }, 150);
     }
     
     // Update battle background based on phase
@@ -863,59 +883,123 @@ export default class UIManager {
     
     // Shop setup and UI - Optimized setup with batched DOM updates
     setupShop() {
+        // Get a fresh state directly to ensure we have the latest data
         const state = this.stateManager.getState();
+        
+        if (!state || !state.player) {
+            console.error("Cannot setup shop: missing player state");
+            return;
+        }
+        
         const { player, gems } = state;
         
-        // Update shop stats
-        this.updateElement('shop-health', player.health);
-        this.updateElement('shop-max-health', player.maxHealth);
-        this.updateElement('shop-zenny', player.zenny);
+        console.log("Setting up shop with player state:", {
+            health: player.health,
+            maxHealth: player.maxHealth,
+            zenny: player.zenny,
+            gemBagSize: state.gemBagSize || 20,
+            bagGemsCount: gems && gems.bag ? gems.bag.length : 0,
+            handGemsCount: gems && gems.hand ? gems.hand.length : 0
+        });
+        
+        // Update shop stats with direct DOM updates to ensure freshness
+        const shopHealth = document.getElementById('shop-health');
+        const shopMaxHealth = document.getElementById('shop-max-health');
+        const shopZenny = document.getElementById('shop-zenny');
+        
+        if (shopHealth) shopHealth.textContent = player.health;
+        if (shopMaxHealth) shopMaxHealth.textContent = player.maxHealth;
+        if (shopZenny) shopZenny.textContent = player.zenny;
+        
+        // Update cached element references
+        this.elements.set('shop-health', shopHealth);
+        this.elements.set('shop-max-health', shopMaxHealth);
+        this.elements.set('shop-zenny', shopZenny);
         
         // Render gems in hand
         this.renderShopHand();
         
         // Clear gem pool
-        const gemPool = this.getElement('gem-pool');
+        const gemPool = document.getElementById('gem-pool');
         if (gemPool) {
             gemPool.innerHTML = '';
+            this.elements.set('gem-pool', gemPool);
         }
         
         // Update instructions
-        this.updateElement('gem-pool-instructions', 'Select a gem from your hand');
+        const instructions = document.getElementById('gem-pool-instructions');
+        if (instructions) {
+            instructions.textContent = 'Select a gem from your hand';
+            this.elements.set('gem-pool-instructions', instructions);
+        }
         
         // Update button states
         this.updateShopButtons();
         
         // Update gem bag count
         const currentBagSize = state.gemBagSize || 20;
-        this.updateElement('shop-gem-bag-count', gems.bag.length);
-        this.updateElement('shop-gem-bag-total', currentBagSize);
+        const shopGemBagCount = document.getElementById('shop-gem-bag-count');
+        const shopGemBagTotal = document.getElementById('shop-gem-bag-total');
         
-        // Render shop inventory with a small delay to ensure DOM is ready
+        if (shopGemBagCount) {
+            shopGemBagCount.textContent = gems.bag ? gems.bag.length : 0;
+            this.elements.set('shop-gem-bag-count', shopGemBagCount);
+        }
+        
+        if (shopGemBagTotal) {
+            shopGemBagTotal.textContent = currentBagSize;
+            this.elements.set('shop-gem-bag-total', shopGemBagTotal);
+        }
+        
+        // Render shop inventory with a slight delay to ensure DOM is ready
         setTimeout(() => this.renderShopInventory(), 50);
     }
     
     // Update shop UI
     updateShopUI() {
+        // Get a fresh state reference
         const state = this.stateManager.getState();
+        if (!state || !state.player) {
+            console.warn("Cannot update shop UI: missing player state");
+            return;
+        }
+        
         const { player, gems } = state;
         
-        // Update shop stats
-        this.updateElement('shop-health', player.health);
-        this.updateElement('shop-max-health', player.maxHealth);
-        this.updateElement('shop-zenny', player.zenny);
+        console.log("Updating shop UI with player state:", {
+            health: player.health,
+            maxHealth: player.maxHealth,
+            zenny: player.zenny
+        });
+        
+        // Update shop stats with direct DOM updates
+        const shopHealth = document.getElementById('shop-health');
+        const shopMaxHealth = document.getElementById('shop-max-health');
+        const shopZenny = document.getElementById('shop-zenny');
+        
+        if (shopHealth) shopHealth.textContent = player.health;
+        if (shopMaxHealth) shopMaxHealth.textContent = player.maxHealth;
+        if (shopZenny) shopZenny.textContent = player.zenny;
+        
+        // Update cached references
+        this.elements.set('shop-health', shopHealth);
+        this.elements.set('shop-max-health', shopMaxHealth);
+        this.elements.set('shop-zenny', shopZenny);
         
         // Render gems in hand
         this.renderShopHand();
         
         // Update gem bag count
         const currentBagSize = state.gemBagSize || 20;
-        this.updateElement('shop-gem-bag-count', gems.bag.length);
-        this.updateElement('shop-gem-bag-total', currentBagSize);
+        const shopGemBagCount = document.getElementById('shop-gem-bag-count');
+        const shopGemBagTotal = document.getElementById('shop-gem-bag-total');
+        
+        if (shopGemBagCount) shopGemBagCount.textContent = gems.bag ? gems.bag.length : 0;
+        if (shopGemBagTotal) shopGemBagTotal.textContent = currentBagSize;
         
         // Update button states
         this.updateShopButtons();
-    }
+    }    
     
     // Render shop inventory
     renderShopInventory() {
@@ -1702,11 +1786,22 @@ export default class UIManager {
     
     // Setup gem bag containers with event delegation
     setupGemBagContainers() {
+        // Get direct references instead of cached ones to ensure freshness
         const battleGemBag = document.getElementById('gem-bag-container');
         const shopGemBag = document.getElementById('shop-gem-bag-container');
         
+        // Store references in the elements map
+        if (battleGemBag) {
+            this.elements.set('gem-bag-container', battleGemBag);
+        }
+        
+        if (shopGemBag) {
+            this.elements.set('shop-gem-bag-container', shopGemBag);
+        }
+        
         // Common handler function
         const openGemBagHandler = (e) => {
+            console.log("Gem bag container clicked, opening overlay");
             this.eventBus.emit('overlay:open-gem-bag');
             e.stopPropagation(); // Prevent event bubbling
         };
@@ -1721,6 +1816,9 @@ export default class UIManager {
             
             // Add new event listener
             newBattleGemBag.addEventListener('click', openGemBagHandler);
+            
+            // Update our reference
+            this.elements.set('gem-bag-container', newBattleGemBag);
         }
         
         if (shopGemBag) {
@@ -1732,102 +1830,131 @@ export default class UIManager {
             
             // Add new event listener
             newShopGemBag.addEventListener('click', openGemBagHandler);
+            
+            // Update our reference
+            this.elements.set('shop-gem-bag-container', newShopGemBag);
         }
     }
-    
+     
     // Update overlay element references
     updateOverlayElementReferences() {
-        // Get overlay elements
-        this.elements.set('gem-bag-overlay', document.getElementById('gem-bag-overlay'));
-        this.elements.set('gem-bag-close-button', document.querySelector('#gem-bag-overlay .close-button'));
-        this.elements.set('available-gems-container', document.getElementById('available-gems-container'));
-        this.elements.set('played-gems-container', document.getElementById('played-gems-container'));
-        this.elements.set('available-gems-count', document.getElementById('available-gems-count'));
-        this.elements.set('played-gems-count', document.getElementById('played-gems-count'));
+        // Get overlay elements directly from the document
+        const overlay = document.getElementById('gem-bag-overlay');
+        const closeButton = overlay ? overlay.querySelector('.close-button') : null;
+        const availableGemsContainer = document.getElementById('available-gems-container');
+        const playedGemsContainer = document.getElementById('played-gems-container');
+        const availableGemsCount = document.getElementById('available-gems-count');
+        const playedGemsCount = document.getElementById('played-gems-count');
         
-        // Add event handlers
-        const closeButton = this.getElement('gem-bag-close-button');
+        // Log element retrieval for debugging
+        console.log("Overlay element references:", {
+            overlay: !!overlay,
+            closeButton: !!closeButton,
+            availableGemsContainer: !!availableGemsContainer,
+            playedGemsContainer: !!playedGemsContainer
+        });
+        
+        // Update element references in the cache
+        if (overlay) this.elements.set('gem-bag-overlay', overlay);
+        if (closeButton) this.elements.set('gem-bag-close-button', closeButton);
+        if (availableGemsContainer) this.elements.set('available-gems-container', availableGemsContainer);
+        if (playedGemsContainer) this.elements.set('played-gems-container', playedGemsContainer);
+        if (availableGemsCount) this.elements.set('available-gems-count', availableGemsCount);
+        if (playedGemsCount) this.elements.set('played-gems-count', playedGemsCount);
+        
+        // Set up event handlers if elements exist
         if (closeButton) {
-            // Remove old event listener by cloning
+            // Make a copy to clean up event listeners
             const newCloseButton = closeButton.cloneNode(true);
             closeButton.parentNode.replaceChild(newCloseButton, closeButton);
             
-            // Add new event listener
-            newCloseButton.addEventListener('click', () => this.eventBus.emit('overlay:close-gem-bag'));
+            // Add click handler
+            newCloseButton.addEventListener('click', () => {
+                console.log("Close button clicked, closing overlay");
+                this.eventBus.emit('overlay:close-gem-bag');
+            });
             
             // Update reference
             this.elements.set('gem-bag-close-button', newCloseButton);
         }
         
-        const overlay = this.getElement('gem-bag-overlay');
+        // Add overlay background click handler
         if (overlay) {
-            // Remove old event listener by cloning
+            // Remove existing handlers first
             const newOverlay = overlay.cloneNode(true);
             overlay.parentNode.replaceChild(newOverlay, overlay);
             
-            // Add new event listener that only triggers when clicking the overlay background
-            newOverlay.addEventListener('click', (event) => {
-                if (event.target === newOverlay) {
-                    this.eventBus.emit('overlay:close-gem-bag');
+            // Update element references after clone
+            if (newOverlay) {
+                this.elements.set('gem-bag-overlay', newOverlay);
+                
+                // Find the new close button
+                const newCloseBtn = newOverlay.querySelector('.close-button');
+                if (newCloseBtn) {
+                    newCloseBtn.addEventListener('click', () => {
+                        console.log("Close button (after clone) clicked, closing overlay");
+                        this.eventBus.emit('overlay:close-gem-bag');
+                    });
+                    this.elements.set('gem-bag-close-button', newCloseBtn);
                 }
-            });
-            
-            // Update reference
-            this.elements.set('gem-bag-overlay', newOverlay);
-            
-            // Find and re-attach the close button event
-            const newCloseButton = newOverlay.querySelector('.close-button');
-            if (newCloseButton) {
-                newCloseButton.addEventListener('click', () => this.eventBus.emit('overlay:close-gem-bag'));
-                this.elements.set('gem-bag-close-button', newCloseButton);
-            }
-        }
-        
-        // Add keyboard event for Escape key (use event delegation at document level)
-        // Use a named function to allow proper cleanup
-        if (!this._escapeKeyHandler) {
-            this._escapeKeyHandler = (event) => {
-                if (event.key === 'Escape') {
-                    const overlay = this.getElement('gem-bag-overlay');
-                    if (overlay && getComputedStyle(overlay).display === 'block') {
+                
+                // Add click handler for empty area of overlay
+                newOverlay.addEventListener('click', (event) => {
+                    if (event.target === newOverlay) {
+                        console.log("Overlay background clicked, closing overlay");
                         this.eventBus.emit('overlay:close-gem-bag');
                     }
-                }
-            };
-            
-            // Remove any existing handler
-            document.removeEventListener('keydown', this._escapeKeyHandler);
-            
-            // Add new handler
-            document.addEventListener('keydown', this._escapeKeyHandler);
+                });
+            }
         }
     }
     
+    
     // Open gem bag overlay with optimized rendering
     openGemBagOverlay() {
-        // Make sure we have updated references
+        console.log("Opening gem bag overlay");
+        
+        // Force refresh element references directly from DOM
         this.updateOverlayElementReferences();
         
+        // Get the current state
         const state = this.stateManager.getState();
         if (!state || !state.gems) {
-            console.warn('Cannot open gem bag overlay: missing gems data');
+            console.warn('Cannot open gem bag overlay: missing gems data', state);
             return;
         }
         
-        const { gems } = state;
-        const overlay = this.getElement('gem-bag-overlay');
-        const availableGemsContainer = this.getElement('available-gems-container');
-        const playedGemsContainer = this.getElement('played-gems-container');
-        const availableGemsCount = this.getElement('available-gems-count');
-        const playedGemsCount = this.getElement('played-gems-count');
+        // Verify we have the gem data
+        const gems = state.gems;
+        console.log("Current gems state:", {
+            bagCount: gems.bag ? gems.bag.length : 0,
+            handCount: gems.hand ? gems.hand.length : 0,
+            playedCount: gems.played ? gems.played.length : 0,
+            discardedCount: gems.discarded ? gems.discarded.length : 0
+        });
+        
+        // Get direct DOM references to ensure freshness
+        const overlay = document.getElementById('gem-bag-overlay');
+        const availableGemsContainer = document.getElementById('available-gems-container');
+        const playedGemsContainer = document.getElementById('played-gems-container');
+        const availableGemsCount = document.getElementById('available-gems-count');
+        const playedGemsCount = document.getElementById('played-gems-count');
         
         // Check if overlay elements exist
-        if (!overlay || !availableGemsContainer || !playedGemsContainer) {
-            console.error('Gem bag overlay elements not found');
+        if (!overlay) {
+            console.error('Gem bag overlay element not found');
             return;
         }
         
-        // Clear previous content using DocumentFragment for better performance
+        if (!availableGemsContainer || !playedGemsContainer) {
+            console.error('Gem bag container elements not found:', {
+                availableGemsContainer: !!availableGemsContainer,
+                playedGemsContainer: !!playedGemsContainer
+            });
+            return;
+        }
+        
+        // Clear previous content
         availableGemsContainer.innerHTML = '';
         playedGemsContainer.innerHTML = '';
         
@@ -1842,6 +1969,8 @@ export default class UIManager {
         // Update gem counts
         if (availableGemsCount) availableGemsCount.textContent = bagGems.length;
         if (playedGemsCount) playedGemsCount.textContent = playedGems.length;
+        
+        console.log(`Rendering ${bagGems.length} bag gems and ${playedGems.length} played gems`);
         
         // Render available gems
         if (bagGems.length > 0) {
@@ -1878,6 +2007,7 @@ export default class UIManager {
         
         // Show the overlay
         overlay.style.display = 'block';
+        console.log("Gem bag overlay displayed");
         
         // Emit event that overlay has been opened
         this.eventBus.emit('overlay:gem-bag-opened');
