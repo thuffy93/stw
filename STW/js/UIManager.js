@@ -96,6 +96,18 @@ export default class UIManager {
             availableGemsCount: null, // Will be set after overlay is added to DOM
             playedGemsCount: null // Will be set after overlay is added to DOM
         };
+
+            // Ensure gem bag overlay event listeners are properly set up
+        this.eventBus.on('overlay:open-gem-bag', () => {
+            console.log('EventBus received overlay:open-gem-bag event');
+            this.openGemBagOverlay();
+        });
+        
+        this.eventBus.on('overlay:close-gem-bag', () => {
+            console.log('EventBus received overlay:close-gem-bag event');
+            this.closeGemBagOverlay();
+        });
+        
         
         // Set up basic event listeners
         this.setupBasicEventListeners();
@@ -375,15 +387,18 @@ export default class UIManager {
             this.updateUI();
         }
         
-        // Set up event listeners for the current screen
+            // Set up event listeners for the current screen
         this.setupScreenEventListeners(screenId);
 
-        // Set up gem bag containers after screen change
+        // Important: Set up gem bag containers after screen change with a slight delay
+        // to ensure DOM elements are fully rendered
         setTimeout(() => {
+            console.log('Setting up gem bag containers after screen change');
             this.setupGemBagContainers();
             this.updateOverlayElementReferences();
-        }, 100); // Short delay to ensure DOM is updated
+        }, 200); // Slightly longer delay to ensure DOM is ready
     }
+
     
     // Select character class
     selectClass(classType) {
@@ -1870,40 +1885,52 @@ export default class UIManager {
         const battleGemBag = document.getElementById('gem-bag-container');
         const shopGemBag = document.getElementById('shop-gem-bag-container');
         
-        // Store references in the elements object (not using Map.set())
+        // Store references in the elements object
         if (battleGemBag) {
             this.elements['gem-bag-container'] = battleGemBag;
+            
+            // Remove old event listeners by cloning and replacing
+            const newBattleGemBag = battleGemBag.cloneNode(true);
+            battleGemBag.parentNode.replaceChild(newBattleGemBag, battleGemBag);
+            
+            // Add the event listener via addEventListener, not onclick
+            newBattleGemBag.addEventListener('click', (e) => {
+                console.log('Battle gem bag clicked, emitting event via EventBus');
+                this.eventBus.emit('overlay:open-gem-bag');
+                e.stopPropagation();
+            });
+            
+            // Update the reference
+            this.elements['gem-bag-container'] = newBattleGemBag;
+            
+            // Add visual cue that it's clickable
+            newBattleGemBag.style.cursor = 'pointer';
+            newBattleGemBag.title = 'Click to view gem bag contents';
         }
         
         if (shopGemBag) {
             this.elements['shop-gem-bag-container'] = shopGemBag;
-        }
-        
-        // Common handler function
-        const openGemBagHandler = (e) => {
-            console.log("Gem bag container clicked, opening overlay");
-            this.eventBus.emit('overlay:open-gem-bag');
-            e.stopPropagation(); // Prevent event bubbling
-        };
-        
-        // Add click handlers to emit events
-        if (battleGemBag) {
-            battleGemBag.style.cursor = 'pointer';
-            battleGemBag.onclick = (e) => {
-                console.log('Battle gem bag clicked, emitting overlay:open-gem-bag');
+            
+            // Remove old event listeners by cloning and replacing
+            const newShopGemBag = shopGemBag.cloneNode(true);
+            shopGemBag.parentNode.replaceChild(newShopGemBag, shopGemBag);
+            
+            // Add the event listener via addEventListener, not onclick
+            newShopGemBag.addEventListener('click', (e) => {
+                console.log('Shop gem bag clicked, emitting event via EventBus');
                 this.eventBus.emit('overlay:open-gem-bag');
-                e.stopPropagation(); // Prevent event bubbling
-            };
+                e.stopPropagation();
+            });
+            
+            // Update the reference
+            this.elements['shop-gem-bag-container'] = newShopGemBag;
+            
+            // Add visual cue that it's clickable
+            newShopGemBag.style.cursor = 'pointer';
+            newShopGemBag.title = 'Click to view gem bag contents';
         }
         
-        if (shopGemBag) {
-            shopGemBag.style.cursor = 'pointer';
-            shopGemBag.onclick = (e) => {
-                console.log('Shop gem bag clicked, emitting overlay:open-gem-bag');
-                this.eventBus.emit('overlay:open-gem-bag');
-                e.stopPropagation(); // Prevent event bubbling
-            };
-        }
+        console.log('Gem bag containers set up with EventBus event handlers');
     }
     // This updates references to overlay elements after they're added to the DOM
     updateOverlayElementReferences() {
@@ -2014,74 +2041,67 @@ export default class UIManager {
         const { gems } = state;
         
         // Check if overlay elements exist
-        if (!this.elements.gemBagOverlay || 
-            !this.elements.availableGemsContainer || 
-            !this.elements.playedGemsContainer) {
-            console.error('Gem bag overlay elements not found');
-            return;
+        const overlay = document.getElementById('gem-bag-overlay');
+        const availableContainer = document.getElementById('available-gems-container');
+        const playedContainer = document.getElementById('played-gems-container');
+        
+        if (!overlay || !availableContainer || !playedContainer) {
+            console.error('Gem bag overlay elements not found in DOM');
+            
+            // Try to get references from elements object as fallback
+            if (this.elements.gemBagOverlay) {
+                console.log('Using cached references instead');
+                overlay = this.elements.gemBagOverlay;
+                availableContainer = this.elements.availableGemsContainer;
+                playedContainer = this.elements.playedGemsContainer;
+            } else {
+                console.error('Cannot open gem bag overlay: required elements missing');
+                return;
+            }
         }
         
         // Clear previous content
-        this.elements.availableGemsContainer.innerHTML = '';
-        this.elements.playedGemsContainer.innerHTML = '';
+        availableContainer.innerHTML = '';
+        playedContainer.innerHTML = '';
         
-        // Create fragments for batch DOM updates
-        const availableFragment = document.createDocumentFragment();
-        const playedFragment = document.createDocumentFragment();
+        // Update the count displays
+        const availableCount = document.getElementById('available-gems-count');
+        const playedCount = document.getElementById('played-gems-count');
         
-        // Get safe gem counts with null checking
-        const bagGems = gems.bag || [];
-        const playedGems = gems.played || [];
+        if (availableCount) availableCount.textContent = gems.bag ? gems.bag.length : 0;
+        if (playedCount) playedCount.textContent = gems.played ? gems.played.length : 0;
         
-        // Update gem counts
-        this.elements.availableGemsCount.textContent = gems.bag.length;
-        this.elements.playedGemsCount.textContent = gems.played ? gems.played.length : 0;
-        
-        // Render available gems
-        if (bagGems.length > 0) {
-            bagGems.forEach(gem => {
+        // Render available gems (gems in bag)
+        if (gems.bag && gems.bag.length > 0) {
+            gems.bag.forEach(gem => {
                 const gemElement = this.createGemElement(gem, 'catalog');
-                // EITHER append to the fragment (better performance)
-                availableFragment.appendChild(gemElement);
-                // OR append directly to the container (but not both)
-                // this.elements.availableGemsContainer.appendChild(gemElement);
+                availableContainer.appendChild(gemElement);
             });
-            // Then append the fragment to the container
-            this.elements.availableGemsContainer.appendChild(availableFragment);
         } else {
             const emptyMessage = document.createElement('p');
             emptyMessage.textContent = 'No gems available in bag';
             emptyMessage.style.padding = '20px';
             emptyMessage.style.fontStyle = 'italic';
-            this.elements.availableGemsContainer.appendChild(emptyMessage);
+            availableContainer.appendChild(emptyMessage);
         }
         
         // Render played gems
-        if (playedGems.length > 0) {
-            playedGems.forEach(gem => {
+        if (gems.played && gems.played.length > 0) {
+            gems.played.forEach(gem => {
                 const gemElement = this.createGemElement(gem, 'catalog');
                 gemElement.classList.add('played');
-                // EITHER append to the fragment (better performance)
-                playedFragment.appendChild(gemElement);
-                // OR append directly to the container (but not both)
-                // this.elements.playedGemsContainer.appendChild(gemElement);
+                playedContainer.appendChild(gemElement);
             });
-            // Then append the fragment to the container
-            this.elements.playedGemsContainer.appendChild(playedFragment);
         } else {
             const emptyMessage = document.createElement('p');
             emptyMessage.textContent = 'No gems have been played yet';
             emptyMessage.style.padding = '20px';
             emptyMessage.style.fontStyle = 'italic';
-            this.elements.playedGemsContainer.appendChild(emptyMessage);
+            playedContainer.appendChild(emptyMessage);
         }
         
-        // FIXED: Removed the problematic lines that tried to use undefined variables
-        // availableGemsContainer.appendChild(availableFragment);
-        // playedGemsContainer.appendChild(playedFragment);
-        
         // Show the overlay
-        this.elements.gemBagOverlay.style.display = 'block';
+        overlay.style.display = 'block';
         
         // Emit event that overlay has been opened
         this.eventBus.emit('overlay:gem-bag-opened');
