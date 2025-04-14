@@ -652,6 +652,11 @@ export default class UIManager {
         const { gems, player } = state;
         const { hand } = gems;
         
+        // Ensure selectedGems is initialized
+        if (!this.selectedGems) {
+            this.selectedGems = [];
+        }
+        
         this.elements.hand.innerHTML = '';
         
         hand.forEach(gem => {
@@ -675,6 +680,7 @@ export default class UIManager {
             this.elements.hand.appendChild(gemElement);
         });
     }
+    
     
     // Generate tooltip for a gem - updated to include augmentation info
     generateGemTooltip(gem) {
@@ -801,6 +807,11 @@ export default class UIManager {
         const state = this.stateManager.getState();
         const { battle, player } = state;
         
+        // Ensure selectedGems is initialized
+        if (!this.selectedGems) {
+            this.selectedGems = [];
+        }
+        
         // Only enable buttons on player's turn
         const isPlayerTurn = battle.currentTurn === 'PLAYER';
         const isPlayerStunned = player.buffs && player.buffs.some(buff => buff.type === 'stunned');
@@ -859,6 +870,11 @@ export default class UIManager {
     
     // Toggle gem selection
     toggleGemSelection(gemInstanceId) {
+        // Ensure selectedGems is initialized
+        if (!this.selectedGems) {
+            this.selectedGems = [];
+        }
+        
         const index = this.selectedGems.indexOf(gemInstanceId);
         
         if (index === -1) {
@@ -883,6 +899,11 @@ export default class UIManager {
     
     // Execute selected gems
     executeGems() {
+        // Ensure selectedGems is initialized
+        if (!this.selectedGems) {
+            this.selectedGems = [];
+        }
+        
         if (this.selectedGems.length === 0) {
             this.showMessage('No gems selected!', 'error');
             return;
@@ -910,6 +931,11 @@ export default class UIManager {
     
     // Discard selected gems and end turn
     discardAndEndTurn() {
+        // Ensure selectedGems is initialized
+        if (!this.selectedGems) {
+            this.selectedGems = [];
+        }
+        
         if (this.selectedGems.length === 0) {
             this.showMessage('No gems selected to discard!', 'error');
             return;
@@ -1641,8 +1667,9 @@ export default class UIManager {
                     }
                 });
                 
+                // REMOVE THIS LINE - unlockedGemsContainer is not defined
                 // Append all gems at once
-                unlockedGemsContainer.appendChild(fragment);
+                // unlockedGemsContainer.appendChild(fragment);
             }
         });
     }    
@@ -1687,9 +1714,6 @@ export default class UIManager {
                             !unlockedGems.includes(gemId)
                         );
                         
-                        // Use DocumentFragment for efficiency
-                        const fragment = document.createDocumentFragment();
-                        
                         if (notYetUnlocked.length > 0) {
                             // Create gem elements for each unlockable
                             notYetUnlocked.forEach(gemId => {
@@ -1718,16 +1742,18 @@ export default class UIManager {
                                 }
                             });
                         } else {
-                            this.showNoGemsMessage(fragment);
+                            this.showNoGemsMessage();
                         }
                         
+                        // REMOVE THIS LINE - availableGemsContainer is not defined
                         // Append all elements at once
-                        availableGemsContainer.appendChild(fragment);
+                        // availableGemsContainer.appendChild(fragment);
                     }
                 });
             }
         });
     }
+    
     
     showNoGemsMessage() {
         // Make sure element exists
@@ -1844,13 +1870,13 @@ export default class UIManager {
         const battleGemBag = document.getElementById('gem-bag-container');
         const shopGemBag = document.getElementById('shop-gem-bag-container');
         
-        // Store references in the elements map
+        // Store references in the elements object (not using Map.set())
         if (battleGemBag) {
-            this.elements.set('gem-bag-container', battleGemBag);
+            this.elements['gem-bag-container'] = battleGemBag;
         }
         
         if (shopGemBag) {
-            this.elements.set('shop-gem-bag-container', shopGemBag);
+            this.elements['shop-gem-bag-container'] = shopGemBag;
         }
         
         // Common handler function
@@ -1913,13 +1939,21 @@ export default class UIManager {
             }
         });
         
+        // Update element references in the cache - FIXED from using Map.set() to using direct object assignment
+        const overlay = document.getElementById('gem-bag-overlay');
+        const closeButton = document.querySelector('#gem-bag-overlay .close-button');
+        const availableGemsContainer = document.getElementById('available-gems-container');
+        const playedGemsContainer = document.getElementById('played-gems-container');
+        const availableGemsCount = document.getElementById('available-gems-count');
+        const playedGemsCount = document.getElementById('played-gems-count');
+        
         // Update element references in the cache
-        if (overlay) this.elements.set('gem-bag-overlay', overlay);
-        if (closeButton) this.elements.set('gem-bag-close-button', closeButton);
-        if (availableGemsContainer) this.elements.set('available-gems-container', availableGemsContainer);
-        if (playedGemsContainer) this.elements.set('played-gems-container', playedGemsContainer);
-        if (availableGemsCount) this.elements.set('available-gems-count', availableGemsCount);
-        if (playedGemsCount) this.elements.set('played-gems-count', playedGemsCount);
+        if (overlay) this.elements['gem-bag-overlay'] = overlay;
+        if (closeButton) this.elements['gem-bag-close-button'] = closeButton;
+        if (availableGemsContainer) this.elements['available-gems-container'] = availableGemsContainer;
+        if (playedGemsContainer) this.elements['played-gems-container'] = playedGemsContainer;
+        if (availableGemsCount) this.elements['available-gems-count'] = availableGemsCount;
+        if (playedGemsCount) this.elements['played-gems-count'] = playedGemsCount;
         
         // Set up event handlers if elements exist
         if (closeButton) {
@@ -1934,7 +1968,7 @@ export default class UIManager {
             });
             
             // Update reference
-            this.elements.set('gem-bag-close-button', newCloseButton);
+            this.elements['gem-bag-close-button'] = newCloseButton;
         }
         
         // Add overlay background click handler
@@ -1945,7 +1979,7 @@ export default class UIManager {
             
             // Update element references after clone
             if (newOverlay) {
-                this.elements.set('gem-bag-overlay', newOverlay);
+                this.elements['gem-bag-overlay'] = newOverlay;
                 
                 // Find the new close button
                 const newCloseBtn = newOverlay.querySelector('.close-button');
@@ -1954,7 +1988,7 @@ export default class UIManager {
                         console.log("Close button (after clone) clicked, closing overlay");
                         this.eventBus.emit('overlay:close-gem-bag');
                     });
-                    this.elements.set('gem-bag-close-button', newCloseBtn);
+                    this.elements['gem-bag-close-button'] = newCloseBtn;
                 }
                 
                 // Add click handler for empty area of overlay
@@ -2007,8 +2041,13 @@ export default class UIManager {
         if (bagGems.length > 0) {
             bagGems.forEach(gem => {
                 const gemElement = this.createGemElement(gem, 'catalog');
-                this.elements.availableGemsContainer.appendChild(gemElement);
+                // EITHER append to the fragment (better performance)
+                availableFragment.appendChild(gemElement);
+                // OR append directly to the container (but not both)
+                // this.elements.availableGemsContainer.appendChild(gemElement);
             });
+            // Then append the fragment to the container
+            this.elements.availableGemsContainer.appendChild(availableFragment);
         } else {
             const emptyMessage = document.createElement('p');
             emptyMessage.textContent = 'No gems available in bag';
@@ -2022,8 +2061,13 @@ export default class UIManager {
             playedGems.forEach(gem => {
                 const gemElement = this.createGemElement(gem, 'catalog');
                 gemElement.classList.add('played');
-                this.elements.playedGemsContainer.appendChild(gemElement);
+                // EITHER append to the fragment (better performance)
+                playedFragment.appendChild(gemElement);
+                // OR append directly to the container (but not both)
+                // this.elements.playedGemsContainer.appendChild(gemElement);
             });
+            // Then append the fragment to the container
+            this.elements.playedGemsContainer.appendChild(playedFragment);
         } else {
             const emptyMessage = document.createElement('p');
             emptyMessage.textContent = 'No gems have been played yet';
@@ -2032,9 +2076,9 @@ export default class UIManager {
             this.elements.playedGemsContainer.appendChild(emptyMessage);
         }
         
-        // Add all gems to containers at once
-        availableGemsContainer.appendChild(availableFragment);
-        playedGemsContainer.appendChild(playedFragment);
+        // FIXED: Removed the problematic lines that tried to use undefined variables
+        // availableGemsContainer.appendChild(availableFragment);
+        // playedGemsContainer.appendChild(playedFragment);
         
         // Show the overlay
         this.elements.gemBagOverlay.style.display = 'block';
