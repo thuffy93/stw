@@ -88,29 +88,20 @@ export default class UIManager {
             
             // Audio button
             audioButton: document.getElementById('audio-button'),
-
-            gemBagOverlay: document.getElementById('gem-bag-overlay'),
-            gemBagCloseButton: null, // Will be set after overlay is added to DOM
-            availableGemsContainer: null, // Will be set after overlay is added to DOM
-            playedGemsContainer: null, // Will be set after overlay is added to DOM
-            availableGemsCount: null, // Will be set after overlay is added to DOM
-            playedGemsCount: null // Will be set after overlay is added to DOM
+ 
+            gemBagOverlay: null,
+            gemBagCloseButton: null,
+            availableGemsContainer: null,
+            playedGemsContainer: null,
+            availableGemsCount: null,
+            playedGemsCount: null
         };
 
-            // Ensure gem bag overlay event listeners are properly set up
-        this.eventBus.on('overlay:open-gem-bag', () => {
-            console.log('EventBus received overlay:open-gem-bag event');
-            this.openGemBagOverlay();
-        });
-        
-        this.eventBus.on('overlay:close-gem-bag', () => {
-            console.log('EventBus received overlay:close-gem-bag event');
-            this.closeGemBagOverlay();
-        });
-        
-        
-        // Set up basic event listeners
+        // Set up core event listeners once
         this.setupBasicEventListeners();
+        
+        // Track overlay state to prevent duplicate handling
+        this.overlayEventsBound = false;
         
         // Track selected gems in hand
         this.selectedGems = [];
@@ -148,12 +139,26 @@ export default class UIManager {
         // Listen for shop events
         this.eventBus.on('shop:enter', () => this.setupShop());
 
-            // Add event listeners for overlay
-            this.eventBus.on('overlay:open-gem-bag', () => this.openGemBagOverlay());
-            this.eventBus.on('overlay:close-gem-bag', () => this.closeGemBagOverlay());
-            
-            // Make gem bag containers clickable to emit overlay:open-gem-bag event
-            this.setupGemBagContainers();
+        // Add these new event listeners for overlay handling
+        this.eventBus.on('overlay:open-gem-bag', () => {
+            console.log('EventBus received overlay:open-gem-bag event');
+            this.openGemBagOverlay();
+        });
+        
+        this.eventBus.on('overlay:close-gem-bag', () => {
+            console.log('EventBus received overlay:close-gem-bag event');
+            this.closeGemBagOverlay();
+        });
+        
+        // Add Escape key listener at the global level (just once)
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && 
+                this.elements.gemBagOverlay && 
+                this.elements.gemBagOverlay.style.display === 'block') {
+                console.log('Escape key pressed, closing overlay');
+                this.eventBus.emit('overlay:close-gem-bag');
+            }
+        });
     }
     
     // Setup screen-specific event listeners
@@ -365,38 +370,25 @@ export default class UIManager {
             this.setupShop();
         }
         
-        // Get fresh state to ensure we have the latest data
+        // Get fresh state
         const state = this.stateManager.getState();
-        console.log(`Screen changed with state:`, {
-            currentScreen: state.currentScreen,
-            playerZenny: state.player ? state.player.zenny : 'unknown',
-            metaZenny: state.meta ? state.meta.zenny : 'unknown',
-            bagsGems: state.gems && state.gems.bag ? state.gems.bag.length : 'unknown'
-        });
         
-        // For shop screen, explicitly handle the initialization with delay
-        if (screenId === 'shop-screen') {
-            setTimeout(() => {
-                console.log("Setting up shop with delayed initialization");
-                this.setupShop();
-                // Ensure UI is also updated after shop setup
-                this.updateUI();
-            }, 100);
-        } else {
-            // Update UI for other screens immediately
-            this.updateUI();
-        }
+        // Update UI for screens
+        this.updateUI();
         
-            // Set up event listeners for the current screen
+        // Set up event listeners for the current screen
         this.setupScreenEventListeners(screenId);
-
-        // Important: Set up gem bag containers after screen change with a slight delay
-        // to ensure DOM elements are fully rendered
+    
+        // Important: Set up gem bag containers after screen change
+        // Reset overlay event binding flag to ensure proper setup
+        this.overlayEventsBound = false;
+        
+        // Use a single timeout to prevent race conditions
         setTimeout(() => {
             console.log('Setting up gem bag containers after screen change');
             this.setupGemBagContainers();
             this.updateOverlayElementReferences();
-        }, 200); // Slightly longer delay to ensure DOM is ready
+        }, 200);
     }
 
     
@@ -1887,45 +1879,45 @@ export default class UIManager {
         
         // Store references in the elements object
         if (battleGemBag) {
-            this.elements['gem-bag-container'] = battleGemBag;
+            this.elements.gemBagContainer = battleGemBag;
             
-            // Remove old event listeners by cloning and replacing
+            // Remove old event listeners (if any)
             const newBattleGemBag = battleGemBag.cloneNode(true);
             battleGemBag.parentNode.replaceChild(newBattleGemBag, battleGemBag);
             
-            // Add the event listener via addEventListener, not onclick
+            // Add event listener using EventBus
             newBattleGemBag.addEventListener('click', (e) => {
-                console.log('Battle gem bag clicked, emitting event via EventBus');
+                console.log('Battle gem bag clicked, emitting open event');
                 this.eventBus.emit('overlay:open-gem-bag');
                 e.stopPropagation();
             });
             
-            // Update the reference
-            this.elements['gem-bag-container'] = newBattleGemBag;
+            // Update reference
+            this.elements.gemBagContainer = newBattleGemBag;
             
-            // Add visual cue that it's clickable
+            // Add visual cue
             newBattleGemBag.style.cursor = 'pointer';
             newBattleGemBag.title = 'Click to view gem bag contents';
         }
         
         if (shopGemBag) {
-            this.elements['shop-gem-bag-container'] = shopGemBag;
+            this.elements.shopGemBagContainer = shopGemBag;
             
-            // Remove old event listeners by cloning and replacing
+            // Remove old event listeners (if any)
             const newShopGemBag = shopGemBag.cloneNode(true);
             shopGemBag.parentNode.replaceChild(newShopGemBag, shopGemBag);
             
-            // Add the event listener via addEventListener, not onclick
+            // Add event listener using EventBus
             newShopGemBag.addEventListener('click', (e) => {
-                console.log('Shop gem bag clicked, emitting event via EventBus');
+                console.log('Shop gem bag clicked, emitting open event');
                 this.eventBus.emit('overlay:open-gem-bag');
                 e.stopPropagation();
             });
             
-            // Update the reference
-            this.elements['shop-gem-bag-container'] = newShopGemBag;
+            // Update reference
+            this.elements.shopGemBagContainer = newShopGemBag;
             
-            // Add visual cue that it's clickable
+            // Add visual cue
             newShopGemBag.style.cursor = 'pointer';
             newShopGemBag.title = 'Click to view gem bag contents';
         }
@@ -1934,7 +1926,7 @@ export default class UIManager {
     }
     // This updates references to overlay elements after they're added to the DOM
     updateOverlayElementReferences() {
-        // Update overlay element references
+        // Get fresh references to overlay elements
         this.elements.gemBagOverlay = document.getElementById('gem-bag-overlay');
         this.elements.gemBagCloseButton = document.querySelector('#gem-bag-overlay .close-button');
         this.elements.availableGemsContainer = document.getElementById('available-gems-container');
@@ -1942,90 +1934,58 @@ export default class UIManager {
         this.elements.availableGemsCount = document.getElementById('available-gems-count');
         this.elements.playedGemsCount = document.getElementById('played-gems-count');
         
-        // Add click handlers for close button and outside clicks
-        if (this.elements.gemBagCloseButton) {
-            this.elements.gemBagCloseButton.onclick = () => {
-                this.eventBus.emit('overlay:close-gem-bag');
-            };
-        }
-        
-        if (this.elements.gemBagOverlay) {
+        // Only set up event handlers if not already bound
+        if (!this.overlayEventsBound && this.elements.gemBagOverlay) {
+            console.log('Setting up overlay event handlers');
+            
+            // Handle close button click
+            if (this.elements.gemBagCloseButton) {
+                // Remove existing listeners by cloning
+                const newCloseButton = this.elements.gemBagCloseButton.cloneNode(true);
+                this.elements.gemBagCloseButton.parentNode.replaceChild(newCloseButton, this.elements.gemBagCloseButton);
+                this.elements.gemBagCloseButton = newCloseButton;
+                
+                // Add single event listener that emits to EventBus
+                this.elements.gemBagCloseButton.addEventListener('click', (e) => {
+                    console.log('Close button clicked, emitting close event');
+                    this.eventBus.emit('overlay:close-gem-bag');
+                    e.stopPropagation(); // Prevent event from bubbling to overlay background
+                });
+            }
+            
+            // Handle clicking outside the content area (overlay background)
+            // Clone to remove existing listeners
+            const newOverlay = this.elements.gemBagOverlay.cloneNode(true);
+            this.elements.gemBagOverlay.parentNode.replaceChild(newOverlay, this.elements.gemBagOverlay);
+            this.elements.gemBagOverlay = newOverlay;
+            
+            // Re-establish references after cloning
+            this.elements.gemBagCloseButton = this.elements.gemBagOverlay.querySelector('.close-button');
+            this.elements.availableGemsContainer = this.elements.gemBagOverlay.querySelector('#available-gems-container');
+            this.elements.playedGemsContainer = this.elements.gemBagOverlay.querySelector('#played-gems-container');
+            this.elements.availableGemsCount = this.elements.gemBagOverlay.querySelector('#available-gems-count');
+            this.elements.playedGemsCount = this.elements.gemBagOverlay.querySelector('#played-gems-count');
+            
+            // Add event listener to close button after cloning overlay
+            if (this.elements.gemBagCloseButton) {
+                this.elements.gemBagCloseButton.addEventListener('click', (e) => {
+                    console.log('Close button (after overlay clone) clicked, emitting close event');
+                    this.eventBus.emit('overlay:close-gem-bag');
+                    e.stopPropagation();
+                });
+            }
+            
+            // Add click handler for overlay background
             this.elements.gemBagOverlay.addEventListener('click', (event) => {
                 if (event.target === this.elements.gemBagOverlay) {
+                    console.log('Overlay background clicked, emitting close event');
                     this.eventBus.emit('overlay:close-gem-bag');
                 }
             });
-        }
-        
-        // Add keyboard event listener for Escape key
-        document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && 
-                this.elements.gemBagOverlay && 
-                this.elements.gemBagOverlay.style.display === 'block') {
-                this.eventBus.emit('overlay:close-gem-bag');
-            }
-        });
-        
-        // Update element references in the cache - FIXED from using Map.set() to using direct object assignment
-        const overlay = document.getElementById('gem-bag-overlay');
-        const closeButton = document.querySelector('#gem-bag-overlay .close-button');
-        const availableGemsContainer = document.getElementById('available-gems-container');
-        const playedGemsContainer = document.getElementById('played-gems-container');
-        const availableGemsCount = document.getElementById('available-gems-count');
-        const playedGemsCount = document.getElementById('played-gems-count');
-        
-        // Update element references in the cache
-        if (overlay) this.elements['gem-bag-overlay'] = overlay;
-        if (closeButton) this.elements['gem-bag-close-button'] = closeButton;
-        if (availableGemsContainer) this.elements['available-gems-container'] = availableGemsContainer;
-        if (playedGemsContainer) this.elements['played-gems-container'] = playedGemsContainer;
-        if (availableGemsCount) this.elements['available-gems-count'] = availableGemsCount;
-        if (playedGemsCount) this.elements['played-gems-count'] = playedGemsCount;
-        
-        // Set up event handlers if elements exist
-        if (closeButton) {
-            // Make a copy to clean up event listeners
-            const newCloseButton = closeButton.cloneNode(true);
-            closeButton.parentNode.replaceChild(newCloseButton, closeButton);
             
-            // Add click handler
-            newCloseButton.addEventListener('click', () => {
-                console.log("Close button clicked, closing overlay");
-                this.eventBus.emit('overlay:close-gem-bag');
-            });
-            
-            // Update reference
-            this.elements['gem-bag-close-button'] = newCloseButton;
-        }
-        
-        // Add overlay background click handler
-        if (overlay) {
-            // Remove existing handlers first
-            const newOverlay = overlay.cloneNode(true);
-            overlay.parentNode.replaceChild(newOverlay, overlay);
-            
-            // Update element references after clone
-            if (newOverlay) {
-                this.elements['gem-bag-overlay'] = newOverlay;
-                
-                // Find the new close button
-                const newCloseBtn = newOverlay.querySelector('.close-button');
-                if (newCloseBtn) {
-                    newCloseBtn.addEventListener('click', () => {
-                        console.log("Close button (after clone) clicked, closing overlay");
-                        this.eventBus.emit('overlay:close-gem-bag');
-                    });
-                    this.elements['gem-bag-close-button'] = newCloseBtn;
-                }
-                
-                // Add click handler for empty area of overlay
-                newOverlay.addEventListener('click', (event) => {
-                    if (event.target === newOverlay) {
-                        console.log("Overlay background clicked, closing overlay");
-                        this.eventBus.emit('overlay:close-gem-bag');
-                    }
-                });
-            }
+            // Mark that we've bound these events to prevent duplicates
+            this.overlayEventsBound = true;
+            console.log('Overlay event handlers bound');
         }
     }
 
@@ -2033,7 +1993,7 @@ export default class UIManager {
     openGemBagOverlay() {
         console.log('Opening gem bag overlay');
         
-        // Make sure we have updated references
+        // Always update references first (but doesn't rebind events if already bound)
         this.updateOverlayElementReferences();
         
         // Get the current state
@@ -2041,48 +2001,38 @@ export default class UIManager {
         const { gems } = state;
         
         // Check if overlay elements exist
-        const overlay = document.getElementById('gem-bag-overlay');
-        const availableContainer = document.getElementById('available-gems-container');
-        const playedContainer = document.getElementById('played-gems-container');
-        
-        if (!overlay || !availableContainer || !playedContainer) {
+        if (!this.elements.gemBagOverlay || 
+            !this.elements.availableGemsContainer || 
+            !this.elements.playedGemsContainer) {
             console.error('Gem bag overlay elements not found in DOM');
-            
-            // Try to get references from elements object as fallback
-            if (this.elements.gemBagOverlay) {
-                console.log('Using cached references instead');
-                overlay = this.elements.gemBagOverlay;
-                availableContainer = this.elements.availableGemsContainer;
-                playedContainer = this.elements.playedGemsContainer;
-            } else {
-                console.error('Cannot open gem bag overlay: required elements missing');
-                return;
-            }
+            return;
         }
         
         // Clear previous content
-        availableContainer.innerHTML = '';
-        playedContainer.innerHTML = '';
+        this.elements.availableGemsContainer.innerHTML = '';
+        this.elements.playedGemsContainer.innerHTML = '';
         
         // Update the count displays
-        const availableCount = document.getElementById('available-gems-count');
-        const playedCount = document.getElementById('played-gems-count');
+        if (this.elements.availableGemsCount) {
+            this.elements.availableGemsCount.textContent = gems.bag ? gems.bag.length : 0;
+        }
         
-        if (availableCount) availableCount.textContent = gems.bag ? gems.bag.length : 0;
-        if (playedCount) playedCount.textContent = gems.played ? gems.played.length : 0;
+        if (this.elements.playedGemsCount) {
+            this.elements.playedGemsCount.textContent = gems.played ? gems.played.length : 0;
+        }
         
         // Render available gems (gems in bag)
         if (gems.bag && gems.bag.length > 0) {
             gems.bag.forEach(gem => {
                 const gemElement = this.createGemElement(gem, 'catalog');
-                availableContainer.appendChild(gemElement);
+                this.elements.availableGemsContainer.appendChild(gemElement);
             });
         } else {
             const emptyMessage = document.createElement('p');
             emptyMessage.textContent = 'No gems available in bag';
             emptyMessage.style.padding = '20px';
             emptyMessage.style.fontStyle = 'italic';
-            availableContainer.appendChild(emptyMessage);
+            this.elements.availableGemsContainer.appendChild(emptyMessage);
         }
         
         // Render played gems
@@ -2090,21 +2040,18 @@ export default class UIManager {
             gems.played.forEach(gem => {
                 const gemElement = this.createGemElement(gem, 'catalog');
                 gemElement.classList.add('played');
-                playedContainer.appendChild(gemElement);
+                this.elements.playedGemsContainer.appendChild(gemElement);
             });
         } else {
             const emptyMessage = document.createElement('p');
             emptyMessage.textContent = 'No gems have been played yet';
             emptyMessage.style.padding = '20px';
             emptyMessage.style.fontStyle = 'italic';
-            playedContainer.appendChild(emptyMessage);
+            this.elements.playedGemsContainer.appendChild(emptyMessage);
         }
         
         // Show the overlay
-        overlay.style.display = 'block';
-        
-        // Emit event that overlay has been opened
-        this.eventBus.emit('overlay:gem-bag-opened');
+        this.elements.gemBagOverlay.style.display = 'block';
     }
 
     // This handles the overlay:close-gem-bag event
@@ -2113,18 +2060,13 @@ export default class UIManager {
         
         if (this.elements.gemBagOverlay) {
             this.elements.gemBagOverlay.style.display = 'none';
-            
-            // Emit event that overlay has been closed
-            this.eventBus.emit('overlay:gem-bag-closed');
         }
     }
     
     // Memory management - remove event listeners when component is destroyed
     destroy() {
         // Remove global event listeners
-        if (this._escapeKeyHandler) {
-            document.removeEventListener('keydown', this._escapeKeyHandler);
-        }
+        document.removeEventListener('keydown', this._escapeKeyHandler);
         
         // Clear any pending timeouts
         if (this._messageTimeout) {
@@ -2135,9 +2077,12 @@ export default class UIManager {
             clearTimeout(this._shopRefreshTimeout);
         }
         
-        // Clear the event bus
-        // Note: In a real implementation, you'd unsubscribe from specific events
-        // This is a simplified example
+        // Unsubscribe from EventBus events - only if EventBus provides an 'off' method
+        // Check if the off method exists to avoid errors
+        if (this.eventBus && typeof this.eventBus.off === 'function') {
+            this.eventBus.off('overlay:open-gem-bag');
+            this.eventBus.off('overlay:close-gem-bag');
+        }
         
         console.log('UIManager destroyed, event listeners cleaned up');
     }
