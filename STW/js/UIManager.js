@@ -1,8 +1,9 @@
 // UIManager.js - Handles UI rendering and interactions
 export default class UIManager {
-    constructor(eventBus, stateManager) {
+    constructor(eventBus, stateManager, gemManager) {
         this.eventBus = eventBus;
         this.stateManager = stateManager;
+        this.gemManager = gemManager;
         
         // Store DOM element references
         this.elements = {
@@ -636,14 +637,14 @@ export default class UIManager {
         this.renderHand();
         
         // MODIFIED: Get current gem bag size from state
-        const currentBagSize = state.gemBagSize || 20;
+        const currentBagSize = this.gemManager.getGemBagSize();
         
         // Update gem bag count
         this.elements.gemBagCount.textContent = gems.bag.length;
         this.elements.gemBagCount2.textContent = gems.bag.length;
         this.elements.gemBagTotal.textContent = currentBagSize;
         this.elements.gemBagTotal2.textContent = currentBagSize;
-        
+
         // Update button states
         this.updateBattleButtons();
     }
@@ -1024,7 +1025,7 @@ export default class UIManager {
     }
     
     // Update shop UI
-    updateShopUI() {
+        updateShopUI() {
         // Get a fresh state reference
         const state = this.stateManager.getState();
         if (!state || !state.player) {
@@ -1042,8 +1043,8 @@ export default class UIManager {
         // Render gems in hand if needed
         this.renderShopHand();
         
-        // MODIFIED: Get current gem bag size from state
-        const currentBagSize = state.gemBagSize || 20;
+        // MODIFIED: Get current gem bag size from gemManager
+        const currentBagSize = this.gemManager.getGemBagSize();
         
         // Update gem bag count
         this.elements.shopGemBagCount.textContent = gems.bag.length;

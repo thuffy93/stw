@@ -85,8 +85,8 @@ class Game {
         this.shopManager = new ShopManager(this.eventBus, this.stateManager, this.gemManager);
         
         // Create the UI manager
-        this.uiManager = new UIManager(this.eventBus, this.stateManager);
-        
+        this.uiManager = new UIManager(this.eventBus, this.stateManager, this.gemManager);
+
         // Create the camp manager
         this.campManager = new CampManager(this.eventBus, this.stateManager, this.battleManager);
         
