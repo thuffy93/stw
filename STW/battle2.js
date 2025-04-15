@@ -13,22 +13,22 @@ export default class BattleManager {
                     {
                         id: 'grunt1',
                         name: 'Small Grunt',
-                        health: 25, // Increased from 20 to match player power
-                        maxHealth: 25,
-                        attack: 8, // Same
+                        health: 20,
+                        maxHealth: 20,
+                        attack: 8,
                         image: '👹',
-                        zenny: 4, // Increased from 3 - better rewards
+                        zenny: 3,
                         actions: ['attack'],
                         difficulty: 1
                     },
                     {
                         id: 'rat1',
                         name: 'Giant Rat',
-                        health: 20, // Increased from 16
-                        maxHealth: 20,
-                        attack: 7, // Increased from 6
+                        health: 16,
+                        maxHealth: 16,
+                        attack: 6,
                         image: '🐀',
-                        zenny: 3, // Increased from 2
+                        zenny: 2,
                         actions: ['attack', 'gnaw'], // gnaw causes bleeding (DoT)
                         difficulty: 1
                     }
@@ -37,22 +37,22 @@ export default class BattleManager {
                     {
                         id: 'bandit1',
                         name: 'Bandit',
-                        health: 30, // Increased from 25
-                        maxHealth: 30,
-                        attack: 10, // Same
+                        health: 25,
+                        maxHealth: 25,
+                        attack: 10,
                         image: '💀',
-                        zenny: 6, // Increased from 5
+                        zenny: 5,
                         actions: ['attack', 'defend', 'steal'],
                         difficulty: 2
                     },
                     {
                         id: 'spider1',
                         name: 'Cave Spider',
-                        health: 28, // Increased from 22
-                        maxHealth: 28,
-                        attack: 9, // Same
+                        health: 22,
+                        maxHealth: 22,
+                        attack: 9,
                         image: '🕷️',
-                        zenny: 5, // Increased from 4
+                        zenny: 4,
                         actions: ['attack', 'web'], // web reduces player stamina recovery
                         difficulty: 2
                     }
@@ -61,11 +61,11 @@ export default class BattleManager {
                     {
                         id: 'wolf1',
                         name: 'Shadow Wolf',
-                        health: 40, // Increased from 35
-                        maxHealth: 40,
-                        attack: 12, // Same - first boss should be challenging but fair
+                        health: 35,
+                        maxHealth: 35,
+                        attack: 12,
                         image: '🐺',
-                        zenny: 12, // Increased from 10
+                        zenny: 10,
                         actions: ['attack', 'howl', 'bite'], // bite is a stronger attack with a chance to stun
                         difficulty: 3
                     }
@@ -77,22 +77,22 @@ export default class BattleManager {
                     {
                         id: 'grunt2',
                         name: 'Angry Grunt',
-                        health: 35, // Increased from 30
-                        maxHealth: 35,
-                        attack: 11, // Increased from 10
+                        health: 30,
+                        maxHealth: 30,
+                        attack: 10,
                         image: '👹',
-                        zenny: 6, // Increased from 5
+                        zenny: 5,
                         actions: ['attack', 'enrage'], // enrage increases attack permanently
                         difficulty: 3
                     },
                     {
                         id: 'slime1',
                         name: 'Toxic Slime',
-                        health: 32, // Increased from 28
-                        maxHealth: 32,
-                        attack: 10, // Increased from 9
+                        health: 28,
+                        maxHealth: 28,
+                        attack: 9,
                         image: '🟢',
-                        zenny: 7, // Increased from 6
+                        zenny: 6,
                         actions: ['attack', 'split', 'toxic'], // split: spawns a mini-slime, toxic: applies poison
                         difficulty: 3
                     }
@@ -101,22 +101,22 @@ export default class BattleManager {
                     {
                         id: 'bandit2',
                         name: 'Bandit Leader',
-                        health: 40, // Increased from 35
-                        maxHealth: 40,
-                        attack: 13, // Increased from 12
+                        health: 35,
+                        maxHealth: 35,
+                        attack: 12,
                         image: '💀',
-                        zenny: 9, // Increased from 8
+                        zenny: 8,
                         actions: ['attack', 'defend', 'steal', 'rally'], // rally summons a weak bandit ally
                         difficulty: 4
                     },
                     {
                         id: 'phantom1',
                         name: 'Cave Phantom',
-                        health: 38, // Increased from 32
-                        maxHealth: 38,
-                        attack: 14, // Same - already high
+                        health: 32,
+                        maxHealth: 32,
+                        attack: 14,
                         image: '👻',
-                        zenny: 10, // Increased from 9
+                        zenny: 9,
                         actions: ['attack', 'phase', 'haunt'], // phase: gains temporary invulnerability, haunt: reduces player damage
                         difficulty: 4
                     }
@@ -125,11 +125,11 @@ export default class BattleManager {
                     {
                         id: 'goblin1',
                         name: 'Goblin King',
-                        health: 55, // Increased from 45
-                        maxHealth: 55,
-                        attack: 16, // Increased from 15
+                        health: 45,
+                        maxHealth: 45,
+                        attack: 15,
                         image: '👿',
-                        zenny: 18, // Increased from 15
+                        zenny: 15,
                         actions: ['attack', 'summon', 'poison', 'steal'], // summon adds extra damage
                         specialLoot: true, // chance to drop special gem
                         difficulty: 5
@@ -142,22 +142,22 @@ export default class BattleManager {
                     {
                         id: 'witch1',
                         name: 'Forest Witch',
-                        health: 48, // Increased from 40
-                        maxHealth: 48,
-                        attack: 14, // Increased from 12
+                        health: 40,
+                        maxHealth: 40,
+                        attack: 12,
                         image: '🧙‍♀️',
-                        zenny: 10, // Increased from 8
+                        zenny: 8,
                         actions: ['attack', 'curse', 'heal', 'hex'], // hex adds random debuff
                         difficulty: 5
                     },
                     {
                         id: 'troll1',
                         name: 'Moss Troll',
-                        health: 60, // Increased from 50
-                        maxHealth: 60,
-                        attack: 15, // Increased from 14
+                        health: 50,
+                        maxHealth: 50,
+                        attack: 14,
                         image: '👹',
-                        zenny: 12, // Increased from 10
+                        zenny: 10,
                         actions: ['attack', 'crush', 'regenerate'], // crush: high damage attack, regenerate: heal over time
                         difficulty: 5
                     }
@@ -166,22 +166,22 @@ export default class BattleManager {
                     {
                         id: 'golem1',
                         name: 'Stone Golem',
-                        health: 65, // Increased from 55
-                        maxHealth: 65,
-                        attack: 16, // Increased from 14
+                        health: 55,
+                        maxHealth: 55,
+                        attack: 14,
                         image: '🗿',
-                        zenny: 14, // Increased from 12
+                        zenny: 12,
                         actions: ['attack', 'harden', 'earthquake'], // earthquake damages and has chance to stun
                         difficulty: 6
                     },
                     {
                         id: 'enchanter1',
                         name: 'Dark Enchanter',
-                        health: 55, // Increased from 45
-                        maxHealth: 55,
-                        attack: 18, // Increased from 16
+                        health: 45,
+                        maxHealth: 45,
+                        attack: 16,
                         image: '🧙‍♂️',
-                        zenny: 16, // Increased from 14
+                        zenny: 14,
                         actions: ['attack', 'drain', 'enchant', 'teleport'], // drain steals health, enchant buffs golem if present, teleport skips turn but gains defense
                         difficulty: 6
                     }
@@ -190,11 +190,11 @@ export default class BattleManager {
                     {
                         id: 'dragon1',
                         name: 'Young Dragon',
-                        health: 80, // Increased from 65 - major boss
-                        maxHealth: 80,
-                        attack: 20, // Increased from 18
+                        health: 65,
+                        maxHealth: 65,
+                        attack: 18,
                         image: '🐉',
-                        zenny: 25, // Increased from 20
+                        zenny: 20,
                         actions: ['attack', 'breathe', 'tail', 'wing'], // wing is AOE with stamina reduction
                         specialLoot: true,
                         difficulty: 7
@@ -207,22 +207,22 @@ export default class BattleManager {
                     {
                         id: 'elemental1',
                         name: 'Fire Elemental',
-                        health: 70, // Increased from 60
-                        maxHealth: 70,
-                        attack: 18, // Increased from 16
+                        health: 60,
+                        maxHealth: 60,
+                        attack: 16,
                         image: '🔥',
-                        zenny: 18, // Increased from 15
+                        zenny: 15,
                         actions: ['attack', 'ignite', 'heatwave'], // ignite: DoT, heatwave: AOE
                         difficulty: 7
                     },
                     {
                         id: 'knight1',
                         name: 'Fallen Knight',
-                        health: 75, // Increased from 65
-                        maxHealth: 75,
-                        attack: 20, // Increased from 18
+                        health: 65,
+                        maxHealth: 65,
+                        attack: 18,
                         image: '🗡️',
-                        zenny: 20, // Increased from 18
+                        zenny: 18,
                         actions: ['attack', 'parry', 'charge'], // parry: reflects damage, charge: high damage after delay
                         difficulty: 7
                     }
@@ -231,22 +231,22 @@ export default class BattleManager {
                     {
                         id: 'lich1',
                         name: 'Undead Lich',
-                        health: 85, // Increased from 70
-                        maxHealth: 85,
-                        attack: 22, // Increased from 20
+                        health: 70,
+                        maxHealth: 70,
+                        attack: 20,
                         image: '💀',
-                        zenny: 22, // Increased from 20
+                        zenny: 20,
                         actions: ['attack', 'drain', 'revive', 'curse'], // revive once from death
                         difficulty: 8
                     },
                     {
                         id: 'demon1',
                         name: 'Lesser Demon',
-                        health: 90, // Increased from 75
-                        maxHealth: 90,
-                        attack: 24, // Increased from 22
+                        health: 75,
+                        maxHealth: 75,
+                        attack: 22,
                         image: '😈',
-                        zenny: 25, // Increased from 22
+                        zenny: 22,
                         actions: ['attack', 'fireball', 'tempt', 'consume'], // tempt: steal gems, consume: restore health based on stolen gems
                         difficulty: 8
                     }
@@ -255,11 +255,11 @@ export default class BattleManager {
                     {
                         id: 'darkness1',
                         name: 'Avatar of Darkness',
-                        health: 105, // Increased from 85
-                        maxHealth: 105,
-                        attack: 26, // Increased from 24
+                        health: 85,
+                        maxHealth: 85,
+                        attack: 24,
                         image: '🌑',
-                        zenny: 35, // Increased from 30
+                        zenny: 30,
                         actions: ['attack', 'eclipse', 'void', 'consume'],
                         specialLoot: true,
                         difficulty: 9
@@ -272,11 +272,11 @@ export default class BattleManager {
                     {
                         id: 'hunter1',
                         name: 'Shadow Hunter',
-                        health: 95, // Increased from 75
-                        maxHealth: 95,
-                        attack: 24, // Increased from 22
+                        health: 75,
+                        maxHealth: 75,
+                        attack: 22,
                         image: '🏹',
-                        zenny: 28, // Increased from 25
+                        zenny: 25,
                         actions: ['attack', 'snipe', 'trap', 'track'], // snipe: targeted attack at weakness, trap: reduces player stamina, track: increases future hit chance
                         difficulty: 9
                     }
@@ -285,11 +285,11 @@ export default class BattleManager {
                     {
                         id: 'sorcerer1',
                         name: 'Astral Sorcerer',
-                        health: 100, // Increased from 80
-                        maxHealth: 100,
-                        attack: 26, // Increased from 25
+                        health: 80,
+                        maxHealth: 80,
+                        attack: 25,
                         image: '✨',
-                        zenny: 32, // Increased from 28
+                        zenny: 28,
                         actions: ['attack', 'meteor', 'banish', 'warp'], // meteor: high damage AOE, banish: removes random gem from hand, warp: skips turn but gains strong buff
                         difficulty: 10
                     }
@@ -298,11 +298,11 @@ export default class BattleManager {
                     {
                         id: 'titan1',
                         name: 'Ancient Titan',
-                        health: 125, // Increased from 100
-                        maxHealth: 125,
-                        attack: 30, // Increased from 28
+                        health: 100,
+                        maxHealth: 100,
+                        attack: 28,
                         image: '🗿',
-                        zenny: 40, // Increased from 35
+                        zenny: 35,
                         actions: ['attack', 'smash', 'earthquake', 'roar'], // High damage attacks with various side effects
                         specialLoot: true,
                         difficulty: 11
@@ -314,11 +314,11 @@ export default class BattleManager {
                     {
                         id: 'vampire1',
                         name: 'Vampire Lord',
-                        health: 110, // Increased from 90
-                        maxHealth: 110,
-                        attack: 28, // Increased from 26
+                        health: 90,
+                        maxHealth: 90,
+                        attack: 26,
                         image: '🧛',
-                        zenny: 35, // Increased from 30
+                        zenny: 30,
                         actions: ['attack', 'drain', 'charm', 'mist'], // charm: take control of player for one turn, mist: becomes untargetable
                         difficulty: 11
                     }
@@ -327,11 +327,11 @@ export default class BattleManager {
                     {
                         id: 'wraith1',
                         name: 'Elder Wraith',
-                        health: 120, // Increased from 95
-                        maxHealth: 120,
-                        attack: 30, // Increased from 28
+                        health: 95,
+                        maxHealth: 95,
+                        attack: 28,
                         image: '👻',
-                        zenny: 40, // Increased from 35
+                        zenny: 35,
                         actions: ['attack', 'possess', 'haunt', 'drain'], // possess: use player's gems against them
                         difficulty: 12
                     }
@@ -340,11 +340,11 @@ export default class BattleManager {
                     {
                         id: 'guardian1',
                         name: 'Castle Guardian',
-                        health: 140, // Increased from 120
-                        maxHealth: 140,
-                        attack: 32, // Increased from 30
+                        health: 120,
+                        maxHealth: 120,
+                        attack: 30,
                         image: '🛡️',
-                        zenny: 45, // Increased from 40
+                        zenny: 40,
                         actions: ['attack', 'shield', 'bash', 'judgment'], // judgment: damage based on player's gems
                         specialLoot: true,
                         difficulty: 13
@@ -356,11 +356,11 @@ export default class BattleManager {
                     {
                         id: 'general1',
                         name: 'Dark General',
-                        health: 130, // Increased from 110
-                        maxHealth: 130,
-                        attack: 34, // Increased from 32
+                        health: 110,
+                        maxHealth: 110,
+                        attack: 32,
                         image: '⚔️',
-                        zenny: 45, // Increased from 40
+                        zenny: 40,
                         actions: ['attack', 'command', 'execute', 'rally'], // command: summons minions, execute: high damage to low health player
                         difficulty: 13
                     }
@@ -369,11 +369,11 @@ export default class BattleManager {
                     {
                         id: 'mage1',
                         name: 'Royal Dark Mage',
-                        health: 140, // Increased from 115
-                        maxHealth: 140,
-                        attack: 38, // Increased from 35
+                        health: 115,
+                        maxHealth: 115,
+                        attack: 35,
                         image: '🔮',
-                        zenny: 50, // Increased from 45
+                        zenny: 45,
                         actions: ['attack', 'ritual', 'arcane', 'bind'], // ritual: buffs the Dark Lord if fought after, arcane: high magic damage, bind: disables a random gem color
                         difficulty: 14
                     }
@@ -382,11 +382,11 @@ export default class BattleManager {
                     {
                         id: 'darkLord',
                         name: 'The Dark Lord',
-                        health: 180, // Increased from 150 - epic final boss
-                        maxHealth: 180,
-                        attack: 42, // Increased from 40
+                        health: 150,
+                        maxHealth: 150,
+                        attack: 40,
                         image: '👑',
-                        zenny: 120, // Increased from 100
+                        zenny: 100,
                         actions: ['attack', 'darkness', 'summon', 'drain', 'execute', 'ultimate'],
                         phases: true, // Has multiple phases with different behavior
                         specialLoot: true,
@@ -420,26 +420,12 @@ export default class BattleManager {
         });
     }
     
-    // Clean version of trackStaminaUsed without debugging code
     trackStaminaUsed(amount) {
+        // Existing code...
+        // No changes needed here
         const state = this.stateManager.getState();
         const currentStaminaUsed = state.battle.staminaUsed || 0;
         
-        // Simple debounce mechanism to prevent double-tracking
-        const now = Date.now();
-        const lastTrackedTime = this._lastStaminaTrackedTime || 0;
-        const lastTrackedAmount = this._lastStaminaAmount || 0;
-        
-        // If the same amount is being tracked within 100ms, it's likely a duplicate
-        if (amount === lastTrackedAmount && (now - lastTrackedTime) < 100) {
-            return; // Skip duplicate tracking
-        }
-        
-        // Store tracking information for debounce checking
-        this._lastStaminaTrackedTime = now;
-        this._lastStaminaAmount = amount;
-        
-        // Update the state
         this.stateManager.updateState({
             battle: {
                 staminaUsed: currentStaminaUsed + amount
@@ -556,7 +542,10 @@ export default class BattleManager {
         };
     }
     
+    // Process gem effects when played
     processGemEffect(gem) {
+        // Existing code...
+        // No changes needed here
         if (!gem.success) {
             this.processGemFailure(gem);
             return;
@@ -594,104 +583,31 @@ export default class BattleManager {
                     damageAmount = Math.floor(damageAmount * 1.5); // 50% bonus
                 }
                 
-                // Apply any active player buffs - FIXED: Added safety check
+                // Apply any active buffs - FIXED: Added safety check
                 if (player.buffs && player.buffs.some(buff => buff.type === 'focus')) {
                     damageAmount = Math.floor(damageAmount * 1.2); // 20% bonus from focus
                 }
                 
-                // Check for player debuffs that reduce damage output
-                if (player.buffs) {
-                    // Various debuff checks...
-                }
-                
-                // FIXED: Check if enemy is phased (invulnerable)
-                if (enemy.buffs && enemy.buffs.some(buff => buff.type === 'phased')) {
-                    // Enemy is invulnerable - no damage
-                    this.eventBus.emit('message:show', {
-                        text: `${enemy.name} is phased out of reality! Your attack passes through harmlessly!`,
-                        type: 'error'
-                    });
-                    
-                    // No damage applied - enemy health stays the same
-                    enemyUpdates.health = enemy.health;
-                    break;
-                }
-                
-                // FIXED: Check for enemy defense buff
-                let actualDamage = damageAmount;
-                let blockedDamage = 0;
-                
-                const enemyDefenseBuff = enemy.buffs && enemy.buffs.find(buff => buff.type === 'defense');
-                if (enemyDefenseBuff) {
-                    // NEW: Check for piercing augmentation
-                    let defenseToBePierced = 0;
-                    if (gem.augmentation === 'piercing' && gem.defenseBypass) {
-                        defenseToBePierced = Math.floor(enemyDefenseBuff.value * gem.defenseBypass);
-                        
-                        // Show piercing message
-                        this.eventBus.emit('message:show', {
-                            text: `Piercing gem bypasses ${defenseToBePierced} of enemy defense!`,
-                            type: 'success'
-                        });
-                    }
-                    
-                    // Reduce damage by defense value (minus pierced amount), minimum 1
-                    actualDamage = Math.max(1, damageAmount - (enemyDefenseBuff.value - defenseToBePierced));
-                    blockedDamage = damageAmount - actualDamage;
-                    
-                    // Show damage reduction message
-                    if (blockedDamage > 0) {
-                        this.eventBus.emit('message:show', {
-                            text: `${enemy.name}'s defense blocked ${blockedDamage} damage!`,
-                            type: 'info'
-                        });
-                    }
-                }
-                
-                // Check for parrying buff and other enemy effects...
-                
                 // Apply damage to enemy
-                const newEnemyHealth = Math.max(0, enemy.health - actualDamage);
+                const newEnemyHealth = Math.max(0, enemy.health - damageAmount);
                 enemyUpdates.health = newEnemyHealth;
                 
-                // Emit damage event with blocked amount
+                // Emit damage event
                 this.eventBus.emit('enemy:damaged', {
-                    amount: actualDamage,
-                    blocked: blockedDamage,
+                    amount: damageAmount,
                     gem: gem
                 });
                 
                 // Check for victory
                 if (newEnemyHealth <= 0) {
-                    // Update state before ending battle
-                    this.stateManager.updateState({
-                        player: {
-                            ...player,
-                            ...playerUpdates,
-                            buffs: newBuffs
-                        },
-                        battle: {
-                            enemy: {
-                                ...enemy,
-                                ...enemyUpdates,
-                                buffs: updatedEnemyBuffs
-                            }
-                        }
-                    });
-                    
                     this.endBattle(true);
                     return;
                 }
                 
-                // NEW: Handle swift augmentation effect (draw an extra gem)
-                if (gem.augmentation === 'swift' || gem.specialEffect === 'draw') {
-                    console.log("Swift gem effect: Drawing an extra gem");
+                // Special case for Quick Attack (now using specialEffect property)
+                if (gem.specialEffect === 'draw') {
+                    console.log("Quick Attack special effect: Drawing an extra gem");
                     this.gemManager.drawGems(1);
-                    
-                    this.eventBus.emit('message:show', {
-                        text: `Swift gem allows you to draw an extra gem!`,
-                        type: 'success'
-                    });
                 }
                 break;
                 
@@ -708,17 +624,6 @@ export default class BattleManager {
                     healAmount = Math.floor(healAmount * 1.2); // 20% bonus from focus
                 }
                 
-                // NEW: Apply powerful augmentation bonus to healing
-                if (gem.augmentation === 'powerful') {
-                    const powerfulBonus = Math.floor(healAmount * 0.3); // 30% extra healing
-                    healAmount += powerfulBonus;
-                    
-                    this.eventBus.emit('message:show', {
-                        text: `Powerful healing provides ${powerfulBonus} extra health!`,
-                        type: 'success'
-                    });
-                }
-                
                 // Apply healing (cap at max health)
                 const updatedHealth = Math.min(player.maxHealth, player.health + healAmount);
                 playerUpdates.health = updatedHealth;
@@ -728,17 +633,6 @@ export default class BattleManager {
                     amount: healAmount,
                     gem: gem
                 });
-                
-                // NEW: Handle swift augmentation effect for healing gems too
-                if (gem.augmentation === 'swift' || gem.specialEffect === 'draw') {
-                    console.log("Swift healing gem: Drawing an extra gem");
-                    this.gemManager.drawGems(1);
-                    
-                    this.eventBus.emit('message:show', {
-                        text: `Swift healing allows you to draw an extra gem!`,
-                        type: 'success'
-                    });
-                }
                 break;
                 
             case 'shield':
@@ -749,36 +643,14 @@ export default class BattleManager {
                     defenseAmount = Math.floor(defenseAmount * 1.5); // 50% bonus
                 }
                 
-                // NEW: Apply powerful augmentation to defense
-                if (gem.augmentation === 'powerful') {
-                    const powerfulBonus = Math.floor(defenseAmount * 0.3); // 30% extra defense
-                    defenseAmount += powerfulBonus;
-                    
-                    this.eventBus.emit('message:show', {
-                        text: `Powerful shield provides ${powerfulBonus} extra defense!`,
-                        type: 'success'
-                    });
-                }
-                
                 // Remove existing defense buff - FIXED: Added safety check
                 const updatedBuffs = player.buffs ? player.buffs.filter(b => b.type !== 'defense') : [];
-                
-                // NEW: Handle lasting augmentation by extending duration
-                let defenseDuration = gem.duration || 2;
-                if (gem.augmentation === 'lasting') {
-                    defenseDuration += 2; // Add 2 more turns of duration
-                    
-                    this.eventBus.emit('message:show', {
-                        text: `Lasting shield will remain for ${defenseDuration} turns!`,
-                        type: 'success'
-                    });
-                }
                 
                 // Add defense buff
                 const defenseBuff = {
                     type: 'defense',
                     value: defenseAmount,
-                    duration: defenseDuration
+                    duration: gem.duration || 2
                 };
                 
                 newBuffs.push(defenseBuff);
@@ -786,20 +658,9 @@ export default class BattleManager {
                 // Emit shield event
                 this.eventBus.emit('player:shielded', {
                     defense: defenseAmount,
-                    duration: defenseDuration,
+                    duration: gem.duration || 2,
                     gem: gem
                 });
-                
-                // Handle swift augmentation effect
-                if (gem.augmentation === 'swift' || gem.specialEffect === 'draw') {
-                    console.log("Swift shield gem: Drawing an extra gem");
-                    this.gemManager.drawGems(1);
-                    
-                    this.eventBus.emit('message:show', {
-                        text: `Swift shield allows you to draw an extra gem!`,
-                        type: 'success'
-                    });
-                }
                 break;
                 
             case 'poison':
@@ -810,33 +671,11 @@ export default class BattleManager {
                     poisonAmount = Math.floor(poisonAmount * 1.5); // 50% bonus
                 }
                 
-                // NEW: Apply powerful augmentation to poison
-                if (gem.augmentation === 'powerful') {
-                    const powerfulBonus = Math.floor(poisonAmount * 0.3); // 30% extra poison
-                    poisonAmount += powerfulBonus;
-                    
-                    this.eventBus.emit('message:show', {
-                        text: `Powerful poison causes ${powerfulBonus} extra damage per turn!`,
-                        type: 'success'
-                    });
-                }
-                
-                // NEW: Handle lasting augmentation for DoT effects
-                let poisonDuration = gem.duration || 3;
-                if (gem.augmentation === 'lasting') {
-                    poisonDuration += 2; // Add 2 more turns of duration
-                    
-                    this.eventBus.emit('message:show', {
-                        text: `Lasting poison will remain for ${poisonDuration} turns!`,
-                        type: 'success'
-                    });
-                }
-                
                 // Add poison debuff to enemy
                 const poisonBuff = {
                     type: 'poison',
                     value: poisonAmount,
-                    duration: poisonDuration
+                    duration: gem.duration || 3
                 };
                 
                 updatedEnemyBuffs.push(poisonBuff);
@@ -844,19 +683,8 @@ export default class BattleManager {
                 // Emit poison event
                 this.eventBus.emit('enemy:poisoned', {
                     amount: poisonAmount,
-                    duration: poisonDuration
+                    duration: gem.duration || 3
                 });
-                
-                // Handle swift augmentation effect
-                if (gem.augmentation === 'swift' || gem.specialEffect === 'draw') {
-                    console.log("Swift poison gem: Drawing an extra gem");
-                    this.gemManager.drawGems(1);
-                    
-                    this.eventBus.emit('message:show', {
-                        text: `Swift poison allows you to draw an extra gem!`,
-                        type: 'success'
-                    });
-                }
                 break;
         }
         
@@ -875,49 +703,6 @@ export default class BattleManager {
                 }
             }
         });
-        
-        // Handle gem draw effect after state update
-        if (gem.specialEffect === 'draw') {
-            setTimeout(() => {
-                this.gemManager.drawGems(1);
-            }, 300);
-        }
-        const parryingBuff = enemy.buffs && enemy.buffs.find(buff => buff.type === 'parrying');
-        if (parryingBuff) {
-            // Calculate reflected damage
-            const reflectDamage = Math.floor(actualDamage * parryingBuff.value);
-            
-            // Apply reflected damage to player
-            const newPlayerHealth = Math.max(0, player.health - reflectDamage);
-            playerUpdates.health = newPlayerHealth;
-            
-            // Show parry message
-            this.eventBus.emit('message:show', {
-                text: `${enemy.name} parried your attack and reflected ${reflectDamage} damage back to you!`,
-                type: 'error'
-            });
-            
-            // Emit damage event for player
-            this.eventBus.emit('player:damaged', {
-                amount: reflectDamage,
-                source: 'enemy-parry',
-                enemy
-            });
-            
-            // Check for player defeat from parry
-            if (newPlayerHealth <= 0) {
-                // Update state before ending battle
-                this.stateManager.updateState({
-                    player: {
-                        ...player,
-                        ...playerUpdates
-                    }
-                });
-                
-                this.endBattle(false);
-                return;
-            }
-        }
     }
     // Process gem failure - add this method if it doesn't exist
     processGemFailure(gem) {
@@ -1007,10 +792,10 @@ export default class BattleManager {
             this.endBattle(false);
         }
     }
-    // This is the updated processEndOfTurn method for BattleManager.js
-    // with the new consistent stamina recovery system
-
+    // Process end of turn effects
     processEndOfTurn() {
+        // Existing code...
+        // No changes needed here
         const state = this.stateManager.getState();
         const { battle, player } = state;
         
@@ -1031,31 +816,43 @@ export default class BattleManager {
                 this.processEnemyTurn();
             }, 1000);
         } else {
-            // FIXED: Process active status effects only, don't reduce durations yet
+            // Process buffs and debuffs at end of round
             this.processStatusEffects();
             
+            // Calculate stamina recovery based on how much was used
             const staminaUsed = battle.staminaUsed || 0;
-
-            // New formula with specific handling for case of 2 stamina used
+            
+            // For waiting, discarding, or just ending turn (staminaUsed = 0),
+            // provide maximum recovery of 3 stamina
             let staminaRecovery;
-            if (staminaUsed === 2) {
-                // Explicit handling for 2 stamina used to ensure it recovers 2
-                staminaRecovery = 2;
+            if (staminaUsed === 0) {
+                // If player waited, discarded, or just ended turn, recover 3 stamina
+                staminaRecovery = 3;
             } else {
-                // Normal formula for other cases
-                staminaRecovery = Math.max(1, 3 - Math.ceil(staminaUsed / 2));
-                
+                // Otherwise, calculate recovery based on the specific amount used
+                if (staminaUsed === 1) {
+                    // Recover 2 stamina if 1 was used
+                    staminaRecovery = 2;
+                } else if (staminaUsed === 2) {
+                    // Recover 1 stamina if 2 were used
+                    staminaRecovery = 1;
+                } else {
+                    // Recover 2 stamina if 3+ were used
+                    staminaRecovery = 2;
+                }
             }
-
-            // Apply web debuff effect (if present)
+            
+            // Apply web debuff effect (new enemy ability)
             if (player.buffs && player.buffs.some(buff => buff.type === 'webbed')) {
-                const oldRecovery = staminaRecovery;
                 staminaRecovery = Math.max(1, Math.floor(staminaRecovery / 2));
+                console.log(`Spider web reduced stamina recovery to ${staminaRecovery}`);
             }
-
+            
             // Calculate new stamina value (don't exceed max)
             const newStamina = Math.min(player.maxStamina, player.stamina + staminaRecovery);
-
+            
+            console.log(`Stamina recovery: ${staminaUsed} used, recovering ${staminaRecovery}. New stamina: ${newStamina}/${player.maxStamina}`);
+            
             // Update player stamina
             this.stateManager.updateState({
                 player: {
@@ -1071,10 +868,6 @@ export default class BattleManager {
             if (handSize < 3) {
                 this.gemManager.drawGems(3 - handSize);
             }
-            
-            // FIXED: NOW we process buff durations at the end of a full round
-            // This ensures buffs last for a proper turn cycle
-            this.processTurnEnd();
             
             // Get updated player state after status effects processing
             const updatedState = this.stateManager.getState();
@@ -1102,176 +895,93 @@ export default class BattleManager {
             }
         }
     }
-    // Process status effects at end of round - Updated to handle all buff types
+    // Process status effects at end of round
     processStatusEffects() {
         const state = this.stateManager.getState();
         const { battle, player } = state;
         const { enemy } = battle;
         
-        // Safety checks
-        if (!player || !player.buffs || !enemy || !enemy.buffs) {
-            console.warn('Missing player or enemy data in processStatusEffects');
-            return;
-        }
-        
-        // Process player buffs - ONLY apply active effects, don't reduce durations
-        let updatedPlayerBuffs = [...player.buffs]; // Keep all buffs with current durations
+        // Process player buffs
+        let updatedPlayerBuffs = [];
         let playerUpdates = {};
         
-        // Process active effects only
         player.buffs.forEach(buff => {
-            // Process active status effects (damage over time)
-            switch (buff.type) {
-                case 'poison':
-                    const poisonDamage = buff.value;
-                    const newHealth = Math.max(0, player.health - poisonDamage);
-                    
-                    playerUpdates.health = newHealth;
-                    
-                    this.eventBus.emit('player:poisoned-damage', {
-                        amount: poisonDamage
-                    });
-                    
-                    this.eventBus.emit('message:show', {
-                        text: `You take ${poisonDamage} poison damage!`,
-                        type: 'error'
-                    });
-                    
-                    // Check for defeat
-                    if (newHealth <= 0) {
-                        this.endBattle(false);
-                        return; // Exit early to prevent further processing
-                    }
-                    break;
-                    
-                case 'bleeding':
-                    // Process bleeding DoT
-                    const bleedDamage = buff.value;
-                    const newHealthAfterBleed = Math.max(0, (playerUpdates.health !== undefined ? playerUpdates.health : player.health) - bleedDamage);
-                    
-                    playerUpdates.health = newHealthAfterBleed;
-                    
-                    this.eventBus.emit('player:damaged', {
-                        amount: bleedDamage,
-                        source: 'bleeding'
-                    });
-                    
-                    this.eventBus.emit('message:show', {
-                        text: `You take ${bleedDamage} bleeding damage!`,
-                        type: 'error'
-                    });
-                    
-                    // Check for defeat
-                    if (newHealthAfterBleed <= 0) {
-                        this.endBattle(false);
-                        return; // Exit early to prevent further processing
-                    }
-                    break;
-                    
-                case 'burning':
-                    // Process burning DoT
-                    const burnDamage = buff.value;
-                    const newHealthAfterBurn = Math.max(0, (playerUpdates.health !== undefined ? playerUpdates.health : player.health) - burnDamage);
-                    
-                    playerUpdates.health = newHealthAfterBurn;
-                    
-                    this.eventBus.emit('player:damaged', {
-                        amount: burnDamage,
-                        source: 'burning'
-                    });
-                    
-                    this.eventBus.emit('message:show', {
-                        text: `You take ${burnDamage} burning damage!`,
-                        type: 'error'
-                    });
-                    
-                    // Check for defeat
-                    if (newHealthAfterBurn <= 0) {
-                        this.endBattle(false);
-                        return; // Exit early to prevent further processing
-                    }
-                    break;
+            // Reduce duration
+            const newDuration = buff.duration - 1;
+            
+            if (newDuration <= 0) {
+                // Buff expired
+                this.eventBus.emit('player:buff-expired', {
+                    type: buff.type
+                });
+            } else {
+                // Keep buff with reduced duration
+                updatedPlayerBuffs.push({
+                    ...buff,
+                    duration: newDuration
+                });
+            }
+            
+            // Process active poison damage
+            if (buff.type === 'poison') {
+                const poisonDamage = buff.value;
+                const newHealth = Math.max(0, player.health - poisonDamage);
                 
-                case 'regeneration':
-                    // NEW: Process regeneration healing
-                    const regenAmount = buff.value;
-                    const newHealthAfterRegen = Math.min(
-                        player.maxHealth, 
-                        (playerUpdates.health !== undefined ? playerUpdates.health : player.health) + regenAmount
-                    );
-                    
-                    playerUpdates.health = newHealthAfterRegen;
-                    
-                    this.eventBus.emit('player:healed', {
-                        amount: regenAmount,
-                        source: 'regeneration'
-                    });
-                    
-                    this.eventBus.emit('message:show', {
-                        text: `Regeneration heals you for ${regenAmount} health!`,
-                        type: 'success'
-                    });
-                    break;
+                playerUpdates.health = newHealth;
+                
+                this.eventBus.emit('player:poisoned-damage', {
+                    amount: poisonDamage
+                });
+                
+                // Check for defeat
+                if (newHealth <= 0) {
+                    this.endBattle(false);
+                }
             }
         });
         
-        // Process enemy buffs - ONLY apply active effects, don't reduce durations
-        let updatedEnemyBuffs = [...enemy.buffs]; // Keep all buffs with current durations
+        // Process enemy buffs
+        let updatedEnemyBuffs = [];
         let enemyUpdates = {};
         
-        // Process active effects only
         enemy.buffs.forEach(buff => {
-            // Process active status effects
-            switch (buff.type) {
-                case 'poison':
-                    const poisonDamage = buff.value;
-                    const newHealth = Math.max(0, enemy.health - poisonDamage);
-                    
-                    enemyUpdates.health = newHealth;
-                    
-                    this.eventBus.emit('enemy:poisoned-damage', {
-                        amount: poisonDamage
-                    });
-                    
-                    this.eventBus.emit('message:show', {
-                        text: `${enemy.name} takes ${poisonDamage} poison damage!`,
-                        type: 'success'
-                    });
-                    
-                    // Check for victory
-                    if (newHealth <= 0) {
-                        this.endBattle(true);
-                        return; // Exit early to prevent further processing
-                    }
-                    break;
-                    
-                case 'regenerating':
-                    // Process regeneration healing
-                    const regenAmount = buff.value;
-                    const newHealthAfterRegen = Math.min(
-                        enemy.maxHealth, 
-                        (enemyUpdates.health !== undefined ? enemyUpdates.health : enemy.health) + regenAmount
-                    );
-                    
-                    enemyUpdates.health = newHealthAfterRegen;
-                    
-                    this.eventBus.emit('enemy:healed', {
-                        amount: regenAmount,
-                        enemy
-                    });
-                    
-                    this.eventBus.emit('message:show', {
-                        text: `${enemy.name} regenerates ${regenAmount} health!`,
-                        type: 'error'
-                    });
-                    break;
+            // Reduce duration
+            const newDuration = buff.duration - 1;
+            
+            if (newDuration <= 0) {
+                // Buff expired
+                this.eventBus.emit('enemy:buff-expired', {
+                    type: buff.type
+                });
+            } else {
+                // Keep buff with reduced duration
+                updatedEnemyBuffs.push({
+                    ...buff,
+                    duration: newDuration
+                });
+            }
+            
+            // Process active poison damage
+            if (buff.type === 'poison') {
+                const poisonDamage = buff.value;
+                const newHealth = Math.max(0, enemy.health - poisonDamage);
+                
+                enemyUpdates.health = newHealth;
+                
+                this.eventBus.emit('enemy:poisoned-damage', {
+                    amount: poisonDamage
+                });
+                
+                // Check for victory
+                if (newHealth <= 0) {
+                    this.endBattle(true);
+                }
             }
         });
         
-        // Update state with all the changes but keep buff durations intact
+        // Update state
         this.stateManager.updateState({
             player: {
-                ...player,
                 ...playerUpdates,
                 buffs: updatedPlayerBuffs
             },
@@ -1631,107 +1341,16 @@ export default class BattleManager {
         }, 1000);
     }
     
-    // Updated enemy attack to apply buffs correctly
+    // Enemy attack action
     executeEnemyAttack(enemy, player) {
-        // Start with base damage
+        // Calculate damage, accounting for player defense
         let damage = enemy.attack;
-        
-        // Apply damage modifiers from buffs
-        if (enemy.buffs) {
-            // Check for ritual buff - increases damage
-            const ritualBuff = enemy.buffs.find(buff => buff.type === 'ritual');
-            if (ritualBuff) {
-                const bonusDamage = Math.floor(damage * ritualBuff.value);
-                damage += bonusDamage;
-                
-                // Show a message about the increased damage
-                this.eventBus.emit('message:show', {
-                    text: `${enemy.name}'s ritual enhances its attack by ${bonusDamage}!`,
-                    type: 'error'
-                });
-            }
-            
-            // Check for empowered buff - increases damage
-            const empoweredBuff = enemy.buffs.find(buff => buff.type === 'empowered');
-            if (empoweredBuff) {
-                const bonusDamage = empoweredBuff.value;
-                damage += bonusDamage;
-                
-                // Show a message
-                this.eventBus.emit('message:show', {
-                    text: `${enemy.name}'s empowered state adds ${bonusDamage} damage!`,
-                    type: 'error'
-                });
-            }
-            
-            // Check for minion buff - adds extra damage from minions
-            const minionBuff = enemy.buffs.find(buff => buff.type === 'minion');
-            if (minionBuff) {
-                const minionDamage = minionBuff.value;
-                damage += minionDamage;
-                
-                // Show a message
-                this.eventBus.emit('message:show', {
-                    text: `${enemy.name}'s minion adds ${minionDamage} extra damage!`,
-                    type: 'error'
-                });
-            }
-        }
-        
-        // Calculate actual damage after player defense
         let actualDamage = damage;
         
-        // Check for player defense buff
-        const defenseBuff = player.buffs && player.buffs.find(buff => buff.type === 'defense');
+        // Check for defense buff
+        const defenseBuff = player.buffs.find(buff => buff.type === 'defense');
         if (defenseBuff) {
-            const blocked = Math.min(damage, defenseBuff.value);
             actualDamage = Math.max(1, damage - defenseBuff.value);
-            
-            // Show defense message
-            this.eventBus.emit('message:show', {
-                text: `Your defense blocked ${blocked} damage!`,
-                type: 'info'
-            });
-            
-            // NEW: Handle reflective shield
-            if (defenseBuff.reflect) {
-                const reflectDamage = Math.floor(actualDamage * defenseBuff.reflect);
-                
-                // Apply reflected damage to enemy
-                const newEnemyHealth = Math.max(0, enemy.health - reflectDamage);
-                
-                // Update enemy health
-                this.stateManager.updateState({
-                    battle: {
-                        enemy: {
-                            ...enemy,
-                            health: newEnemyHealth
-                        }
-                    }
-                });
-                
-                // Show reflect message
-                this.eventBus.emit('message:show', {
-                    text: `Your reflective shield returns ${reflectDamage} damage to ${enemy.name}!`,
-                    type: 'success'
-                });
-                
-                // Emit damage event
-                this.eventBus.emit('enemy:damaged', {
-                    amount: reflectDamage,
-                    source: 'reflect',
-                    player
-                });
-                
-                // Check if enemy was defeated by reflection
-                if (newEnemyHealth <= 0) {
-                    this.endBattle(true);
-                    return; // Exit early to prevent further processing
-                }
-                
-                // Get updated enemy after reflect damage
-                enemy = this.stateManager.getState().battle.enemy;
-            }
         }
         
         // Apply damage to player
@@ -1757,88 +1376,7 @@ export default class BattleManager {
             this.endBattle(false);
         }
     }
-    processTurnEnd() {
-        const state = this.stateManager.getState();
-        const { battle, player } = state;
-        const { enemy } = battle;
-        
-        // Safety checks
-        if (!player || !player.buffs || !enemy || !enemy.buffs) {
-            console.warn('Missing player or enemy data in processTurnEnd');
-            return;
-        }
-        
-        // Process player buffs - ONLY reduce durations
-        let updatedPlayerBuffs = [];
-        
-        player.buffs.forEach(buff => {
-            // Reduce duration
-            const newDuration = buff.duration - 1;
-            
-            if (newDuration <= 0) {
-                // Buff expired
-                this.eventBus.emit('player:buff-expired', {
-                    type: buff.type
-                });
-                
-                // If it was a significant buff, show a message
-                if (['defense', 'focus', 'charmed', 'stunned', 'webbed', 'bleeding', 'burning'].includes(buff.type)) {
-                    this.eventBus.emit('message:show', {
-                        text: `Your ${buff.type} effect has worn off.`,
-                        type: 'info'
-                    });
-                }
-            } else {
-                // Keep buff with reduced duration
-                updatedPlayerBuffs.push({
-                    ...buff,
-                    duration: newDuration
-                });
-            }
-        });
-        
-        // Process enemy buffs - ONLY reduce durations
-        let updatedEnemyBuffs = [];
-        
-        enemy.buffs.forEach(buff => {
-            // Reduce duration
-            const newDuration = buff.duration - 1;
-            
-            if (newDuration <= 0) {
-                // Buff expired
-                this.eventBus.emit('enemy:buff-expired', {
-                    type: buff.type
-                });
-                
-                // If it was a significant buff, show a message
-                if (['defense', 'phased', 'parrying', 'regenerating', 'ritual', 'empowered', 'minion'].includes(buff.type)) {
-                    this.eventBus.emit('message:show', {
-                        text: `${enemy.name}'s ${buff.type} effect has worn off.`,
-                        type: 'info'
-                    });
-                }
-            } else {
-                // Keep buff with reduced duration
-                updatedEnemyBuffs.push({
-                    ...buff,
-                    duration: newDuration
-                });
-            }
-        });
-        
-        // Update state with reduced durations
-        this.stateManager.updateState({
-            player: {
-                buffs: updatedPlayerBuffs
-            },
-            battle: {
-                enemy: {
-                    ...enemy,
-                    buffs: updatedEnemyBuffs
-                }
-            }
-        });
-    }
+    
     // Enemy defend action
     executeEnemyDefend(enemy) {
         // Add defense buff to enemy
@@ -2164,6 +1702,106 @@ export default class BattleManager {
         }
     }
     
+    // Process status effects at end of round
+    processStatusEffects() {
+        const state = this.stateManager.getState();
+        const { battle, player } = state;
+        const { enemy } = battle;
+        
+        // Process player buffs
+        let updatedPlayerBuffs = [];
+        let playerUpdates = {};
+        
+        player.buffs.forEach(buff => {
+            // Reduce duration
+            const newDuration = buff.duration - 1;
+            
+            if (newDuration <= 0) {
+                // Buff expired
+                this.eventBus.emit('player:buff-expired', {
+                    type: buff.type
+                });
+            } else {
+                // Keep buff with reduced duration
+                updatedPlayerBuffs.push({
+                    ...buff,
+                    duration: newDuration
+                });
+            }
+            
+            // Process active poison damage
+            if (buff.type === 'poison') {
+                const poisonDamage = buff.value;
+                const newHealth = Math.max(0, player.health - poisonDamage);
+                
+                playerUpdates.health = newHealth;
+                
+                this.eventBus.emit('player:poisoned-damage', {
+                    amount: poisonDamage
+                });
+                
+                // Check for defeat
+                if (newHealth <= 0) {
+                    this.endBattle(false);
+                }
+            }
+        });
+        
+        // Process enemy buffs
+        let updatedEnemyBuffs = [];
+        let enemyUpdates = {};
+        
+        enemy.buffs.forEach(buff => {
+            // Reduce duration
+            const newDuration = buff.duration - 1;
+            
+            if (newDuration <= 0) {
+                // Buff expired
+                this.eventBus.emit('enemy:buff-expired', {
+                    type: buff.type
+                });
+            } else {
+                // Keep buff with reduced duration
+                updatedEnemyBuffs.push({
+                    ...buff,
+                    duration: newDuration
+                });
+            }
+            
+            // Process active poison damage
+            if (buff.type === 'poison') {
+                const poisonDamage = buff.value;
+                const newHealth = Math.max(0, enemy.health - poisonDamage);
+                
+                enemyUpdates.health = newHealth;
+                
+                this.eventBus.emit('enemy:poisoned-damage', {
+                    amount: poisonDamage
+                });
+                
+                // Check for victory
+                if (newHealth <= 0) {
+                    this.endBattle(true);
+                }
+            }
+        });
+        
+        // Update state
+        this.stateManager.updateState({
+            player: {
+                ...playerUpdates,
+                buffs: updatedPlayerBuffs
+            },
+            battle: {
+                enemy: {
+                    ...enemy,
+                    ...enemyUpdates,
+                    buffs: updatedEnemyBuffs
+                }
+            }
+        });
+    }
+    
     // Determine enemy's next action
     determineEnemyAction(enemy) {
         // FIXED: Add null check to prevent errors when enemy is null
@@ -2468,51 +2106,6 @@ export default class BattleManager {
         const defenseBuff = player.buffs.find(buff => buff.type === 'defense');
         if (defenseBuff) {
             actualDamage = Math.max(1, damage - defenseBuff.value);
-        }
-        
-        // Apply damage to player
-        const newHealth = Math.max(0, player.health - actualDamage);
-        
-        // 30% chance to stun
-        const willStun = Math.random() < 0.3;
-        let newBuffs = [...player.buffs];
-        
-        if (willStun) {
-            // Add stunned effect
-            const stunnedBuff = {
-                type: 'stunned',
-                duration: 1
-            };
-            
-            // Remove any existing stun before adding new one
-            newBuffs = newBuffs.filter(b => b.type !== 'stunned');
-            newBuffs.push(stunnedBuff);
-            
-            this.eventBus.emit('message:show', {
-                text: `${enemy.name}'s bite stuns you!`,
-                type: 'error'
-            });
-        }
-        
-        // Update state
-        this.stateManager.updateState({
-            player: {
-                health: newHealth,
-                buffs: newBuffs
-            }
-        });
-        
-        // Emit events
-        this.eventBus.emit('player:damaged', {
-            amount: actualDamage,
-            blocked: damage - actualDamage,
-            source: 'enemy-bite',
-            enemy
-        });
-        
-        // Check for defeat
-        if (newHealth <= 0) {
-            this.endBattle(false);
         }
     }
 
