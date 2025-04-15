@@ -4,6 +4,9 @@ export default class GemManager {
         this.eventBus = eventBus;
         this.stateManager = stateManager;
         
+        // Add a constant for default gem bag size
+        this.DEFAULT_GEM_BAG_SIZE = 20;
+        
         // Define possible augmentations
         this.augmentationTypes = {
             'powerful': {
@@ -253,9 +256,9 @@ export default class GemManager {
             });
         }
 
-        // Reset gem bag size to exactly 20 for new run
+        // Reset gem bag size to exactly the default value for new run
         this.stateManager.updateState({
-            gemBagSize: 20
+            gemBagSize: this.DEFAULT_GEM_BAG_SIZE
         });
         
         // Ensure player has clean buffs state before starting
@@ -345,17 +348,15 @@ export default class GemManager {
     initializeGemBagSize() {
         const state = this.stateManager.getState();
         
-        // Default bag size is 30
-        const maxBagSize = 30;
-        
         // Update state if needed
-        if (!state.gemBagSize) {
-            console.log(`Initializing gem bag size to ${maxBagSize}`);
+        if (state.gemBagSize === undefined) {
+            console.log(`Initializing gem bag size to ${this.DEFAULT_GEM_BAG_SIZE}`);
             this.stateManager.updateState({
-                gemBagSize: maxBagSize
+                gemBagSize: this.DEFAULT_GEM_BAG_SIZE
             });
         }
     }
+
     
     // Method to increase gem bag size
     increaseGemBagSize(amount = 1) {
@@ -374,8 +375,9 @@ export default class GemManager {
 
     getGemBagSize() {
         const state = this.stateManager.getState();
-        return state.gemBagSize || 30; // Default to 30 if not set
+        return state.gemBagSize !== undefined ? state.gemBagSize : this.DEFAULT_GEM_BAG_SIZE;
     }
+
     
     // Shuffle array using Fisher-Yates algorithm
     shuffleArray(array) {
