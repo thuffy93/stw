@@ -128,11 +128,12 @@ export default class GemManager {
                 name: 'Burst Attack',
                 color: 'red',
                 type: 'attack',
-                value: 20,
+                value: 18, // Slightly less than Strong Attack (which is 20)
                 cost: 3,
                 icon: '💥',
-                baseSuccess: 15, // Changed from 90% to 15%
-                tooltip: 'Deal 20 damage to the enemy. Knight class bonus: 50% extra damage.'
+                baseSuccess: 15, // Keep the existing success rate
+                tooltip: 'Deal 18 damage with 50% chance to stun enemy for 1 turn. Knight class bonus: 50% extra damage. Failure: Deal half damage to yourself with 25% chance to stun you.',
+                stunChance: 0.5, // 50% chance to stun enemy
             },
             'blue-shield': {
                 id: 'blue-shield',
@@ -158,6 +159,34 @@ export default class GemManager {
                 baseSuccess: 15, // Changed from 90% to 15%
                 tooltip: 'Apply 4 poison damage per turn for 3 turns. Rogue class bonus: 50% extra poison damage.'
             },
+            // Rogue gem
+            'green-precision-lunge': {
+                id: 'green-precision-lunge',
+                name: 'Precision Lunge',
+                color: 'red', // Red gem for rogue
+                type: 'attack',
+                value: 12, // Base damage value - will be doubled against high HP enemies
+                cost: 2,
+                icon: '🗡️',
+                baseSuccess: 15, // Similar to other unlockable gems
+                tooltip: 'Deal 12 damage, doubled if enemy is above 50% HP. Rogue class bonus: 50% extra damage. On failure: Deal half damage to yourself.',
+                doubleAboveHalfHealth: true // Special property for this gem
+            },
+
+            // Knight gem
+            'red-earthsplitter': {
+                id: 'red-earthsplitter',
+                name: 'Earthsplitter',
+                color: 'green', // Green gem for knight
+                type: 'attack',
+                value: 15, // Base damage
+                cost: 3,
+                icon: '⚒️',
+                baseSuccess: 15,
+                tooltip: 'Deal 15 damage and reduce enemy defense by 30% for 2 turns. Knight class bonus: 50% extra damage. On failure: Reduces your defense by 15% for 2 turns.',
+                defenseReduction: 0.3, // 30% defense reduction
+                defenseReductionDuration: 2 // Duration of the effect
+            }
         };
         
         // Set up event listeners
@@ -175,9 +204,9 @@ export default class GemManager {
     
         // Available unlockable gems by class
         this.availableGemsByClass = {
-            'knight': ['red-burst'],
+            'knight': ['red-burst', 'red-earthsplitter'],
             'mage': ['blue-shield'],
-            'rogue': ['green-poison']
+            'rogue': ['green-poison', 'green-precision-lunge']
         };
         
         // Initialize starting bag size
@@ -204,8 +233,8 @@ export default class GemManager {
                 this.updateGemProficiency(gemData.id);
             } else {
                 const skipReason = !gemData.success ? "failed gem" : 
-                                   gemData.proficiency >= 70 ? "already mastered gem" : 
-                                   "base gem";
+                                  gemData.proficiency >= 70 ? "already mastered gem" : 
+                                  "base gem";
                 console.log(`  → NOT updating proficiency for ${skipReason}: ${gemData.id}`);
             }
         });
@@ -1142,13 +1171,15 @@ export default class GemManager {
         // 6. Still offer class-specific upgrades for base gems
         const baseToClassUpgradeMap = {
             'knight': {
-                'red-attack': 'red-strong'
+                'red-attack': 'red-strong',
+                'green-attack': 'red-earthsplitter' // New upgrade path for Knight
             },
             'mage': {
-                'blue-magic': 'blue-strong-heal'
+                'blue-magic': 'blue-strong-heal',
             },
             'rogue': {
-                'green-attack': 'green-quick'
+                'green-attack': 'green-quick',
+                'red-attack': 'green-precision-lunge' // New upgrade path for Rogue
             }
         };
         
@@ -1173,26 +1204,60 @@ export default class GemManager {
             unlockedGemsList = [...globalGems, ...classGems];
         }
         
-        if (gem.color === 'red' && playerClass === 'knight' && unlockedGemsList.includes('red-burst')) {
-            const burstUpgrade = {
-                ...this.gemDefinitions['red-burst'],
-                upgradeType: 'unlocked'
-            };
-            allPossibleUpgrades.push(burstUpgrade);
+        if (gem.color === 'red') {
+            if (playerClass === 'knight' && unlockedGemsList.includes('red-burst')) {
+                const burstUpgrade = {
+                    ...this.gemDefinitions['red-burst'],
+                    upgradeType: 'unlocked'
+                };
+                allPossibleUpgrades.push(burstUpgrade);
+            }
+            if (playerClass === 'knight' && unlockedGemsList.includes('red-earthsplitter')) {
+                const earthsplitterUpgrade = {
+                    ...this.gemDefinitions['red-earthsplitter'],
+                    upgradeType: 'unlocked'
+                };
+                allPossibleUpgrades.push(earthsplitterUpgrade);
+            }
+            if (playerClass === 'rogue' && unlockedGemsList.includes('green-precision-lunge')) {
+                const precisionLungeUpgrade = {
+                    ...this.gemDefinitions['green-precision-lunge'],
+                    upgradeType: 'unlocked'
+                };
+                allPossibleUpgrades.push(precisionLungeUpgrade);
+            }
         }
-        else if (gem.color === 'blue' && playerClass === 'mage' && unlockedGemsList.includes('blue-shield')) {
-            const shieldUpgrade = {
-                ...this.gemDefinitions['blue-shield'],
-                upgradeType: 'unlocked'
-            };
-            allPossibleUpgrades.push(shieldUpgrade);
+        else if (gem.color === 'blue') {
+            if (playerClass === 'mage' && unlockedGemsList.includes('blue-shield')) {
+                const shieldUpgrade = {
+                    ...this.gemDefinitions['blue-shield'],
+                    upgradeType: 'unlocked'
+                };
+                allPossibleUpgrades.push(shieldUpgrade);
+            }
         }
-        else if (gem.color === 'green' && playerClass === 'rogue' && unlockedGemsList.includes('green-poison')) {
-            const poisonUpgrade = {
-                ...this.gemDefinitions['green-poison'],
-                upgradeType: 'unlocked'
-            };
-            allPossibleUpgrades.push(poisonUpgrade);
+        else if (gem.color === 'green') {
+            if (playerClass === 'rogue' && unlockedGemsList.includes('green-poison')) {
+                const poisonUpgrade = {
+                    ...this.gemDefinitions['green-poison'],
+                    upgradeType: 'unlocked'
+                };
+                allPossibleUpgrades.push(poisonUpgrade);
+            }
+            if (playerClass === 'rogue' && unlockedGemsList.includes('green-precision-lunge')) {
+                const precisionLungeUpgrade = {
+                    ...this.gemDefinitions['green-precision-lunge'],
+                    upgradeType: 'unlocked'
+                };
+                allPossibleUpgrades.push(precisionLungeUpgrade);
+            }
+            if (playerClass === 'knight' && unlockedGemsList.includes('red-earthsplitter')) {
+                const earthsplitterUpgrade = {
+                    ...this.gemDefinitions['red-earthsplitter'],
+                    upgradeType: 'unlocked'
+                };
+                allPossibleUpgrades.push(earthsplitterUpgrade);
+            }
         }
         
         // NEW: Check if we already have a rotating set of options for this gem
@@ -1281,9 +1346,9 @@ export default class GemManager {
         
         // Check if this gem is valid for the current class
         const classSpecificGems = {
-            'knight': ['red-burst', 'red-strong', 'red-attack'],
+            'knight': ['red-burst', 'red-strong', 'red-attack', 'red-earthsplitter'],
             'mage': ['blue-shield', 'blue-strong-heal', 'blue-magic'],
-            'rogue': ['green-poison', 'green-quick', 'green-attack']
+            'rogue': ['green-poison', 'green-quick', 'green-attack', 'green-precision-lunge']
         };
         
         // Check if the gem is appropriate for the class (or is a grey gem which works for all)

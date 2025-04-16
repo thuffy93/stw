@@ -1,4 +1,4 @@
-// main.js - Main application entry point with enhanced foundation components
+// main.js - Main application entry point
 import EventBus from './EventBus.js';
 import StateManager from './StateManager.js';
 import GemManager from './GemManager.js';
@@ -6,7 +6,6 @@ import BattleManager from './BattleManager.js';
 import ShopManager from './ShopManager.js';
 import UIManager from './UIManager.js';
 import CampManager from './CampManager.js';
-import Utils from './utils.js'; // Add the new Utils import
 
 // Audio system - simple wrapper for sound effects
 class AudioManager {
@@ -67,18 +66,13 @@ class AudioManager {
     }
 }
 
-// Initialize the game with enhanced components
+// Initialize the game
 class Game {
     constructor() {
-        // Create the event bus with debugging capability
+        // Create the event bus (central messaging system)
         this.eventBus = new EventBus();
         
-        // Enable debug mode in development
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            this.eventBus.setDebug(true);
-        }
-        
-        // Create the state manager with enhanced features
+        // Create the state manager
         this.stateManager = new StateManager(this.eventBus);
         
         // Create the gem manager
@@ -117,29 +111,19 @@ class Game {
         // Initial UI update
         this.eventBus.emit('state:updated');
         
-        console.log('Game initialized with enhanced components!');
+        console.log('Game initialized!');
     }
     
     setupEventListeners() {
         // Connect various events across managers
         
-        // Forward gem-related events to gem manager with proper batching
+        // Forward gem-related events to gem manager
         this.eventBus.on('gems:play', (selectedGems) => {
-            // Start batch update to reduce UI flickering
-            this.stateManager.startBatch();
-            
-            // Play gems
             this.gemManager.playGems(selectedGems);
-            
-            // End batch and apply all updates at once
-            this.stateManager.endBatch();
         });
         
         this.eventBus.on('gems:discard', (selectedGems) => {
-            // Use batch update for discard operation
-            this.stateManager.startBatch();
             this.gemManager.discardGems(selectedGems);
-            this.stateManager.endBatch();
         });
         
         // Handle player wait action (get focus)
@@ -163,9 +147,6 @@ class Game {
                 duration: 1
             };
             
-            // Use batch update for applying multiple buffs
-            this.stateManager.startBatch();
-            
             // Remove any existing focus or defense buffs before adding new ones
             const newBuffs = [
                 ...playerBuffs.filter(b => b.type !== 'focus' && b.type !== 'defense'), 
@@ -186,8 +167,6 @@ class Game {
             
             // End turn
             this.eventBus.emit('turn:ended');
-            
-            this.stateManager.endBatch();
         });
         
         // Connect stamina:used event to battleManager
@@ -228,18 +207,14 @@ class Game {
             this.shopManager.unlockGem(gemId);
         });
         
-        // Audio events with debouncing to prevent sound overlap
-        const debouncedPlay = Utils.debounce((soundName) => {
-            this.audioManager.play(soundName);
-        }, 50);
-        
-        this.eventBus.on('player:damaged', () => debouncedPlay('playerDamage'));
-        this.eventBus.on('enemy:damaged', () => debouncedPlay('enemyDamage'));
-        this.eventBus.on('player:healed', () => debouncedPlay('heal'));
-        this.eventBus.on('battle:victory', () => debouncedPlay('victory'));
-        this.eventBus.on('battle:defeat', () => debouncedPlay('defeat'));
+        // Audio events
+        this.eventBus.on('player:damaged', () => this.audioManager.play('playerDamage'));
+        this.eventBus.on('enemy:damaged', () => this.audioManager.play('enemyDamage'));
+        this.eventBus.on('player:healed', () => this.audioManager.play('heal'));
+        this.eventBus.on('battle:victory', () => this.audioManager.play('victory'));
+        this.eventBus.on('battle:defeat', () => this.audioManager.play('defeat'));
         this.eventBus.on('gem:played', (gem) => {
-            debouncedPlay(gem.success ? 'gemPlay' : 'gemFail');
+            this.audioManager.play(gem.success ? 'gemPlay' : 'gemFail');
         });
 
         this.eventBus.on('gems:recycle', () => {
@@ -249,90 +224,22 @@ class Game {
         this.eventBus.on('gem:expand-bag', (amount) => {
             this.gemManager.increaseGemBagSize(amount || 1);
         });
-        
-        // Add performance monitoring in development mode
-        if (this.eventBus.debug) {
-            this.setupPerformanceMonitoring();
-        }
-    }
-    
-    // New method for performance monitoring
-    setupPerformanceMonitoring() {
-        // Track time taken for critical operations
-        const criticalEvents = [
-            'battle:start',
-            'battle:victory',
-            'battle:defeat',
-            'gems:play',
-            'state:updated',
-            'screen:changed'
-        ];
-        
-        criticalEvents.forEach(eventName => {
-            this.eventBus.on(eventName, () => {
-                const startTime = performance.now();
-                
-                // Allow event to process and UI to update
-                setTimeout(() => {
-                    const endTime = performance.now();
-                    const duration = endTime - startTime;
-                    
-                    if (duration > 100) { // Only log slow operations
-                        console.warn(`[Performance] ${eventName} took ${duration.toFixed(2)}ms`);
-                    }
-                }, 0);
-            });
-        });
-        
-        // Monitor frame rate
-        let frameCount = 0;
-        let lastTime = performance.now();
-        
-        const checkFrameRate = () => {
-            const now = performance.now();
-            frameCount++;
-            
-            // Check every second
-            if (now - lastTime >= 1000) {
-                const fps = Math.round((frameCount * 1000) / (now - lastTime));
-                
-                if (fps < 30) {
-                    console.warn(`[Performance] Low frame rate detected: ${fps}fps`);
-                }
-                
-                frameCount = 0;
-                lastTime = now;
-            }
-            
-            requestAnimationFrame(checkFrameRate);
-        };
-        
-        requestAnimationFrame(checkFrameRate);
     }
     
     // Start the game
     start() {
-        console.log('Game starting with optimized foundation!');
+        console.log('Game starting!');
         
         // Show initial screen (character select)
         this.stateManager.changeScreen('character-select-screen');
         
-        // Expose useful debugging functions to global window for console access
-        if (this.eventBus.debug) {
-            window.game = {
-                addMetaZenny: (amount) => this.stateManager.addMetaZenny(amount),
-                getState: () => this.stateManager.getState(),
-                getEventStats: () => this.eventBus.getListenerStats(),
-                eventHistory: () => this.eventBus.getEventHistory()
-            };
-        } else {
-            // Basic function for production mode
-            window.addMetaZenny = (amount) => {
-                return this.stateManager.addMetaZenny(amount);
-            };
-        }
+        // Expose addMetaZenny to global window for console access
+        window.addMetaZenny = (amount) => {
+            return this.stateManager.addMetaZenny(amount);
+        };
     }
 }
+
 
 // Wait for DOM to load then initialize the game
 document.addEventListener('DOMContentLoaded', () => {
