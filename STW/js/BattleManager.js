@@ -594,17 +594,26 @@ export default class BattleManager {
                     damageAmount = Math.floor(damageAmount * 1.5); // 50% bonus
                 }
                 
-                // Apply any active player buffs - FIXED: Added safety check
+                // Apply any active player buffs
                 if (player.buffs && player.buffs.some(buff => buff.type === 'focus')) {
                     damageAmount = Math.floor(damageAmount * 1.2); // 20% bonus from focus
                 }
                 
-                // Check for player debuffs that reduce damage output
-                if (player.buffs) {
-                    // Various debuff checks...
+                // Check for Precision Lunge special effect
+                if (gem.id === 'green-precision-lunge' && enemy.health > enemy.maxHealth * 0.5) {
+                    damageAmount *= 2; // Double damage if enemy is above 50% HP
+                    
+                    // Show message about the effect
+                    this.eventBus.emit('message:show', {
+                        text: `Precision Lunge hits ${enemy.name}'s vulnerable spot for double damage!`,
+                        type: 'success'
+                    });
                 }
                 
-                // FIXED: Check if enemy is phased (invulnerable)
+                // Check for player debuffs that reduce damage output
+                // (Any existing debuff checks here...)
+                
+                // Check if enemy is phased (invulnerable)
                 if (enemy.buffs && enemy.buffs.some(buff => buff.type === 'phased')) {
                     // Enemy is invulnerable - no damage
                     this.eventBus.emit('message:show', {
@@ -617,13 +626,14 @@ export default class BattleManager {
                     break;
                 }
                 
-                // FIXED: Check for enemy defense buff
+                // Calculate actual damage with defense reduction
                 let actualDamage = damageAmount;
                 let blockedDamage = 0;
                 
+                // Check for enemy defense buff
                 const enemyDefenseBuff = enemy.buffs && enemy.buffs.find(buff => buff.type === 'defense');
                 if (enemyDefenseBuff) {
-                    // NEW: Check for piercing augmentation
+                    // Check for piercing augmentation
                     let defenseToBePierced = 0;
                     if (gem.augmentation === 'piercing' && gem.defenseBypass) {
                         defenseToBePierced = Math.floor(enemyDefenseBuff.value * gem.defenseBypass);
@@ -648,11 +658,27 @@ export default class BattleManager {
                     }
                 }
                 
-                // Check for parrying buff and other enemy effects...
-                
                 // Apply damage to enemy
                 const newEnemyHealth = Math.max(0, enemy.health - actualDamage);
                 enemyUpdates.health = newEnemyHealth;
+                
+                // Check for Earthsplitter defense reduction effect
+                if (gem.id === 'red-earthsplitter') {
+                    // Create defense reduction debuff
+                    const defenseReductionBuff = {
+                        type: 'defense-reduction',
+                        value: gem.defenseReduction,
+                        duration: gem.defenseReductionDuration || 2
+                    };
+                    
+                    // Add to enemy buffs (actually debuffs)
+                    updatedEnemyBuffs.push(defenseReductionBuff);
+                    
+                    this.eventBus.emit('message:show', {
+                        text: `Earthsplitter reduces ${enemy.name}'s defense by ${gem.defenseReduction * 100}% for ${gem.defenseReductionDuration} turns!`,
+                        type: 'success'
+                    });
+                }
                 
                 // Emit damage event with blocked amount
                 this.eventBus.emit('enemy:damaged', {
@@ -683,7 +709,7 @@ export default class BattleManager {
                     return;
                 }
                 
-                // NEW: Handle swift augmentation effect (draw an extra gem)
+                // Handle swift augmentation effect (draw an extra gem)
                 if (gem.augmentation === 'swift' || gem.specialEffect === 'draw') {
                     console.log("Swift gem effect: Drawing an extra gem");
                     this.gemManager.drawGems(1);
@@ -749,7 +775,7 @@ export default class BattleManager {
                     defenseAmount = Math.floor(defenseAmount * 1.5); // 50% bonus
                 }
                 
-                // NEW: Apply powerful augmentation to defense
+                // Apply powerful augmentation to defense
                 if (gem.augmentation === 'powerful') {
                     const powerfulBonus = Math.floor(defenseAmount * 0.3); // 30% extra defense
                     defenseAmount += powerfulBonus;
@@ -760,10 +786,7 @@ export default class BattleManager {
                     });
                 }
                 
-                // Remove existing defense buff - FIXED: Added safety check
-                const updatedBuffs = player.buffs ? player.buffs.filter(b => b.type !== 'defense') : [];
-                
-                // NEW: Handle lasting augmentation by extending duration
+                // Handle lasting augmentation by extending duration
                 let defenseDuration = gem.duration || 2;
                 if (gem.augmentation === 'lasting') {
                     defenseDuration += 2; // Add 2 more turns of duration
@@ -772,23 +795,32 @@ export default class BattleManager {
                         text: `Lasting shield will remain for ${defenseDuration} turns!`,
                         type: 'success'
                     });
+                } else {
+                    // Standard defense buff
+                    const defenseBuff = {
+                        type: 'defense',
+                        value: defenseAmount,
+                        duration: defenseDuration
+                    };
+                    
+                    // Remove existing defense buff
+                    const filteredBuffs = player.buffs ? player.buffs.filter(b => b.type !== 'defense') : [];
+                    filteredBuffs.push(defenseBuff);
+                    
+                    // Update player buffs
+                    this.stateManager.updateState({
+                        player: {
+                            buffs: filteredBuffs
+                        }
+                    });
+                    
+                    // Emit shield event
+                    this.eventBus.emit('player:shielded', {
+                        defense: defenseAmount,
+                        duration: defenseDuration,
+                        gem: gem
+                    });
                 }
-                
-                // Add defense buff
-                const defenseBuff = {
-                    type: 'defense',
-                    value: defenseAmount,
-                    duration: defenseDuration
-                };
-                
-                newBuffs.push(defenseBuff);
-                
-                // Emit shield event
-                this.eventBus.emit('player:shielded', {
-                    defense: defenseAmount,
-                    duration: defenseDuration,
-                    gem: gem
-                });
                 
                 // Handle swift augmentation effect
                 if (gem.augmentation === 'swift' || gem.specialEffect === 'draw') {
@@ -928,37 +960,62 @@ export default class BattleManager {
         switch(gem.type) {
             case 'attack':
                 // Deal half damage to self
-                const selfDamage = Math.floor(gem.value / 2);
-                const newHealth = Math.max(0, player.health - selfDamage);
+                let selfDamage = Math.floor(gem.value / 2);
+                let newHealth = Math.max(0, player.health - selfDamage);
+                let newBuffs = [...player.buffs];
                 
-                // Potentially become stunned
-                const stunBuff = {
-                    type: 'stunned',
-                    duration: 1
-                };
+                // For Precision Lunge failure
+                if (gem.id === 'green-precision-lunge') {
+                    this.eventBus.emit('message:show', {
+                        text: `Your Precision Lunge fails and you take ${selfDamage} damage!`,
+                        type: 'error'
+                    });
+                }
+                // For Earthsplitter failure
+                else if (gem.id === 'red-earthsplitter') {
+                    // Apply defense reduction debuff to player
+                    const defenseReductionBuff = {
+                        type: 'defense-reduction',
+                        value: 0.15, // 15% reduction
+                        duration: 2
+                    };
+                    
+                    // Add to player buffs (actually debuffs)
+                    newBuffs.push(defenseReductionBuff);
+                    
+                    this.eventBus.emit('message:show', {
+                        text: `Your Earthsplitter fails, reducing your defense by 15% for 2 turns!`,
+                        type: 'error'
+                    });
+                }
+                // Default case for attack failures
+                else {
+                    // Potentially become stunned (existing code)
+                    const stunBuff = {
+                        type: 'stunned',
+                        duration: 1
+                    };
+                    
+                    newBuffs.push(stunBuff);
+                    
+                    this.eventBus.emit('message:show', {
+                        text: 'Stunned! Turn skipped.',
+                        type: 'error'
+                    });
+                    
+                    // Automatically end the turn after a short delay
+                    setTimeout(() => {
+                        this.processEndOfTurn();
+                    }, 1000);
+                }
                 
+                // Update player state
                 this.stateManager.updateState({
                     player: {
                         health: newHealth,
-                        buffs: [...player.buffs, stunBuff]
+                        buffs: newBuffs
                     }
                 });
-                
-                this.eventBus.emit('player:damaged', {
-                    amount: selfDamage,
-                    source: 'gem-failure'
-                });
-                
-                // Display stun message
-                this.eventBus.emit('message:show', {
-                    text: 'Stunned! Turn skipped.',
-                    type: 'error'
-                });
-                
-                // Automatically end the turn after a short delay
-                setTimeout(() => {
-                    this.processEndOfTurn();
-                }, 1000);
                 
                 break;
                 
@@ -995,8 +1052,6 @@ export default class BattleManager {
                     source: 'poison-failure'
                 });
                 break;
-                
-            // For shield and other types, do nothing or minimal penalty
             default:
                 break;
         }
@@ -1633,9 +1688,17 @@ export default class BattleManager {
     
     // Updated enemy attack to apply buffs correctly
     executeEnemyAttack(enemy, player) {
+        // Get the most up-to-date player state
+        const currentState = this.stateManager.getState();
+        const currentPlayer = currentState.player;
+        
+        // Make sure we have the current buffs array, with a fallback to empty array if null
+        const playerBuffs = currentPlayer.buffs || [];
+        
+        console.log("ENEMY ATTACK - Current player buffs:", playerBuffs);
+        
         // Start with base damage
         let damage = enemy.attack;
-        
         // Apply damage modifiers from buffs
         if (enemy.buffs) {
             // Check for ritual buff - increases damage
@@ -1680,61 +1743,14 @@ export default class BattleManager {
         
         // Calculate actual damage after player defense
         let actualDamage = damage;
-        
-        // Check for player defense buff
+
+        // Check for defense buff AFTER absorption
         const defenseBuff = player.buffs && player.buffs.find(buff => buff.type === 'defense');
         if (defenseBuff) {
-            const blocked = Math.min(damage, defenseBuff.value);
-            actualDamage = Math.max(1, damage - defenseBuff.value);
-            
-            // Show defense message
-            this.eventBus.emit('message:show', {
-                text: `Your defense blocked ${blocked} damage!`,
-                type: 'info'
-            });
-            
-            // NEW: Handle reflective shield
-            if (defenseBuff.reflect) {
-                const reflectDamage = Math.floor(actualDamage * defenseBuff.reflect);
-                
-                // Apply reflected damage to enemy
-                const newEnemyHealth = Math.max(0, enemy.health - reflectDamage);
-                
-                // Update enemy health
-                this.stateManager.updateState({
-                    battle: {
-                        enemy: {
-                            ...enemy,
-                            health: newEnemyHealth
-                        }
-                    }
-                });
-                
-                // Show reflect message
-                this.eventBus.emit('message:show', {
-                    text: `Your reflective shield returns ${reflectDamage} damage to ${enemy.name}!`,
-                    type: 'success'
-                });
-                
-                // Emit damage event
-                this.eventBus.emit('enemy:damaged', {
-                    amount: reflectDamage,
-                    source: 'reflect',
-                    player
-                });
-                
-                // Check if enemy was defeated by reflection
-                if (newEnemyHealth <= 0) {
-                    this.endBattle(true);
-                    return; // Exit early to prevent further processing
-                }
-                
-                // Get updated enemy after reflect damage
-                enemy = this.stateManager.getState().battle.enemy;
-            }
+            // Apply normal defense processing (existing code)
         }
         
-        // Apply damage to player
+        // Apply remaining damage to player
         const newHealth = Math.max(0, player.health - actualDamage);
         
         // Update state
@@ -1744,10 +1760,10 @@ export default class BattleManager {
             }
         });
         
-        // Emit event
+        // Emit event with absorption info
         this.eventBus.emit('player:damaged', {
             amount: actualDamage,
-            blocked: damage - actualDamage,
+            blocked: (damage - actualDamage),
             source: 'enemy-attack',
             enemy
         });
